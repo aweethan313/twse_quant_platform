@@ -1,11 +1,40 @@
+# Python
 .venv/
 __pycache__/
 *.pyc
 *.pyo
-*.db
-*.sqlite
-*.sqlite3
-data/
-*.log
+*.pyd
+
+# macOS
 .DS_Store
+
+# Local env
+.env
+.env.*
+
+# Database / generated data
+data/db/*.db
+data/db/*.sqlite
+data/db/*.sqlite3
+data/raw/
+data/reports/
+data/external/
+
+# Backups / temp
+backup*/
+backup_*/
+tmp/
 *.zip
+*.tar.gz
+
+# Logs
+*.log
+logs/
+
+# Ignore all generated local data
+data/
+*.db-journal
+
+# Ignore all generated local data
+data/
+*.db-journal
