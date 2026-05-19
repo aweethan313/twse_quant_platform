@@ -273,6 +273,20 @@ class BaseStrategy(ABC):
         feat = self._features_from_history(hist)
         market_context = self._fetch_market_context(db, score_date)
         feat.update(self._fetch_stock_structure(db, code, score_date))
+        # V2: 從 daily_scores 補充技術欄位備援
+        _ds = db.execute(text(
+            "SELECT vol_ratio,buy_sell_ratio,open_to_close_pct,close_position,ret1,ret5,ret20 "
+            "FROM daily_scores WHERE code=:c AND score_date=:d"
+        ), {"c": code, "d": score_date}).fetchone()
+        if _ds:
+            feat.setdefault("vol_ratio",             _safe_float(_ds[0], 1.0))
+            feat.setdefault("buy_sell_ratio",         _safe_float(_ds[1], 1.0))
+            feat.setdefault("open_to_close_pct",      _safe_float(_ds[2], 0.0))
+            feat.setdefault("close_position",         _safe_float(_ds[3], 0.5))
+            feat.setdefault("structure_volume_ratio", _safe_float(_ds[0], 1.0))
+            if not feat.get("ret1"):  feat["ret1"]  = _safe_float(_ds[4], 0.0)
+            if not feat.get("ret5"):  feat["ret5"]  = _safe_float(_ds[5], 0.0)
+            if not feat.get("ret20"): feat["ret20"] = _safe_float(_ds[6], 0.0)
         feat.update({
             "close": execution_price,
             "trade_date": trade_date,
