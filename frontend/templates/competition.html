@@ -1,0 +1,258 @@
+{% extends "base.html" %}
+{% block title %}月度競賽 | TWSE Quant{% endblock %}
+{% block nav_comp %}bg-surface-4 text-white{% endblock %}
+
+{% block content %}
+<div class="p-4 space-y-4">
+
+  <!-- ── 競賽期間設定 ── -->
+  <div class="bg-surface-2 border border-border rounded-lg px-4 py-3 flex flex-wrap items-center gap-4">
+    <span class="text-sm font-medium">🏁 競賽設定</span>
+    <div class="flex items-center gap-2">
+      <label class="text-xs text-gray-500">開始日</label>
+      <input id="start_date" type="date" class="bg-surface-3 border border-border rounded px-2 py-1 text-sm font-mono outline-none focus:border-blue">
+    </div>
+    <div class="flex items-center gap-2">
+      <label class="text-xs text-gray-500">結束日</label>
+      <input id="end_date" type="date" class="bg-surface-3 border border-border rounded px-2 py-1 text-sm font-mono outline-none focus:border-blue">
+    </div>
+    <button onclick="loadAll()" class="bg-accent text-black font-bold px-4 py-1.5 rounded text-sm hover:opacity-90 transition">更新</button>
+    <span id="comp_status" class="ml-auto text-xs text-gray-500"></span>
+  </div>
+
+  <!-- ── 排行榜 ── -->
+  <div class="bg-surface-2 border border-border rounded-lg">
+    <div class="px-4 py-3 border-b border-border text-sm font-medium">🏆 策略排行榜</div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-xs text-gray-500 border-b border-border">
+            <th class="px-4 py-3 text-center w-10">排名</th>
+            <th class="px-4 py-3 text-left">策略名稱</th>
+            <th class="px-4 py-3 text-left">策略類型</th>
+            <th class="px-4 py-3 text-right">期初資產</th>
+            <th class="px-4 py-3 text-right">期末資產</th>
+            <th class="px-4 py-3 text-right">報酬率</th>
+            <th class="px-4 py-3 text-right">最大回撤</th>
+          </tr>
+        </thead>
+        <tbody id="rank_body" class="divide-y divide-border">
+          <tr><td colspan="7" class="text-center py-8 text-gray-500 text-xs">載入中…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── 權益曲線競賽圖 ── -->
+  <div class="bg-surface-2 border border-border rounded-lg p-4">
+    <div class="flex items-center justify-between mb-4">
+      <div class="text-sm font-medium">📈 策略資產競賽圖</div>
+      <div id="curve_legend" class="flex flex-wrap gap-3"></div>
+    </div>
+    <div class="h-80">
+      <canvas id="race_chart"></canvas>
+    </div>
+  </div>
+
+  <!-- ── 指標對比雷達 ── -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div class="bg-surface-2 border border-border rounded-lg p-4">
+      <div class="text-sm font-medium mb-4">📊 報酬率對比（柱狀圖）</div>
+      <div class="h-56"><canvas id="bar_chart"></canvas></div>
+    </div>
+    <div class="bg-surface-2 border border-border rounded-lg p-4">
+      <div class="text-sm font-medium mb-4">📐 風險收益散佈</div>
+      <div class="h-56"><canvas id="scatter_chart"></canvas></div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const COLORS = ['#58a6ff','#39d353','#f0b429','#f85149','#a371f7','#79c0ff','#56d364'];
+let raceChart = null, barChart = null, scatterChart = null;
+
+// ── 日期初始化 ────────────────────────────────
+(function(){
+  const today = new Date();
+  const start = new Date(today); start.setDate(today.getDate()-30);
+  const fmt = d => d.toISOString().slice(0,10);
+  document.getElementById('start_date').value = fmt(start);
+  document.getElementById('end_date').value   = fmt(today);
+})();
+
+async function loadAll(){
+  const s = document.getElementById('start_date').value;
+  const e = document.getElementById('end_date').value;
+  const days = Math.round((new Date(e)-new Date(s))/(86400000));
+  document.getElementById('comp_status').textContent = `競賽期 ${days} 天`;
+  await Promise.all([loadRanking(s,e), loadCurves()]);
+}
+
+// ── 排行榜 ───────────────────────────────────
+async function loadRanking(s, e){
+  try {
+    const data = await api(`/competition/ranking?start_date=${s}&end_date=${e}`);
+    const el = document.getElementById('rank_body');
+    if(!data.length){
+      el.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-gray-500 text-xs">尚無資料（需先執行策略）</td></tr>';
+      return;
+    }
+    const medals = ['🥇','🥈','🥉'];
+    el.innerHTML = data.map((r,i)=>`
+      <tr class="hover:bg-surface-3 ${i===0?'bg-surface-3/50':''}">
+        <td class="px-4 py-3 text-center font-bold text-lg">${medals[i]||r.rank}</td>
+        <td class="px-4 py-3">
+          <div class="font-medium">${r.name}</div>
+          <div class="text-xs text-gray-500">${r.latest_date}</div>
+        </td>
+        <td class="px-4 py-3 text-xs text-gray-400">${r.strategy_class}</td>
+        <td class="px-4 py-3 text-right font-mono text-sm">${fmt(r.start_equity)}</td>
+        <td class="px-4 py-3 text-right font-mono text-sm font-bold">${fmt(r.end_equity)}</td>
+        <td class="px-4 py-3 text-right font-mono font-bold text-base ${clsPN(r.return_pct)}">
+          ${fmtPct(r.return_pct)}
+        </td>
+        <td class="px-4 py-3 text-right font-mono text-dn text-sm">${fmtP(r.max_drawdown,2)}%</td>
+      </tr>
+    `).join('');
+    drawBarChart(data);
+    drawScatterChart(data);
+  } catch(e){ console.warn(e); }
+}
+
+// ── 權益曲線 ─────────────────────────────────
+async function loadCurves(){
+  try {
+    const data = await api('/competition/equity_curves');
+    if(!data.length) return;
+    drawRaceChart(data);
+    renderLegend(data);
+  } catch(e){ console.warn(e); }
+}
+
+function drawRaceChart(accounts){
+  const ctx = document.getElementById('race_chart').getContext('2d');
+  if(raceChart) raceChart.destroy();
+
+  const datasets = accounts.map((acc,i)=>({
+    label: acc.name,
+    data:  acc.curve.map(p=>({x:p.date, y:p.total})),
+    borderColor:     COLORS[i % COLORS.length],
+    backgroundColor: COLORS[i % COLORS.length]+'22',
+    fill:  false,
+    borderWidth: 2,
+    pointRadius: 2,
+    tension: 0.3,
+  }));
+
+  raceChart = new Chart(ctx, {
+    type:'line',
+    data:{ datasets },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      interaction:{ mode:'index', intersect:false },
+      plugins:{
+        legend:{ display:false },
+        tooltip:{
+          backgroundColor:'#1c2128', borderColor:'#30363d', borderWidth:1,
+          titleColor:'#e6edf3', bodyColor:'#7d8590',
+          callbacks:{
+            label: ctx => ` ${ctx.dataset.label}: ${fmt(ctx.parsed.y)}`
+          }
+        }
+      },
+      scales:{
+        x:{
+          type:'category',
+          grid:{ color:'rgba(48,54,61,.4)' },
+          ticks:{ color:'#7d8590', font:{size:9}, maxTicksLimit:10 }
+        },
+        y:{
+          grid:{ color:'rgba(48,54,61,.4)' },
+          ticks:{
+            color:'#7d8590', font:{size:9},
+            callback: v => fmt(v)
+          },
+          position:'right'
+        }
+      }
+    }
+  });
+}
+
+function renderLegend(accounts){
+  const el = document.getElementById('curve_legend');
+  el.innerHTML = accounts.map((a,i)=>`
+    <div class="flex items-center gap-1.5">
+      <div class="w-3 h-3 rounded-sm" style="background:${COLORS[i%COLORS.length]}"></div>
+      <span class="text-xs text-gray-300">${a.name}</span>
+    </div>
+  `).join('');
+}
+
+function drawBarChart(data){
+  const ctx = document.getElementById('bar_chart').getContext('2d');
+  if(barChart) barChart.destroy();
+  barChart = new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels: data.map(r=>r.name),
+      datasets:[{
+        label:'報酬率%',
+        data: data.map(r=>r.return_pct),
+        backgroundColor: data.map(r=>r.return_pct>=0?'rgba(57,211,83,.7)':'rgba(248,81,73,.7)'),
+        borderColor:     data.map(r=>r.return_pct>=0?'#39d353':'#f85149'),
+        borderWidth:1, borderRadius:4,
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}, tooltip:{backgroundColor:'#1c2128',borderColor:'#30363d',borderWidth:1,titleColor:'#e6edf3',bodyColor:'#7d8590'}},
+      scales:{
+        x:{grid:{color:'rgba(48,54,61,.4)'},ticks:{color:'#7d8590',font:{size:10}}},
+        y:{grid:{color:'rgba(48,54,61,.4)'},ticks:{color:'#7d8590',font:{size:9},callback:v=>v+'%'},position:'right'}
+      }
+    }
+  });
+}
+
+function drawScatterChart(data){
+  const ctx = document.getElementById('scatter_chart').getContext('2d');
+  if(scatterChart) scatterChart.destroy();
+  scatterChart = new Chart(ctx,{
+    type:'scatter',
+    data:{
+      datasets:[{
+        label:'風險/報酬',
+        data: data.map((r,i)=>({x: Math.abs(r.max_drawdown), y: r.return_pct, name: r.name})),
+        backgroundColor: data.map((_,i)=>COLORS[i%COLORS.length]+'cc'),
+        borderColor: data.map((_,i)=>COLORS[i%COLORS.length]),
+        pointRadius: 8, pointHoverRadius:10,
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          backgroundColor:'#1c2128',borderColor:'#30363d',borderWidth:1,
+          titleColor:'#e6edf3',bodyColor:'#7d8590',
+          callbacks:{
+            label: ctx => ` ${ctx.raw.name}  回撤:${fmtP(ctx.raw.x,2)}%  報酬:${fmtPct(ctx.raw.y)}`
+          }
+        }
+      },
+      scales:{
+        x:{title:{display:true,text:'最大回撤 (%)',color:'#7d8590',font:{size:10}},grid:{color:'rgba(48,54,61,.4)'},ticks:{color:'#7d8590',font:{size:9}}},
+        y:{title:{display:true,text:'報酬率 (%)',color:'#7d8590',font:{size:10}},grid:{color:'rgba(48,54,61,.4)'},ticks:{color:'#7d8590',font:{size:9}},position:'right'}
+      }
+    }
+  });
+}
+
+loadAll();
+setInterval(loadAll, 60000);
+</script>
+{% endblock %}

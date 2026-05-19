@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}TWSE 量化平台{% endblock %}</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        surface: { DEFAULT:'#0d1117', 2:'#161b22', 3:'#1c2128', 4:'#21262d' },
+        border:  { DEFAULT:'#30363d' },
+        up:      { DEFAULT:'#ff3333', dim:'#4a1a1a' },
+        dn:      { DEFAULT:'#33cc66', dim:'#1a4a27' },
+        accent:  { DEFAULT:'#f0b429' },
+        blue:    { DEFAULT:'#58a6ff' },
+      },
+      fontFamily: { mono: ['JetBrains Mono','Courier New','monospace'] }
+    }
+  }
+}
+</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  body { background:#0d1117; color:#e6edf3; font-family:'Noto Sans TC',sans-serif; }
+  ::-webkit-scrollbar{width:5px;height:5px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:#30363d;border-radius:4px}
+  .badge-up  { background:#4a1a1a; color:#ff3333; }
+  .badge-dn  { background:#1a4a27; color:#33cc66; }
+  .badge-hold{ background:#2d2d00; color:#f0b429; }
+  .badge-buy { background:#4a1a1a; color:#ff3333; }
+  .badge-sell{ background:#1a4a27; color:#33cc66; }
+</style>
+{% block head %}{% endblock %}
+</head>
+<body class="min-h-screen">
+<nav class="bg-surface-2 border-b border-border sticky top-0 z-50">
+  <div class="flex items-center gap-2 px-4 py-2">
+    <span class="text-accent font-bold text-base tracking-wider mr-4">▲ TWSE QUANT</span>
+    <a href="/"            class="nav-link px-3 py-1.5 rounded text-sm {% block nav_market %}text-gray-400 hover:text-white{% endblock %}">行情總覽</a>
+    <a href="/strategies"  class="nav-link px-3 py-1.5 rounded text-sm {% block nav_strat %}text-gray-400 hover:text-white{% endblock %}">策略帳戶</a>
+    <a href="/competition" class="nav-link px-3 py-1.5 rounded text-sm {% block nav_comp %}text-gray-400 hover:text-white{% endblock %}">月度競賽</a>
+    <div class="ml-auto flex items-center gap-3 text-xs text-gray-500">
+      <span id="nav_time" class="font-mono"></span>
+      <span class="w-1.5 h-1.5 rounded-full bg-up animate-pulse"></span>
+      <span>模擬盤</span>
+    </div>
+  </div>
+</nav>
+{% block content %}{% endblock %}
+<div id="toast" class="fixed bottom-5 right-5 z-50 hidden">
+  <div id="toast_body" class="px-4 py-3 rounded-lg border text-sm font-medium shadow-lg"></div>
+</div>
+<script>
+/* ── 股票中文名稱對照 ── */
+const STOCK_NAMES = {
+  '2330':'台積電','2303':'聯電','2308':'台達電','2317':'鴻海','2324':'仁寶',
+  '2327':'國巨','2344':'華邦電','2347':'聯強','2354':'鴻準','2356':'英業達',
+  '2379':'瑞昱','2382':'廣達','2395':'研華','2454':'聯發科','2474':'可成',
+  '3008':'大立光','3034':'聯詠','3037':'欣興','3045':'台灣大','3481':'群創',
+  '4938':'和碩','6446':'藥華藥','6770':'力積電','8046':'南電',
+  '2801':'彰銀','2809':'京城銀','2812':'台中銀','2823':'中壽','2834':'臺企銀',
+  '2836':'高雄銀','2838':'聯邦銀','2845':'遠東銀','2880':'華南金','2881':'富邦金',
+  '2882':'國泰金','2883':'開發金','2884':'玉山金','2885':'元大金','2886':'兆豐金',
+  '2887':'台新金','2888':'新光金','2889':'國票金','2890':'永豐金','2891':'中信金',
+  '2892':'第一金','2912':'統一超','5880':'合庫金',
+  '1101':'台泥','1216':'統一','1301':'台塑','1303':'南亞','1326':'台化',
+  '1402':'遠東新','2002':'中鋼','2105':'正新','2207':'和泰車','2301':'光寶科',
+  '2352':'佳世達','2357':'華碩','2371':'大同','2377':'微星','2385':'群光',
+  '2408':'南亞科','2412':'中華電','2448':'晶電','2492':'華新科','2498':'宏達電',
+  '2615':'萬海','2618':'長榮航','2633':'台灣高鐵','3711':'日月光投控',
+  '4904':'遠傳','6505':'台塑化','2383':'台光電','2609':'陽明','2603':'長榮',
+  '3044':'健鼎','2393':'億光','2303':'聯電',
+  '0050':'元大台灣50','0051':'元大中型100','0052':'富邦科技','0053':'元大電子',
+  '0054':'元大台商50','0055':'元大MSCI金融','0056':'元大高股息',
+  '00878':'國泰永續高股息','00919':'群益台灣精選高息',
+};
+function stockName(code){ return STOCK_NAMES[code] ? STOCK_NAMES[code]+' '+code : code; }
+function stockNameOnly(code){ return STOCK_NAMES[code] || code; }
+
+(function tick(){
+  const el=document.getElementById('nav_time');
+  if(el) el.textContent=new Date().toLocaleTimeString('zh-TW',{hour12:false});
+  setTimeout(tick,1000);
+})();
+
+function showToast(msg,type='ok'){
+  const wrap=document.getElementById('toast'),body=document.getElementById('toast_body');
+  body.textContent=msg;
+  body.className='px-4 py-3 rounded-lg border text-sm font-medium shadow-lg bg-surface-4 '
+    +(type==='ok'?'border-up text-up':'border-dn text-dn');
+  wrap.classList.remove('hidden');
+  setTimeout(()=>wrap.classList.add('hidden'),3000);
+}
+async function api(path,opts={}){
+  const r=await fetch('/api'+path,{headers:{'Content-Type':'application/json'},...opts});
+  if(!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+const fmt  = n=>Math.round(n||0).toLocaleString('zh-TW');
+const fmtP = (n,d=2)=>(+(n||0)).toFixed(d);
+const fmtPct= n=>{const v=+(n||0);return(v>=0?'+':'')+v.toFixed(2)+'%';};
+/* 台股：漲紅跌綠 */
+const clsPN = v=>v>=0?'text-up':'text-dn';
+const badgeSig=s=>{
+  if(s==='BUY')  return '<span class="badge-buy px-2 py-0.5 rounded text-xs font-bold">買入</span>';
+  if(s==='SELL') return '<span class="badge-sell px-2 py-0.5 rounded text-xs font-bold">賣出</span>';
+  return '<span class="badge-hold px-2 py-0.5 rounded text-xs font-bold">持有</span>';
+};
+/* 台股K線顏色：漲=紅, 跌=綠 */
+const UP_C='rgba(255,51,51,.85)', UP_B='#ff3333';
+const DN_C='rgba(51,204,102,.85)', DN_B='#33cc66';
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

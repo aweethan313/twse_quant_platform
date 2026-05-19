@@ -1,0 +1,344 @@
+{% extends "base.html" %}
+{% block title %}策略帳戶 | TWSE Quant{% endblock %}
+{% block nav_strat %}bg-surface-4 text-white{% endblock %}
+
+{% block content %}
+<div class="p-4 space-y-4">
+
+  <!-- ── 帳戶總覽卡 ── -->
+  <div id="account_cards" class="grid grid-cols-1 md:grid-cols-3 gap-3"></div>
+
+  <!-- ── 新增策略 + 持倉明細 ── -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+    <!-- 新增策略表單 -->
+    <div class="bg-surface-2 border border-border rounded-lg p-4">
+      <div class="text-sm font-medium mb-4">＋ 新增策略帳戶</div>
+      <label class="block text-xs text-gray-500 mb-1">帳戶名稱</label>
+      <input id="f_name" class="w-full bg-surface-3 border border-border rounded px-3 py-2 text-sm mb-3 outline-none focus:border-blue" placeholder="e.g. 我的零股策略">
+      <label class="block text-xs text-gray-500 mb-1">策略類型</label>
+      <select id="f_class" class="w-full bg-surface-3 border border-border rounded px-3 py-2 text-sm mb-3" onchange="renderParamForm()">
+        <option value="MomentumBreakout">動能突破 (MomentumBreakout)</option>
+        <option value="ValueReversion">價值回歸 (ValueReversion)</option>
+        <option value="ChipFollow">籌碼跟蹤 (ChipFollow)</option>
+        <option value="BalancedScoreStrategy">均衡分數 (BalancedScoreStrategy)</option>
+        <option value="PullbackTrendStrategy">趨勢回檔 (PullbackTrendStrategy)</option>
+        <option value="ThemeTrendStrategy">主線題材 (ThemeTrendStrategy)</option>
+      </select>
+      <label class="block text-xs text-gray-500 mb-1">說明</label>
+      <input id="f_desc" class="w-full bg-surface-3 border border-border rounded px-3 py-2 text-sm mb-3 outline-none focus:border-blue" placeholder="策略說明">
+
+      <!-- 動態參數 -->
+      <div id="param_form" class="space-y-2 mb-4"></div>
+
+      <label class="block text-xs text-gray-500 mb-1">初始資金（元）</label>
+      <input id="f_cash" type="number" value="200000" class="w-full bg-surface-3 border border-border rounded px-3 py-2 text-sm mb-4 font-mono outline-none focus:border-blue">
+
+      <button onclick="createAccount()"
+        class="w-full bg-blue text-black font-bold py-2 rounded text-sm hover:opacity-90 transition">
+        建立策略帳戶
+      </button>
+    </div>
+
+    <!-- 持倉明細 + 交易紀錄 -->
+    <div class="lg:col-span-2 space-y-4">
+      <div class="bg-surface-2 border border-border rounded-lg">
+        <div class="flex items-center justify-between px-4 py-3 border-b border-border">
+          <span class="text-sm font-medium">📋 持倉明細</span>
+          <select id="sel_account" class="bg-surface-3 border border-border rounded px-2 py-1 text-xs" onchange="loadDetail()">
+            <option value="">選擇帳戶</option>
+          </select>
+        </div>
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-xs text-gray-500 border-b border-border">
+              <th class="px-4 py-2 text-left">代號</th>
+              <th class="px-4 py-2 text-right">持股</th>
+              <th class="px-4 py-2 text-right">均成本</th>
+              <th class="px-4 py-2 text-right">現價</th>
+              <th class="px-4 py-2 text-right">未實現損益</th>
+            </tr>
+          </thead>
+          <tbody id="pos_body" class="divide-y divide-border">
+            <tr><td colspan="5" class="text-center py-6 text-gray-500 text-xs">請選擇帳戶</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="bg-surface-2 border border-border rounded-lg">
+        <div class="px-4 py-3 border-b border-border text-sm font-medium">🗒 交易紀錄</div>
+        <div class="overflow-x-auto max-h-64 overflow-y-auto">
+          <table class="w-full text-xs">
+            <thead class="sticky top-0 bg-surface-2">
+              <tr class="text-gray-500 border-b border-border">
+                <th class="px-3 py-2 text-left">日期</th>
+                <th class="px-3 py-2 text-left">代號</th>
+                <th class="px-3 py-2 text-center">方向</th>
+                <th class="px-3 py-2 text-right">股數</th>
+                <th class="px-3 py-2 text-right">成交價</th>
+                <th class="px-3 py-2 text-right">損益</th>
+                <th class="px-3 py-2 text-left">觸發原因</th>
+              </tr>
+            </thead>
+            <tbody id="trade_body" class="divide-y divide-border"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 手動下單 ── -->
+  <div class="bg-surface-2 border border-border rounded-lg p-4">
+    <div class="text-sm font-medium mb-4">🖐 手動下單（測試 / 干預）</div>
+    <div class="flex flex-wrap gap-3 items-end">
+      <div>
+        <div class="text-xs text-gray-500 mb-1">帳戶</div>
+        <select id="mo_account" class="bg-surface-3 border border-border rounded px-3 py-2 text-sm">
+          <option value="">選擇帳戶</option>
+        </select>
+      </div>
+      <div>
+        <div class="text-xs text-gray-500 mb-1">股票代號</div>
+        <input id="mo_code" placeholder="2330" class="bg-surface-3 border border-border rounded px-3 py-2 text-sm font-mono w-24 outline-none focus:border-blue">
+      </div>
+      <div>
+        <div class="text-xs text-gray-500 mb-1">方向</div>
+        <select id="mo_dir" class="bg-surface-3 border border-border rounded px-3 py-2 text-sm">
+          <option value="BUY">買入</option>
+          <option value="SELL">賣出</option>
+        </select>
+      </div>
+      <div>
+        <div class="text-xs text-gray-500 mb-1">股數</div>
+        <input id="mo_lots" type="number" value="1" min="1" class="bg-surface-3 border border-border rounded px-3 py-2 text-sm font-mono w-20 outline-none focus:border-blue">
+      </div>
+      <div>
+        <div class="text-xs text-gray-500 mb-1">價格</div>
+        <input id="mo_price" type="number" step="0.1" class="bg-surface-3 border border-border rounded px-3 py-2 text-sm font-mono w-28 outline-none focus:border-blue">
+      </div>
+      <button onclick="manualOrder()"
+        class="bg-accent text-black font-bold px-5 py-2 rounded text-sm hover:opacity-90 transition">
+        送出委託
+      </button>
+    </div>
+  </div>
+
+</div>
+
+<!-- 刪除確認 Modal -->
+<div id="del_modal" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+  <div class="bg-surface-2 border border-border rounded-xl p-6 w-80">
+    <div class="text-base font-bold mb-2">確認刪除</div>
+    <div class="text-sm text-gray-400 mb-6">刪除後所有持倉與交易紀錄將一併移除，無法復原。</div>
+    <div class="flex gap-3">
+      <button onclick="closeDelModal()" class="flex-1 py-2 rounded border border-border text-sm">取消</button>
+      <button onclick="confirmDelete()" class="flex-1 py-2 rounded bg-dn text-white text-sm font-bold">刪除</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const PARAM_DEFS = {
+  MomentumBreakout: [
+    {key:'entry_composite', label:'進場綜合分門檻', type:'number', default:70},
+    {key:'entry_momentum',  label:'進場動能分門檻', type:'number', default:65},
+    {key:'stop_loss',       label:'停損比例',        type:'number', default:-0.07, step:0.01},
+    {key:'take_profit',     label:'停利比例',        type:'number', default:0.15,  step:0.01},
+    {key:'max_pct',         label:'每次最大倉位比例', type:'number', default:0.10, step:0.01},
+  ],
+  ValueReversion: [
+    {key:'max_hold_days', label:'最大持股天數', type:'number', default:20},
+    {key:'max_pct',       label:'每次最大倉位比例', type:'number', default:0.12, step:0.01},
+  ],
+  ChipFollow: [
+    {key:'max_pct', label:'每次最大倉位比例', type:'number', default:0.08, step:0.01},
+  ],
+  BalancedScoreStrategy: [
+    {key:'max_pct', label:'每次最大倉位比例', type:'number', default:0.08, step:0.01},
+    {key:'min_composite', label:'最低綜合分', type:'number', default:50},
+  ],
+  PullbackTrendStrategy: [
+    {key:'max_pct', label:'每次最大倉位比例', type:'number', default:0.08, step:0.01},
+    {key:'max_pullback', label:'最大回檔比例', type:'number', default:-0.08, step:0.01},
+  ],
+  ThemeTrendStrategy: [
+    {key:'max_pct', label:'每次最大倉位比例', type:'number', default:0.08, step:0.01},
+    {key:'theme_min_score', label:'主線最低分', type:'number', default:53},
+  ],
+};
+
+let accounts = [];
+let delTargetId = null;
+
+function renderParamForm(){
+  const cls = document.getElementById('f_class').value;
+  const defs = PARAM_DEFS[cls] || [];
+  const el = document.getElementById('param_form');
+  el.innerHTML = defs.map(d=>`
+    <div>
+      <label class="block text-xs text-gray-500 mb-1">${d.label}</label>
+      <input id="p_${d.key}" type="${d.type}" value="${d.default}" step="${d.step||1}"
+        class="w-full bg-surface-3 border border-border rounded px-3 py-1.5 text-sm font-mono outline-none focus:border-blue">
+    </div>
+  `).join('');
+}
+
+async function loadAccounts(){
+  try {
+    accounts = await api('/strategies');
+    renderCards();
+    populateSelects();
+  } catch(e){ console.warn(e); }
+}
+
+function renderCards(){
+  const el = document.getElementById('account_cards');
+  el.innerHTML = accounts.map(a => `
+    <div class="bg-surface-2 border border-border rounded-lg p-4">
+      <div class="flex items-start justify-between mb-3">
+        <div>
+          <div class="font-medium text-sm">${a.name}</div>
+          <div class="text-xs text-gray-500 mt-0.5">${a.strategy_class}</div>
+        </div>
+        <button onclick="openDelModal(${a.account_id})" class="text-gray-600 hover:text-dn text-lg leading-none">×</button>
+      </div>
+      <div class="space-y-1.5">
+        <div class="flex justify-between text-xs">
+          <span class="text-gray-500">總資產</span>
+          <span class="font-mono font-bold">${fmt(a.total_equity)}</span>
+        </div>
+        <div class="flex justify-between text-xs">
+          <span class="text-gray-500">損益</span>
+          <span class="font-mono ${clsPN(a.pnl)}">${a.pnl>=0?'+':''}${fmt(a.pnl)}</span>
+        </div>
+        <div class="flex justify-between text-xs">
+          <span class="text-gray-500">報酬率</span>
+          <span class="font-mono font-bold ${clsPN(a.return_pct)}">${fmtPct(a.return_pct)}</span>
+        </div>
+        <div class="flex justify-between text-xs">
+          <span class="text-gray-500">夏普比</span>
+          <span class="font-mono">${fmtP(a.sharpe,3)}</span>
+        </div>
+        <div class="flex justify-between text-xs">
+          <span class="text-gray-500">持股數</span>
+          <span class="font-mono">${a.position_count} 檔</span>
+        </div>
+      </div>
+      <button onclick="selectAccount(${a.account_id})" class="mt-3 w-full py-1.5 rounded border border-border text-xs hover:bg-surface-3 transition">
+        查看持倉 →
+      </button>
+    </div>
+  `).join('');
+}
+
+function populateSelects(){
+  const opts = accounts.map(a=>`<option value="${a.account_id}">${a.name}</option>`).join('');
+  document.getElementById('sel_account').innerHTML = '<option value="">選擇帳戶</option>' + opts;
+  document.getElementById('mo_account').innerHTML  = '<option value="">選擇帳戶</option>' + opts;
+}
+
+async function createAccount(){
+  const cls   = document.getElementById('f_class').value;
+  const defs  = PARAM_DEFS[cls] || [];
+  const params = {};
+  defs.forEach(d=>{ params[d.key] = parseFloat(document.getElementById('p_'+d.key).value); });
+  const body = {
+    name:           document.getElementById('f_name').value || '新策略',
+    description:    document.getElementById('f_desc').value,
+    strategy_class: cls,
+    strategy_type:  'rule_based',
+    initial_cash:   parseFloat(document.getElementById('f_cash').value),
+    params
+  };
+  try {
+    await api('/strategies', {method:'POST', body: JSON.stringify(body)});
+    showToast('✅ 策略帳戶建立成功');
+    loadAccounts();
+  } catch(e){ showToast('❌ '+e.message, 'err'); }
+}
+
+function selectAccount(id){
+  document.getElementById('sel_account').value = id;
+  loadDetail();
+}
+
+async function loadDetail(){
+  const id = document.getElementById('sel_account').value;
+  if(!id) return;
+  try {
+    const [positions, trades] = await Promise.all([
+      api(`/strategies/${id}/positions`),
+      api(`/strategies/${id}/trades?limit=50`)
+    ]);
+    const pb = document.getElementById('pos_body');
+    pb.innerHTML = positions.length ? positions.map(p=>`
+      <tr class="hover:bg-surface-3">
+        <td class="px-4 py-2 font-mono text-blue text-sm">
+          <a href="/stock/${p.code}" class="hover:underline">${p.code}</a>
+          <div class="text-xs text-gray-500">${stockNameOnly(p.code)}</div>
+        </td>
+        <td class="px-4 py-2 text-right font-mono text-sm">${p.lots} 股</td>
+        <td class="px-4 py-2 text-right font-mono text-sm">${fmtP(p.avg_cost)}</td>
+        <td class="px-4 py-2 text-right font-mono text-sm text-gray-400">—</td>
+        <td class="px-4 py-2 text-right font-mono text-sm text-gray-400">—</td>
+      </tr>`).join('')
+    : '<tr><td colspan="5" class="text-center py-6 text-gray-500 text-xs">無持倉</td></tr>';
+
+    const tb = document.getElementById('trade_body');
+    tb.innerHTML = trades.length ? trades.map(t=>`
+      <tr class="hover:bg-surface-3">
+        <td class="px-3 py-1.5 text-gray-400">${t.date}</td>
+        <td class="px-3 py-1.5">
+          <div class="font-mono text-blue">${t.code}</div>
+          <div class="text-xs text-gray-500">${stockNameOnly(t.code)}</div>
+        </td>
+        <td class="px-3 py-1.5 text-center">
+          <span class="${t.direction==='BUY'?'badge-buy':'badge-sell'} px-1.5 py-0.5 rounded text-xs">${t.direction==='BUY'?'買':'賣'}</span>
+        </td>
+        <td class="px-3 py-1.5 text-right font-mono">${t.lots} 股</td>
+        <td class="px-3 py-1.5 text-right font-mono">${fmtP(t.price)}</td>
+        <td class="px-3 py-1.5 text-right font-mono ${t.pnl?clsPN(t.pnl):'text-gray-500'}">${t.pnl?fmt(t.pnl):'—'}</td>
+        <td class="px-3 py-1.5 text-gray-400 max-w-xs truncate">${t.trigger}</td>
+      </tr>`).join('')
+    : '<tr><td colspan="7" class="text-center py-4 text-gray-500 text-xs">無交易紀錄</td></tr>';
+  } catch(e){ showToast('❌ '+e.message,'err'); }
+}
+
+async function manualOrder(){
+  const id    = document.getElementById('mo_account').value;
+  const code  = document.getElementById('mo_code').value.trim();
+  const dir   = document.getElementById('mo_dir').value;
+  const lots  = parseInt(document.getElementById('mo_lots').value);
+  const price = parseFloat(document.getElementById('mo_price').value);
+  if(!id||!code||!lots||!price){ showToast('請填寫所有欄位','err'); return; }
+  try {
+    const r = await api(`/strategies/${id}/order`,{
+      method:'POST', body: JSON.stringify({code,direction:dir,lots,price})
+    });
+    showToast('✅ '+r.msg);
+    loadAccounts(); loadDetail();
+  } catch(e){ showToast('❌ '+e.message,'err'); }
+}
+
+function openDelModal(id){ delTargetId=id; document.getElementById('del_modal').classList.remove('hidden'); }
+function closeDelModal(){ document.getElementById('del_modal').classList.add('hidden'); delTargetId=null; }
+async function confirmDelete(){
+  if(!delTargetId) return;
+  try {
+    await api(`/strategies/${delTargetId}`,{method:'DELETE'});
+    showToast('已刪除策略帳戶');
+    closeDelModal(); loadAccounts();
+  } catch(e){ showToast('❌ '+e.message,'err'); }
+}
+
+async function initStrategiesPage(){
+  await STOCK_NAMES_READY;
+  renderParamForm();
+  loadAccounts();
+  setInterval(loadAccounts, 30000);
+}
+initStrategiesPage();
+</script>
+{% endblock %}
