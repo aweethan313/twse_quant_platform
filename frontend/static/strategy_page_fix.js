@@ -54,6 +54,24 @@
               <div class="flex justify-between"><span class="text-gray-500">損益</span><span class="font-mono ${pn(a.pnl)}">${money(a.pnl)}</span></div>
               <div class="flex justify-between"><span class="text-gray-500">報酬率</span><span class="font-mono font-bold ${pn(a.return_pct)}">${pct(a.return_pct)}</span></div>
               <div class="flex justify-between"><span class="text-gray-500">持股數</span><span class="font-mono">${a.position_count || 0} 檔</span></div>
+                            <div class="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-border">
+                <div>
+                  <div class="text-[10px] text-gray-500">交易次數</div>
+                  <div id="m_trades_${a.account_id}" class="font-mono text-xs">載入中</div>
+                </div>
+                <div>
+                  <div class="text-[10px] text-gray-500">勝率</div>
+                  <div id="m_win_${a.account_id}" class="font-mono text-xs">載入中</div>
+                </div>
+                <div>
+                  <div class="text-[10px] text-gray-500">最大回撤</div>
+                  <div id="m_dd_${a.account_id}" class="font-mono text-xs text-dn">載入中</div>
+                </div>
+                <div>
+                  <div class="text-[10px] text-gray-500">Profit Factor</div>
+                  <div id="m_pf_${a.account_id}" class="font-mono text-xs">載入中</div>
+                </div>
+              </div>
             </div>
 
             <button onclick="selectAccount(${a.account_id})"
@@ -69,11 +87,36 @@
 
       if (sel) sel.innerHTML = options;
       if (mo) mo.innerHTML = options;
+
+      accounts.forEach(a => loadMetricsIntoCard(a.account_id));
     } catch (e) {
       if (cards) cards.innerHTML = `<div class="text-dn text-sm">載入失敗：${e.message}</div>`;
     }
   };
 
+    async function loadMetricsIntoCard(accountId) {
+    try {
+      const m = await apiJson(`/api/strategies/${accountId}/metrics`);
+
+      const trades = document.getElementById(`m_trades_${accountId}`);
+      const win = document.getElementById(`m_win_${accountId}`);
+      const dd = document.getElementById(`m_dd_${accountId}`);
+      const pf = document.getElementById(`m_pf_${accountId}`);
+
+      if (trades) trades.textContent = m.trade_count ?? m.total_trades ?? 0
+      if (win) win.textContent = (m.win_rate ?? 0).toFixed(2) + "%";
+      if (dd) dd.textContent = "-" + (m.max_drawdown ?? 0).toFixed(2) + "%";
+      if (pf) pf.textContent = m.profit_factor == null ? "∞" : Number(m.profit_factor).toFixed(2);
+
+      if (pf) {
+        const v = Number(m.profit_factor || 0);
+        pf.className = "font-mono text-xs " + (v >= 1 ? "text-up" : "text-dn");
+      }
+    } catch (e) {
+      console.warn("metrics load failed", accountId, e);
+    }
+  }
+  
   window.selectAccount = function (id) {
     const sel = document.getElementById("sel_account");
     if (sel) {

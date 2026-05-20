@@ -45,7 +45,7 @@
       <div class="bg-surface-2 border border-border rounded-lg">
         <div class="flex items-center justify-between px-4 py-3 border-b border-border">
           <span class="text-sm font-medium">📋 持倉明細</span>
-          <select id="sel_account" class="bg-surface-3 border border-border rounded px-2 py-1 text-xs" onchange="loadDetail()">
+          <select id="sel_account" class="bg-surface-3 border border-border rounded px-2 py-1 text-xs" onchange="loadDetail();loadMetrics(document.getElementById('sel_account').value)">
             <option value="">選擇帳戶</option>
           </select>
         </div>
@@ -293,7 +293,7 @@ async function createAccount(){
 
 function selectAccount(id){
   document.getElementById('sel_account').value = id;
-  loadDetail();
+  loadDetail(); loadMetrics(id);
 }
 
 async function loadDetail(){
@@ -373,5 +373,39 @@ async function initStrategiesPage(){
 }
 initStrategiesPage();
 </script>
-<script src="/static/strategy_page_fix.js"></script>
+<script src="/static/strategy_page_fix.js?v=metrics_v4"></script>
+
+<div id="v2-metrics-panel" style="display:none;margin-top:12px;background:#111418;border:1px solid rgba(255,255,255,0.07);border-radius:6px;padding:14px">
+  <div style="font-size:0.8rem;font-weight:600;color:#bbb;margin-bottom:10px">&#128200; 績效報表</div>
+  <div id="v2-metrics-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px"></div>
+</div>
+<script>
+async function loadMetrics(aid){
+  try{
+    var m=await fetch('/api/strategies/'+aid+'/metrics').then(function(r){return r.json()});
+    var p=document.getElementById('v2-metrics-panel');
+    var g=document.getElementById('v2-metrics-grid');
+    if(!p||!g)return;
+    var items=[
+      ['交易次數', m.total_trades, ''],
+      ['勝率', m.win_rate != null ? m.win_rate+'%' : '-', ''],
+      ['最大回撤', m.max_drawdown != null ? m.max_drawdown+'%' : '-', m.max_drawdown > 0 ? 'color:#ff4444' : ''],
+      ['Profit Factor', m.profit_factor != null ? m.profit_factor : '-', m.profit_factor >= 1 ? 'color:#44cc77' : 'color:#ff4444'],
+      ['淨損益', m.net_profit, m.net_profit >= 0 ? 'color:#ff4444' : 'color:#44cc77'],
+      ['平均獲利', m.avg_win, 'color:#ff4444'],
+      ['平均虧損', m.avg_loss, 'color:#44cc77'],
+      ['最佳交易', m.best_trade, 'color:#ff4444'],
+    ];
+    g.innerHTML=items.map(function(x){
+      var val=typeof x[1]==='number'?x[1].toLocaleString('zh-TW'):x[1];
+      return '<div style="background:#1a1e24;border-radius:4px;padding:8px 10px">'
+        +'<div style="font-size:0.7rem;color:#666;margin-bottom:3px">'+x[0]+'</div>'
+        +'<div style="font-size:0.85rem;font-weight:600;'+x[2]+'">'+val+'</div>'
+        +'</div>';
+    }).join('');
+    p.style.display='block';
+  }catch(e){console.warn(e);}
+}
+</script>
+
 {% endblock %}

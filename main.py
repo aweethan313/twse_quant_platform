@@ -468,3 +468,151 @@ async def api_v2_sparks(codes: str = ""):
     finally:
         db.close()
     return result
+
+# V2 P1: 警示系統 API
+@app.get("/api/v2/alerts")
+async def api_v2_alerts():
+    from backend.models.database import SessionLocal
+    db = SessionLocal()
+    alerts = []
+    try:
+        latest = db.execute(text("SELECT MAX(trade_date) FROM ohlcv_daily")).scalar()
+        if not latest:
+            return []
+        rows = db.execute(text("""
+            SELECT o.code, o.close, o.high, o.low, o.volume, o.change_pct,
+                   o.open, ds.composite_score, ds.momentum_score
+            FROM ohlcv_daily o
+            LEFT JOIN daily_scores ds ON ds.code=o.code
+                AND ds.score_date=(SELECT MAX(score_date) FROM daily_scores WHERE score_date<=o.trade_date)
+            WHERE o.trade_date=:d
+        """), {"d": latest}).fetchall()
+
+        for r in rows:
+            code,close,high,low,vol,chg,opn,comp,mom = r
+            name = code
+            if not close: continue
+            hist = db.execute(text(
+                "SELECT high,low,volume FROM ohlcv_daily WHERE code=:c AND trade_date<:d ORDER BY trade_date DESC LIMIT 20"
+            ),{"c":code,"d":latest}).fetchall()
+            if len(hist)<10: continue
+            hh=[x[0] for x in hist if x[0]]; hl=[x[1] for x in hist if x[1]]; hv=[x[2] for x in hist if x[2]]
+            if not hh: continue
+            max20h=max(hh); min20l=min(hl); avg20v=sum(hv)/len(hv) if hv else 0
+            nm=name or code
+            if high and high>max20h:
+                alerts.append({"id":f"{latest}_{code}_hi","type":"breakout_high",
+                    "title":f"🚀 {nm}({code}) 突破20日高","body":f"今高{high:.1f} > 20日高{max20h:.1f}",
+                    "code":code,"date":str(latest),"score":comp or 0})
+            if low and low<min20l:
+                alerts.append({"id":f"{latest}_{code}_lo","type":"breakout_low",
+                    "title":f"⚠️ {nm}({code}) 跌破20日低","body":f"今低{low:.1f} < 20日低{min20l:.1f}",
+                    "code":code,"date":str(latest),"score":comp or 0})
+            if vol and avg20v and vol>avg20v*2.5:
+                alerts.append({"id":f"{latest}_{code}_vol","type":"volume_spike",
+                    "title":f"📊 {nm}({code}) 爆量","body":f"今量{vol/1e4:.0f}萬 = {vol/avg20v:.1f}x均量",
+                    "code":code,"date":str(latest),"score":comp or 0})
+    finally:
+        db.close()
+    alerts.sort(key=lambda x:-x["score"])
+    return alerts[:60]
+
+# ── P3 績效報表 ──────────────────────────────────────────
+@app.get("/api/strategies/{account_id}/metrics")
+async def api_strategy_metrics(account_id: int):
+    from backend.models.database import SessionLocal
+    db = SessionLocal()
+    try:
+        # 已實現損益（SELL 記錄的 pnl）
+        sells = db.execute(text("""
+            SELECT pnl, price, lots, code, trade_date
+            FROM trade_logs WHERE account_id=:a AND direction='SELL' AND pnl IS NOT NULL
+        """), {"a": account_id}).fetchall()
+
+        realized_pnl = sum(r[0] for r in sells)
+        wins  = [r[0] for r in sells if r[0] > 0]
+        loses = [r[0] for r in sells if r[0] < 0]
+        trade_count = len(sells)
+        win_rate    = round(len(wins) / trade_count * 100, 1) if trade_count else 0
+        avg_profit  = round(sum(wins)  / len(wins),  0) if wins  else 0
+        avg_loss    = round(sum(loses) / len(loses), 0) if loses else 0
+        profit_factor = round(sum(wins) / abs(sum(loses)), 2) if loses and sum(loses) != 0 else None
+
+        # 未實現損益（用最新收盤價 - 均成本）
+        latest_date = db.execute(text("SELECT MAX(trade_date) FROM ohlcv_daily")).scalar()
+        pos_rows = db.execute(text("""
+            SELECT p.code, p.lots, p.avg_cost,
+                   COALESCE(o.close, p.avg_cost) as close
+            FROM positions p
+            LEFT JOIN ohlcv_daily o ON o.code=p.code AND o.trade_date=:d
+            WHERE p.account_id=:a
+        """), {"a": account_id, "d": latest_date}).fetchall()
+
+        unrealized_pnl = sum((r[3] - r[2]) * r[1] for r in pos_rows)
+
+        # 帳戶資訊
+        eq_last = db.execute(text(
+            "SELECT total_equity FROM equity_curve WHERE account_id=:a ORDER BY snap_date DESC LIMIT 1"
+        ), {"a": account_id}).fetchone()
+        initial_cash = 200000
+        total_equity_now = eq_last[0] if eq_last else initial_cash
+        total_return_pct = round((total_equity_now - initial_cash) / initial_cash * 100, 2)
+
+        # 最大回撤（從 equity_curve）
+        eq_rows = db.execute(text("""
+            SELECT total_equity FROM equity_curve WHERE account_id=:a ORDER BY snap_date
+        """), {"a": account_id}).fetchall()
+        max_drawdown = 0.0
+        if eq_rows:
+            peak = eq_rows[0][0]
+            for r in eq_rows:
+                if r[0] > peak: peak = r[0]
+                dd = (peak - r[0]) / peak * 100 if peak else 0
+                if dd > max_drawdown: max_drawdown = dd
+
+        # 平均持倉天數（用 BUY 配對 SELL 同一檔）
+        buys_raw = db.execute(text("""
+            SELECT code, trade_date FROM trade_logs
+            WHERE account_id=:a AND direction='BUY' ORDER BY trade_date
+        """), {"a": account_id}).fetchall()
+        from collections import defaultdict
+        from datetime import datetime
+        buy_q = defaultdict(list)
+        for code, td in buys_raw:
+            buy_q[code].append(td)
+        holding_days = []
+        for pnl, price, lots, code, sell_date in sells:
+            if buy_q[code]:
+                buy_date = buy_q[code].pop(0)
+                try:
+                    d1 = datetime.strptime(str(sell_date), "%Y-%m-%d")
+                    d2 = datetime.strptime(str(buy_date), "%Y-%m-%d")
+                    holding_days.append((d1 - d2).days)
+                except: pass
+        avg_holding_days = round(sum(holding_days) / len(holding_days), 1) if holding_days else 0
+
+        return {
+            "account_id": account_id,
+            "total_return_pct": total_return_pct,
+            "realized_pnl": round(realized_pnl, 0),
+            "unrealized_pnl": round(unrealized_pnl, 0),
+            "win_rate": win_rate,
+            "trade_count": trade_count,
+            "avg_holding_days": avg_holding_days,
+            "max_drawdown": round(max_drawdown, 2),
+            "avg_profit": avg_profit,
+            "avg_loss": avg_loss,
+            "profit_factor": profit_factor,
+        }
+    finally:
+        db.close()
+
+@app.get("/api/strategies/{account_id}/metrics")
+async def api_strategy_metrics(account_id: int):
+    from backend.analytics.performance_metrics import calc_metrics
+    from backend.models.database import SessionLocal
+    db = SessionLocal()
+    try:
+        return calc_metrics(account_id, db)
+    finally:
+        db.close()
