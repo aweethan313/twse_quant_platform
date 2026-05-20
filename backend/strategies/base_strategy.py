@@ -259,14 +259,22 @@ class BaseStrategy(ABC):
     def _theme_boost(self, code: str, market_context: dict) -> float:
         top_theme = market_context.get("top_theme")
         top_score = _safe_float(market_context.get("top_theme_score"), 50)
-        if top_score < self.params.get("theme_min_score", 58):
-            return 0.0
-        if top_theme in THEME_CODE_MAP and code in THEME_CODE_MAP[top_theme]:
-            return min(8.0, (top_score - 55) / 4)
-        # AI/半導體是目前最重要的科技主線，若市場偵測偏強則給小幅加分。
-        if code in AI_THEME_CODES and _safe_float(market_context.get("ai_theme_score"), 50) >= 60:
-            return 3.0
-        return 0.0
+        boost = 0.0
+        if top_score >= self.params.get("theme_min_score", 58):
+            if top_theme in THEME_CODE_MAP and code in THEME_CODE_MAP[top_theme]:
+                boost = min(8.0, (top_score - 55) / 4)
+        # AI/半導體主線加分
+        ai_score = _safe_float(market_context.get("ai_theme_score"), 50)
+        if code in AI_THEME_CODES and ai_score >= 60:
+            boost = max(boost, 3.0)
+        # V2 P4: 夜盤半導體強勢時額外加分
+        overnight = _safe_float(market_context.get("overnight_score"), 50)
+        sox_ret = _safe_float(market_context.get("sox_ret"), 0)
+        if code in AI_THEME_CODES and sox_ret > 1.5:   # SOXX 漲超 1.5%
+            boost += 2.0
+        if code in AI_THEME_CODES and overnight > 60:  # 綜合偏多
+            boost += 1.0
+        return min(boost, 10.0)  # 最多加 10 分
 
     def _build_ohlcv(self, db, code: str, trade_date: date, score_date: date, execution_price: float) -> dict:
         hist = self._fetch_history(db, code, score_date, limit=int(self.params.get("history_limit", 80)))
@@ -395,6 +403,14 @@ class BaseStrategy(ABC):
                 if not enter:
                     continue
                 shares = self.lot_size(acc.cash, price)
+                # V2 P4: 夜盤偏空時縮減倉位
+                _overnight = _safe_float(
+                    (ohlcv.get("market_context") or {}).get("overnight_score"), 50
+                )
+                if _overnight < 42:       # 強勢偏空：縮到 60%
+                    shares = int(shares * 0.6)
+                elif _overnight < 47:     # 偏空：縮到 75%
+                    shares = int(shares * 0.75)
                 if shares < 1:
                     continue
                 result = self.broker.buy(code, shares, price, reason, trade_date)

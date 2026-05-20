@@ -438,3 +438,13 @@ def api_all_equity_curves(db: Session = Depends(get_db)):
 @app.get("/api/strategy_registry")
 def api_strategy_registry():
     return [{"name": s.__name__} for s in []]
+
+
+# ── V2 P4: 美股夜盤 API ──────────────────────────────
+@app.get("/api/v2/overnight")
+async def api_v2_overnight(refresh: bool = False):
+    try:
+        from backend.collectors.overnight_market import get_overnight_summary
+        return get_overnight_summary(force_refresh=refresh)
+    except Exception as e:
+        return {"error": str(e), "bias": {"overall": "無資料", "score": 50}}
