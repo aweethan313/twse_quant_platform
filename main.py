@@ -518,7 +518,23 @@ async def api_v2_alerts():
     return alerts[:60]
 
 # ── P3 績效報表 ──────────────────────────────────────────
-@app.get("/api/strategies/{account_id}/metrics")
+@app.get("/api/alerts/latest")
+def api_latest_alerts(
+    days: int = 20,
+    volume_multiple: float = 2.0,
+    limit: int = 60,
+    as_of: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    from backend.analytics.alerts import get_latest_alerts
+
+    return get_latest_alerts(
+        db=db,
+        days=days,
+        volume_multiple=volume_multiple,
+        limit=limit,
+        as_of=as_of,
+    )
 async def api_strategy_metrics(account_id: int):
     from backend.models.database import SessionLocal
     db = SessionLocal()

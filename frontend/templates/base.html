@@ -46,6 +46,14 @@ tailwind.config = {
     <a href="/strategies"  class="nav-link px-3 py-1.5 rounded text-sm {% block nav_strat %}text-gray-400 hover:text-white{% endblock %}">策略帳戶</a>
     <a href="/competition" class="nav-link px-3 py-1.5 rounded text-sm {% block nav_comp %}text-gray-400 hover:text-white{% endblock %}">月度競賽</a>
     <div class="ml-auto flex items-center gap-3 text-xs text-gray-500">
+      <div id="v2bell" style="position:relative;cursor:pointer" onclick="toggleAlerts(event)">
+        <span style="font-size:1rem">🔔</span>
+        <span id="v2bell-badge" style="display:none;position:absolute;top:-4px;right:-6px;background:#ff4444;color:#fff;font-size:9px;font-weight:700;border-radius:8px;padding:1px 4px;min-width:14px;text-align:center"></span>
+      </div>
+      <div id="v2alert-panel" style="display:none;position:fixed;top:44px;right:12px;width:300px;max-height:400px;overflow-y:auto;background:#1a1e24;border:1px solid rgba(255,255,255,0.1);border-radius:8px;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,0.5)">
+        <div style="padding:8px 12px;font-size:0.78rem;font-weight:600;color:#aaa;border-bottom:1px solid rgba(255,255,255,0.07)">&#128276; 今日警示</div>
+        <div id="v2alert-list"></div>
+      </div>
       <span id="nav_time" class="font-mono"></span>
       <span class="w-1.5 h-1.5 rounded-full bg-up animate-pulse"></span>
       <span>模擬盤</span>
@@ -53,6 +61,67 @@ tailwind.config = {
   </div>
 </nav>
 {% block content %}{% endblock %}
+<script>
+var _ao=false;
+function toggleAlerts(e){if(e)e.stopPropagation();_ao=!_ao;document.getElementById('v2alert-panel').style.display=_ao?'block':'none';}
+document.addEventListener('click',function(e){if(document.getElementById('v2bell')&&!document.getElementById('v2bell').contains(e.target)){_ao=false;var p=document.getElementById('v2alert-panel');if(p)p.style.display='none';}});
+document.addEventListener('DOMContentLoaded',function(){
+  var p=document.getElementById('v2alert-panel');
+  if(p) document.body.appendChild(p);
+});
+async function loadAlerts(){
+  try{
+    var d=await fetch('/api/alerts/latest?days=20&volume_multiple=2&limit=30').then(function(r){return r.json()});
+    var b=document.getElementById('v2bell-badge');
+    var l=document.getElementById('v2alert-list');
+
+    if(!b||!l)return;
+
+    var alerts=d.alerts||[];
+    var count=d.count||alerts.length||0;
+
+    if(count>0){
+      b.style.display='block';
+      b.textContent=count>99?'99+':String(count);
+    }else{
+      b.style.display='none';
+    }
+
+    if(!alerts.length){
+      l.innerHTML='<div style="padding:12px;color:#888;font-size:12px">目前沒有警示</div>';
+      return;
+    }
+
+    l.innerHTML=alerts.map(function(a){
+      var color='#44aaff';
+      if(a.type==='breakout_high')color='#ff4444';
+      if(a.type==='breakdown_low')color='#44cc77';
+      if(a.type==='volume_spike')color='#ffaa33';
+
+      var chg=Number(a.change_pct||0);
+      var chgColor=chg>=0?'#ff4444':'#44cc77';
+
+      return '<div style="padding:10px 12px;border-top:1px solid rgba(255,255,255,0.07)">'
+        +'<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">'
+        +'<div style="font-size:12px;font-weight:700;color:#eee">'+a.code+' '+(a.name||'')+'</div>'
+        +'<div style="font-size:10px;color:'+color+'">'+(a.label||a.type||'警示')+'</div>'
+        +'</div>'
+        +'<div style="font-size:11px;color:#aaa;margin-top:4px;line-height:1.4">'+(a.message||'')+'</div>'
+        +'<div style="display:flex;justify-content:space-between;margin-top:6px;font-size:10px;color:#777">'
+        +'<span>收盤 '+(a.close??'-')+'</span>'
+        +'<span style="color:'+chgColor+'">'+chg.toFixed(2)+'%</span>'
+        +'</div>'
+        +'</div>';
+    }).join('');
+  }catch(e){
+    console.warn(e);
+    var l=document.getElementById('v2alert-list');
+    if(l)l.innerHTML='<div style="padding:12px;color:#ff7777;font-size:12px">警示載入失敗</div>';
+  }
+}
+document.addEventListener('DOMContentLoaded',loadAlerts);
+</script>
+
 <div id="toast" class="fixed bottom-5 right-5 z-50 hidden">
   <div id="toast_body" class="px-4 py-3 rounded-lg border text-sm font-medium shadow-lg"></div>
 </div>

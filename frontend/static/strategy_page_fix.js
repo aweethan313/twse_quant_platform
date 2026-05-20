@@ -88,32 +88,60 @@
       if (sel) sel.innerHTML = options;
       if (mo) mo.innerHTML = options;
 
-      accounts.forEach(a => loadMetricsIntoCard(a.account_id));
+            function refreshMetrics() {
+        accounts.forEach(a => loadMetricsIntoCard(a.account_id));
+      }
+
+      refreshMetrics();
+      setTimeout(refreshMetrics, 300);
+      setTimeout(refreshMetrics, 1000);
     } catch (e) {
       if (cards) cards.innerHTML = `<div class="text-dn text-sm">載入失敗：${e.message}</div>`;
     }
   };
 
     async function loadMetricsIntoCard(accountId) {
+    const trades = document.getElementById(`m_trades_${accountId}`);
+    const win = document.getElementById(`m_win_${accountId}`);
+    const dd = document.getElementById(`m_dd_${accountId}`);
+    const pf = document.getElementById(`m_pf_${accountId}`);
+
+    function num(x, fallback = 0) {
+      const v = Number(x);
+      return Number.isFinite(v) ? v : fallback;
+    }
+
     try {
       const m = await apiJson(`/api/strategies/${accountId}/metrics`);
 
-      const trades = document.getElementById(`m_trades_${accountId}`);
-      const win = document.getElementById(`m_win_${accountId}`);
-      const dd = document.getElementById(`m_dd_${accountId}`);
-      const pf = document.getElementById(`m_pf_${accountId}`);
+      const tradeCount = num(m.trade_count ?? m.total_trades, 0);
+      const winRate = num(m.win_rate, 0);
+      const maxDrawdown = num(m.max_drawdown, 0);
+      const profitFactor = m.profit_factor == null ? null : num(m.profit_factor, null);
 
-      if (trades) trades.textContent = m.trade_count ?? m.total_trades ?? 0
-      if (win) win.textContent = (m.win_rate ?? 0).toFixed(2) + "%";
-      if (dd) dd.textContent = "-" + (m.max_drawdown ?? 0).toFixed(2) + "%";
-      if (pf) pf.textContent = m.profit_factor == null ? "∞" : Number(m.profit_factor).toFixed(2);
+      if (trades) trades.textContent = tradeCount;
+      if (win) win.textContent = winRate.toFixed(2) + "%";
+      if (dd) dd.textContent = "-" + maxDrawdown.toFixed(2) + "%";
+      if (pf) pf.textContent = profitFactor == null ? "∞" : profitFactor.toFixed(2);
+
+      if (win) {
+        win.className = "font-mono text-xs " + (winRate >= 50 ? "text-up" : "text-dn");
+      }
+
+      if (dd) {
+        dd.className = "font-mono text-xs text-dn";
+      }
 
       if (pf) {
-        const v = Number(m.profit_factor || 0);
-        pf.className = "font-mono text-xs " + (v >= 1 ? "text-up" : "text-dn");
+        pf.className = "font-mono text-xs " + (profitFactor == null || profitFactor >= 1 ? "text-up" : "text-dn");
       }
     } catch (e) {
       console.warn("metrics load failed", accountId, e);
+
+      if (trades) trades.textContent = "錯誤";
+      if (win) win.textContent = "錯誤";
+      if (dd) dd.textContent = "錯誤";
+      if (pf) pf.textContent = "錯誤";
     }
   }
   
