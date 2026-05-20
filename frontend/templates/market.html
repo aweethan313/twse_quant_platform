@@ -151,7 +151,7 @@ async function loadScreener(){
     const data=await api(`/screener?min_composite=${min}${sig?'&signal='+sig:''}&limit=50`);
     const el=document.getElementById('screener_body');
     if(!data.length){
-      el.innerHTML='<tr><td colspan="7" class="text-center py-8 text-gray-500">無符合條件的股票</td></tr>';
+      el.innerHTML='<tr><td colspan="8" class="text-center py-8 text-gray-500">無符合條件的股票</td></tr>';
       return;
     }
     el.innerHTML=data.map(r=>`
@@ -162,6 +162,7 @@ async function loadScreener(){
         <td class="px-4 py-2 text-right font-mono text-sm ${clsPN(r.change_pct)}">${fmtPct(r.change_pct)}</td>
         <td class="px-4 py-2 text-right"><span class="font-mono text-accent font-bold">${fmtP(r.composite,1)}</span></td>
         <td class="px-4 py-2 text-center">${badgeSig(r.signal)}</td>
+        <td class="px-4 py-2"><canvas class="v2-spark" data-code="${r.code}" width="72" height="28" style="display:block"></canvas></td>
         <td class="px-4 py-2 text-center"><a href="/stock/${r.code}" class="text-xs text-blue hover:underline">詳情</a></td>
       </tr>`).join('');
   }catch(e){}
@@ -251,6 +252,10 @@ function drawKline(data){
           borderSkipped:false,
           order:1,
         },
+        {label:'MA5',type:'line',data:(function(){var c=data.map(function(d){return d.close});return c.map(function(_,i){if(i<4)return null;return c.slice(i-4,i+1).reduce(function(s,v){return s+v},0)/5})})(),borderColor:'rgba(240,192,64,0.85)',borderWidth:1.5,pointRadius:0,tension:0.3,fill:false,order:0},
+        {label:'MA20',type:'line',data:(function(){var c=data.map(function(d){return d.close});return c.map(function(_,i){if(i<19)return null;return c.slice(i-19,i+1).reduce(function(s,v){return s+v},0)/20})})(),borderColor:'rgba(96,160,255,0.85)',borderWidth:1.5,pointRadius:0,tension:0.3,fill:false,order:0},
+        {label:'BB+',type:'line',data:(function(){var c=data.map(function(d){return d.close});return c.map(function(_,i){if(i<19)return null;var sl=c.slice(i-19,i+1);var m=sl.reduce(function(s,v){return s+v},0)/20;var sd=Math.sqrt(sl.reduce(function(s,v){return s+(v-m)*(v-m)},0)/20);return+(m+2*sd).toFixed(2)})})(),borderColor:'rgba(160,100,255,0.5)',borderWidth:1,pointRadius:0,tension:0.3,fill:false,order:0},
+        {label:'BB-',type:'line',data:(function(){var c=data.map(function(d){return d.close});return c.map(function(_,i){if(i<19)return null;var sl=c.slice(i-19,i+1);var m=sl.reduce(function(s,v){return s+v},0)/20;var sd=Math.sqrt(sl.reduce(function(s,v){return s+(v-m)*(v-m)},0)/20);return+(m-2*sd).toFixed(2)})})(),borderColor:'rgba(160,100,255,0.5)',borderWidth:1,pointRadius:0,tension:0.3,fill:'-1',backgroundColor:'rgba(160,100,255,0.05)',order:0},
       ]
     },
     options:{
@@ -401,6 +406,28 @@ setInterval(loadTopMovers,15000);
   document.addEventListener('DOMContentLoaded', loadOvernight);
   setInterval(loadOvernight, 600000);
 })();
+</script>
+
+
+<script>
+function drawSpark(cv,prices){
+  if(!prices||prices.length<2)return;
+  var w=cv.width,h=cv.height,mn=Math.min.apply(null,prices),mx=Math.max.apply(null,prices),rng=mx-mn||1;
+  var ctx=cv.getContext('2d');ctx.clearRect(0,0,w,h);ctx.beginPath();
+  prices.forEach(function(v,i){var x=i/(prices.length-1)*w,y=h-(v-mn)/rng*(h-4)-2;i===0?ctx.moveTo(x,y):ctx.lineTo(x,y)});
+  ctx.strokeStyle=prices[prices.length-1]>=prices[0]?'#ff4444':'#22cc66';ctx.lineWidth=1.5;ctx.stroke();
+}
+async function loadSparks(){
+  var cvs=document.querySelectorAll('canvas.v2-spark');if(!cvs.length)return;
+  var codes=[...new Set([...cvs].map(function(c){return c.dataset.code}))].join(',');
+  try{var d=await fetch('/api/v2/sparks?codes='+codes).then(function(r){return r.json()});
+  cvs.forEach(function(cv){if(d[cv.dataset.code])drawSpark(cv,d[cv.dataset.code])});}catch(e){}
+}
+document.addEventListener('DOMContentLoaded',function(){
+  var tb=document.getElementById('screener_body');
+  if(tb){new MutationObserver(function(){setTimeout(loadSparks,300)}).observe(tb,{childList:true})}
+  setTimeout(loadSparks,1500);
+});
 </script>
 
 {% endblock %}

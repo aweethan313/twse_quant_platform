@@ -136,6 +136,38 @@
     </div>
   </div>
 </div>
+
+<div id="v2eq" style="margin-top:20px;background:#111418;border:1px solid rgba(255,255,255,0.07);border-radius:6px;padding:14px">
+  <div style="font-size:0.82rem;font-weight:600;color:#bbb;margin-bottom:10px">&#128200; 策略每日資產曲線</div>
+  <canvas id="v2ec" style="height:200px"></canvas>
+</div>
+<script>
+(function(){
+  var P=['#ff4444','#44aaff','#44ff88','#ffcc00','#ff8844','#cc44ff'];
+  var ec=null;
+  async function drawEc(){
+    try{
+      var accs=await fetch('/api/strategies').then(function(r){return r.json()});
+      if(!accs||!accs.length)return;
+      var allD=new Set(),series=[];
+      for(var i=0;i<accs.length;i++){
+        var a=accs[i];
+        var eq=await fetch('/api/strategies/'+a.account_id+'/equity').then(function(r){return r.json()});
+        if(!eq||!eq.length)continue;
+        var base=eq[0].total_equity||200000;
+        series.push({name:a.name,vals:eq.map(function(e){return+((e.total_equity/base*100-100).toFixed(2))})});
+        eq.forEach(function(e){allD.add((e.snap_date||'').slice(5))});
+      }
+      if(!series.length)return;
+      var labels=[...allD].sort();
+      var ctx=document.getElementById('v2ec').getContext('2d');
+      if(ec)ec.destroy();
+      ec=new Chart(ctx,{type:'line',data:{labels:labels,datasets:series.map(function(s,i){return{label:s.name,data:s.vals,borderColor:P[i%P.length],backgroundColor:'transparent',borderWidth:2,pointRadius:0,tension:0.3}})},options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{labels:{color:'#aaa',font:{size:10}}}},scales:{x:{ticks:{color:'#555',font:{size:9},maxTicksLimit:10},grid:{color:'rgba(255,255,255,0.04)'}},y:{ticks:{color:'#888',font:{size:9},callback:function(v){return(v>=0?'+':'')+v+'%'}},grid:{color:'rgba(255,255,255,0.06)'},position:'right'}}}});
+    }catch(e){console.warn(e)}
+  }
+  document.addEventListener('DOMContentLoaded',drawEc);
+})();
+</script>
 {% endblock %}
 
 {% block scripts %}

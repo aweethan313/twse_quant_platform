@@ -448,3 +448,23 @@ async def api_v2_overnight(refresh: bool = False):
         return get_overnight_summary(force_refresh=refresh)
     except Exception as e:
         return {"error": str(e), "bias": {"overall": "無資料", "score": 50}}
+
+# V2 P1: Sparkline 批次 API
+@app.get("/api/v2/sparks")
+async def api_v2_sparks(codes: str = ""):
+    from backend.models.database import SessionLocal
+    code_list = [c.strip() for c in codes.split(",") if c.strip()][:40]
+    if not code_list:
+        return {}
+    db = SessionLocal()
+    result = {}
+    try:
+        for code in code_list:
+            rows = db.execute(text(
+                "SELECT close FROM ohlcv_daily WHERE code=:c ORDER BY trade_date DESC LIMIT 20"
+            ), {"c": code}).fetchall()
+            if rows:
+                result[code] = [float(r[0]) for r in reversed(rows)]
+    finally:
+        db.close()
+    return result
