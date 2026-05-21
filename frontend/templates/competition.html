@@ -67,6 +67,12 @@
   </div>
 
 </div>
+
+<div class="mt-4 bg-surface-2 border border-border rounded-lg p-4">
+  <div class="text-sm font-bold mb-3">📊 策略 vs 0050 累計報酬對比</div>
+  <div style="height:240px"><canvas id="compare_chart"></canvas></div>
+  <div id="compare_summary" class="mt-3 flex flex-wrap gap-2 text-xs"></div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -254,5 +260,27 @@ function drawScatterChart(data){
 
 loadAll();
 setInterval(loadAll, 60000);
+</script>
+<script>
+let compareChart = null;
+async function loadCompare(){
+  try{
+    const d = await api('/backtest/compare');
+    const colors = ['#ff4444','#44aaff','#44ff88','#ffcc00','#ff8844','#cc44ff','#ffffff','#888888'];
+    const datasets = d.series.map((s,i)=>({
+      label:s.name, data:s.data.map(p=>({x:p.date,y:p.ret})),
+      borderColor:colors[i%colors.length], borderWidth:s.name==='0050'?2.5:1.5,
+      pointRadius:0, tension:0.2, fill:false
+    }));
+    const ctx=document.getElementById('compare_chart').getContext('2d');
+    if(compareChart)compareChart.destroy();
+    compareChart=new Chart(ctx,{type:'line',data:{datasets},options:{responsive:true,maintainAspectRatio:false,animation:false,parsing:{xAxisKey:'x',yAxisKey:'y'},plugins:{legend:{labels:{color:'#aaa',font:{size:9}}}},scales:{x:{type:'category',ticks:{color:'#555',font:{size:9},maxTicksLimit:8},grid:{color:'rgba(255,255,255,0.04)'}},y:{ticks:{color:'#888',font:{size:9},callback:v=>(v>=0?'+':'')+v+'%'},grid:{color:'rgba(255,255,255,0.06)'},position:'right'}}}});
+    document.getElementById('compare_summary').innerHTML=d.summary.map(s=>{
+      const c=s.final_ret>=0?'#ff4444':'#22cc66';
+      return '<span style="background:rgba(255,255,255,0.05);border-radius:4px;padding:3px 8px">'+s.name+' <span style="color:'+c+';font-weight:700">'+(s.final_ret>=0?'+':'')+s.final_ret+'%</span></span>';
+    }).join('');
+  }catch(e){console.warn(e);}
+}
+document.addEventListener('DOMContentLoaded',loadCompare);
 </script>
 {% endblock %}

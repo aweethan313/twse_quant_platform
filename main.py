@@ -926,3 +926,68 @@ def api_market_themes(db: Session = Depends(get_db)):
                     "code_count":r[4],"leaders":(r[5] or "").split(",")[:3],
                     "summary":r[6]} for r in rows]
     }
+
+@app.get("/api/backtest/compare")
+def api_backtest_compare(db: Session = Depends(get_db)):
+    """策略 vs 0050 vs 大盤報酬率對比"""
+    # 各策略 equity curve
+    accs = db.execute(text("SELECT id, name FROM strategy_accounts ORDER BY id")).fetchall()
+    eq_rows = db.execute(text("""
+        SELECT account_id, snap_date, total_equity
+        FROM equity_curve ORDER BY account_id, snap_date
+    """)).fetchall()
+
+    from collections import defaultdict
+    eq_by_acc = defaultdict(list)
+    for r in eq_rows:
+        eq_by_acc[r[0]].append({"date": str(r[1]), "equity": float(r[2])})
+
+    # 找最早共同起始日
+    start_dates = [v[0]["date"] for v in eq_by_acc.values() if v]
+    start = min(start_dates) if start_dates else "2026-01-01"
+
+    # 0050 價格（與策略起始日對齊）
+    ohlcv_0050 = db.execute(text("""
+        SELECT trade_date, close FROM ohlcv_daily
+        WHERE code='0050' AND trade_date >= :s ORDER BY trade_date
+    """), {"s": start}).fetchall()
+
+    # 大盤廣度（用全市場平均報酬代理）
+    market_curve = db.execute(text("""
+        SELECT trade_date, AVG(change_pct) as avg_chg
+        FROM ohlcv_daily WHERE trade_date >= :s
+        GROUP BY trade_date ORDER BY trade_date
+    """), {"s": start}).fetchall()
+
+    def normalize(series, key="equity", base=200000):
+        return [{"date": r["date"] if isinstance(r, dict) else str(r[0]),
+                 "ret": round((r[key] if isinstance(r, dict) else r[1]) / base * 100 - 100, 2)}
+                for r in series]
+
+    # 0050 normalize
+    base_0050 = float(ohlcv_0050[0][1]) if ohlcv_0050 else 1
+    norm_0050 = [{"date": str(r[0]), "ret": round(float(r[1])/base_0050*100-100, 2)} for r in ohlcv_0050]
+
+    # 大盤累計
+    cum = 0
+    norm_market = []
+    for r in market_curve:
+        cum += float(r[1] or 0)
+        norm_market.append({"date": str(r[0]), "ret": round(cum, 2)})
+
+    series = []
+    for acc_id, name in accs:
+        rows = eq_by_acc.get(acc_id, [])
+        if not rows: continue
+        base = 200000
+        series.append({"id": acc_id, "name": name,
+                       "data": normalize(rows, "equity", base),
+                       "final_ret": round(rows[-1]["equity"]/base*100-100, 2) if rows else 0})
+
+    series.append({"id": 0, "name": "0050", "data": norm_0050,
+                   "final_ret": norm_0050[-1]["ret"] if norm_0050 else 0})
+    series.append({"id": -1, "name": "大盤(等權)", "data": norm_market,
+                   "final_ret": norm_market[-1]["ret"] if norm_market else 0})
+
+    return {"start_date": start, "series": series,
+            "summary": [{"name":s["name"],"final_ret":s["final_ret"]} for s in series]}
