@@ -240,11 +240,14 @@ class ChipScorer:
         trust_5   = float(df["trust_net"].head(5).sum())
         dealer_1  = float(df["dealer_net"].iloc[0]) if len(df) else 0.0
 
-        scores = [
-            _minmax(foreign_5, -50000, 80000),
-            _minmax(trust_5,   -10000, 15000),
-            _minmax(dealer_1,   -5000,  5000),
-        ]
+        # 外資資料若全為 0（API 未提供），不納入計算
+        scores = []
+        if abs(foreign_5) > 100:
+            scores.append(_minmax(foreign_5, -50000, 80000))
+        # 投信（最重要）：連續買超是強訊號
+        scores.append(_minmax(trust_5, -10000, 15000))
+        # 自營商
+        scores.append(_minmax(dealer_1, -5000, 5000))
 
         # 融資使用率目前還沒下載，所以 margin_ratio 可能是 NULL。
         # 沒資料時不要把它當 0，否則會被誤判成籌碼很乾淨。

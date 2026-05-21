@@ -99,10 +99,19 @@ def api_stock_meta(code: str, db: Session = Depends(get_db)):
     return {"code": row[0], "name": row[1], "market": row[2], "industry": row[3]}
 
 
+
+def get_latest_trade_date(db) -> str:
+    """從 ohlcv_daily 找最新有效交易日，避免假日/盤後回傳空資料"""
+    from sqlalchemy import text as _text
+    row = db.execute(_text(
+        "SELECT MAX(trade_date) FROM ohlcv_daily WHERE trade_date <= date('now')"
+    )).fetchone()
+    return str(row[0]) if row and row[0] else str(date.today())
+
 @app.get("/api/market/overview")
 def api_market_overview(db: Session = Depends(get_db)):
     """大盤概覽：今日漲跌家數、成交值"""
-    today = date.today()
+    today = get_latest_trade_date(db)
     rows = db.execute(
         text("""
             SELECT
@@ -114,7 +123,7 @@ def api_market_overview(db: Session = Depends(get_db)):
         """), {"d": today}
     ).fetchone()
     return {
-        "trade_date": str(today),
+        "trade_date": str(today), "latest_trade_date": str(today),
         "up": int(rows[0] or 0),
         "down": int(rows[1] or 0),
         "flat": int(rows[2] or 0),
@@ -125,7 +134,7 @@ def api_market_overview(db: Session = Depends(get_db)):
 @app.get("/api/market/top_movers")
 def api_top_movers(limit: int = 20, db: Session = Depends(get_db)):
     """今日漲跌幅排行"""
-    today = date.today()
+    today = get_latest_trade_date(db)
     rows = db.execute(
         text("""
             SELECT o.code, sm.name, o.close, o.change, o.change_pct, o.volume
