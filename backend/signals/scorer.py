@@ -155,21 +155,35 @@ class FundamentalScorer:
             pb = float(pb) if pb is not None else None
             dividend_yield = float(dividend_yield) if dividend_yield is not None else None
 
-            parts = []
+            # 用近一年 PE/PB 百分位：百分位越低 = 越便宜 = 分數越高
+            pe_history = db.execute(text("""
+                SELECT pe FROM valuation_daily
+                WHERE code=:code AND valuation_date <= :score_date
+                  AND pe IS NOT NULL AND pe > 0
+                ORDER BY valuation_date DESC LIMIT 252
+            """), {"code": code, "score_date": score_date}).fetchall()
 
-            # PE / PB 越低越便宜，但太低可能是景氣循環或獲利異常，所以只是估值分數之一。
-            if pe is not None and pe > 0:
-                parts.append(_minmax(-pe, -80, -5))
-            else:
-                parts.append(50.0)
+            pb_history = db.execute(text("""
+                SELECT pb FROM valuation_daily
+                WHERE code=:code AND valuation_date <= :score_date
+                  AND pb IS NOT NULL AND pb > 0
+                ORDER BY valuation_date DESC LIMIT 252
+            """), {"code": code, "score_date": score_date}).fetchall()
 
-            if pb is not None and pb > 0:
-                parts.append(_minmax(-pb, -10, -0.5))
-            else:
-                parts.append(50.0)
+            def pct_score(history, val):
+                if not history or val is None or val <= 0:
+                    return 50.0
+                vals = [float(r[0]) for r in history]
+                pct = sum(1 for x in vals if x <= val) / len(vals)
+                return round((1 - pct) * 100, 2)  # 百分位低 → 分數高
 
-            # 殖利率越高越好，但不能單獨當買進依據。
-            if dividend_yield is not None and dividend_yield >= 0:
+            parts = [
+                pct_score(pe_history, pe),
+                pct_score(pb_history, pb),
+            ]
+
+            # 殖利率：0~8% → 0~100 分，加分項
+            if dividend_yield is not None and dividend_yield > 0:
                 parts.append(_minmax(dividend_yield, 0, 8))
             else:
                 parts.append(50.0)

@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from sqlalchemy import text
 from backend.models.database import SessionLocal
 from backend.engine.strategy_runner import run_all_strategies, get_competition_ranking
-from scripts.update_market_context import update_context_for_date
+from scripts.update_market_context import update_context_range as update_context_for_date
 
 
 def _to_date(x):
@@ -81,7 +81,7 @@ def main():
     print(f"將執行 {len(dates)} 個交易日：{dates[0]} ~ {dates[-1]}")
     print("先建立 market_context（含起始日前一個交易日；只用當日以前資料，不偷看未來）...")
     for d in _context_dates(dates[0], dates[-1]):
-        update_context_for_date(d, auto_external=False)
+        update_context_for_date(start_date=str(d), end_date=str(d))
 
     for d in dates:
         run_all_strategies(d)
