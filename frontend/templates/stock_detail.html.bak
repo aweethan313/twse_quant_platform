@@ -1,0 +1,252 @@
+{% extends "base.html" %}
+{% block title %}{{ code }} 個股詳情 | TWSE Quant{% endblock %}
+{% block nav_market %}text-gray-400 hover:text-white{% endblock %}
+
+{% block content %}
+<div class="p-4 space-y-4">
+
+  <!-- 報價列 -->
+  <div class="bg-surface-2 border border-border rounded-lg px-4 py-3 flex flex-wrap items-center gap-5">
+    <div>
+      <div class="font-mono text-blue text-sm font-bold">{{ code }}</div>
+      <div class="text-xl font-bold" id="sd_name">—</div>
+    </div>
+    <div class="font-mono text-3xl font-bold" id="sd_price">—</div>
+    <div class="font-mono text-sm" id="sd_chg">—</div>
+    <div class="flex gap-5 ml-4">
+      <div class="text-center"><div class="text-xs text-gray-500">開盤</div><div class="font-mono text-sm" id="sd_open">—</div></div>
+      <div class="text-center"><div class="text-xs text-gray-500">最高</div><div class="font-mono text-sm text-up" id="sd_high">—</div></div>
+      <div class="text-center"><div class="text-xs text-gray-500">最低</div><div class="font-mono text-sm text-dn" id="sd_low">—</div></div>
+      <div class="text-center"><div class="text-xs text-gray-500">成交量(張)</div><div class="font-mono text-sm" id="sd_vol">—</div></div>
+    </div>
+    <div class="ml-auto text-right">
+      <div id="sd_signal" class="mb-1"></div>
+      <div class="text-xs text-gray-500">綜合分</div>
+      <div class="font-mono text-2xl font-bold text-accent" id="sd_composite">—</div>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <!-- K 線 -->
+    <div class="lg:col-span-2 space-y-3">
+      <div class="bg-surface-2 border border-border rounded-lg p-4">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="text-sm font-medium" id="chart_title">日K線圖</span>
+          <div class="flex gap-1 ml-auto">
+            <button class="range-btn text-xs px-2 py-1 rounded text-gray-400" onclick="setRange('1M',this)">月</button>
+            <button class="range-btn active text-xs px-2 py-1 rounded bg-surface-4 text-white" onclick="setRange('3M',this)">季</button>
+            <button class="range-btn text-xs px-2 py-1 rounded text-gray-400" onclick="setRange('1Y',this)">年</button>
+          </div>
+        </div>
+        <div class="h-56"><canvas id="kline_chart"></canvas></div>
+      </div>
+
+      <div class="bg-surface-2 border border-border rounded-lg p-4">
+        <div class="text-sm font-medium mb-3">分數歷史趨勢（近 30 日）</div>
+        <div class="h-44"><canvas id="score_trend_chart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- 右側 -->
+    <div class="space-y-3">
+      <div class="bg-surface-2 border border-border rounded-lg p-4">
+        <div class="text-sm font-medium mb-2">六維分數雷達</div>
+        <div class="h-52"><canvas id="radar_chart"></canvas></div>
+      </div>
+      <div class="bg-surface-2 border border-border rounded-lg p-4">
+        <div class="text-sm font-medium mb-3">分數明細</div>
+        <div id="score_detail" class="space-y-2"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const CODE='{{ code }}';
+let kChart=null,radarChart=null,trendChart=null;
+let currentRange='3M';
+
+const SCORE_LABELS={
+  fundamental:'基本面',valuation:'估值',chip:'籌碼',
+  momentum:'量價動能',macro:'總經',news:'新聞事件'
+};
+
+async function loadQuote(){
+  try{
+    const{data}=await api(`/stock/${CODE}/kline?days=2`);
+    if(!data.length) return;
+    const last=data[data.length-1];
+    const prev=data.length>1?data[data.length-2]:last;
+    const chg=last.close-prev.close;
+    const chgP=chg/prev.close*100;
+    const cls=chg>=0?'text-up':'text-dn';
+    document.getElementById('sd_name').textContent=stockNameOnly(CODE)+' ('+CODE+')';
+    document.getElementById('sd_price').textContent=fmtP(last.close);
+    document.getElementById('sd_price').className=`font-mono text-3xl font-bold ${cls}`;
+    document.getElementById('sd_chg').textContent=`${chg>=0?'▲':'▼'} ${Math.abs(chg).toFixed(2)} (${fmtP(chgP,2)}%)`;
+    document.getElementById('sd_chg').className=`font-mono text-sm ${cls}`;
+    document.getElementById('sd_open').textContent=fmtP(last.open);
+    document.getElementById('sd_high').textContent=fmtP(last.high);
+    document.getElementById('sd_low').textContent=fmtP(last.low);
+    document.getElementById('sd_vol').textContent=fmt(Math.round((last.volume || 0) / 1000));
+  }catch(e){}
+}
+
+async function loadKline(){
+  const days={'1M':30,'3M':90,'1Y':252}[currentRange]||90;
+  try{
+    const{data}=await api(`/stock/${CODE}/kline?days=${days}`);
+    drawKline(data);
+  }catch(e){}
+}
+
+function drawKline(data){
+  const ctx=document.getElementById('kline_chart').getContext('2d');
+  if(kChart) kChart.destroy();
+  const colors=data.map(d=>d.close>=d.open?UP_C:DN_C);
+  const borders=data.map(d=>d.close>=d.open?UP_B:DN_B);
+  kChart=new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels:data.map(d=>d.date.slice(5)),
+      datasets:[
+        {
+          label:'蠟燭體',data:data.map(d=>[Math.min(d.open,d.close),Math.max(d.open,d.close)]),
+          backgroundColor:colors,borderColor:borders,borderWidth:1,borderSkipped:false,
+          barPercentage:0.6,categoryPercentage:0.8,order:2,
+        },
+        {
+          label:'上影線',type:'bar',
+          data:data.map(d=>[Math.max(d.open,d.close),d.high]),
+          backgroundColor:borders,borderWidth:0,barPercentage:0.08,categoryPercentage:0.8,
+          borderSkipped:false,order:1,
+        },
+        {
+          label:'下影線',type:'bar',
+          data:data.map(d=>[d.low,Math.min(d.open,d.close)]),
+          backgroundColor:borders,borderWidth:0,barPercentage:0.08,categoryPercentage:0.8,
+          borderSkipped:false,order:1,
+        },
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          callbacks:{
+            title:ctx=>[`${CODE} ${stockNameOnly(CODE)}`,data[ctx[0].dataIndex].date],
+            label:ctx=>{
+              if(ctx.datasetIndex!==0) return null;
+              const d=data[ctx.dataIndex];
+              return[`開:${d.open}  收:${d.close}`,`高:${d.high}  低:${d.low}`,`量:${fmt(Math.round((d.volume || 0) / 1000))}張`];            }
+          },
+          filter:item=>item.datasetIndex===0,
+          backgroundColor:'#1c2128',borderColor:'#30363d',borderWidth:1,
+          titleColor:'#e6edf3',bodyColor:'#adbac7'
+        }
+      },
+      scales:{
+        x:{stacked:false,grid:{color:'rgba(48,54,61,.4)'},ticks:{color:'#7d8590',font:{size:9},maxTicksLimit:12}},
+        y:{grid:{color:'rgba(48,54,61,.4)'},ticks:{color:'#7d8590',font:{size:9}},position:'right'}
+      }
+    }
+  });
+}
+
+async function loadScores(){
+  try{
+    const s=await api(`/stock/${CODE}/latest_score`);
+    document.getElementById('radar_empty') && document.getElementById('radar_empty').classList.add('hidden');
+    const ctx=document.getElementById('radar_chart').getContext('2d');
+    if(radarChart) radarChart.destroy();
+    radarChart=new Chart(ctx,{
+      type:'radar',
+      data:{
+        labels:['基本面','估值','籌碼','動能','總經','新聞'],
+        datasets:[{
+          data:[s.fundamental,s.valuation,s.chip,s.momentum,s.macro,s.news],
+          backgroundColor:'rgba(88,166,255,.12)',borderColor:'#58a6ff',
+          pointBackgroundColor:'#58a6ff',pointRadius:4,borderWidth:2,
+        }]
+      },
+      options:{
+        responsive:true,maintainAspectRatio:false,
+        scales:{r:{min:0,max:100,
+          grid:{color:'rgba(48,54,61,.6)'},angleLines:{color:'rgba(48,54,61,.6)'},
+          ticks:{color:'#7d8590',stepSize:25,backdropColor:'transparent',font:{size:9}},
+          pointLabels:{color:'#e6edf3',font:{size:10}}
+        }},
+        plugins:{legend:{display:false}}
+      }
+    });
+
+    const keys=['fundamental','valuation','chip','momentum','macro','news'];
+    document.getElementById('score_detail').innerHTML=keys.map(k=>{
+      const v=+(s[k]||0);
+      const col=v>=65?'bg-up':v>=40?'bg-accent':'bg-dn';
+      return`<div>
+        <div class="flex justify-between text-xs mb-1">
+          <span class="text-gray-400">${SCORE_LABELS[k]}</span>
+          <span class="font-mono font-bold">${fmtP(v,1)}</span>
+        </div>
+        <div class="h-1.5 bg-surface-4 rounded-full overflow-hidden">
+          <div class="h-full ${col} rounded-full" style="width:${v}%"></div>
+        </div>
+      </div>`;
+    }).join('');
+
+    document.getElementById('sd_signal').innerHTML=badgeSig(s.signal);
+    document.getElementById('sd_composite').textContent=fmtP(s.composite,1);
+
+    const{scores}=await api(`/stock/${CODE}/scores?days=30`);
+    drawScoreTrend(scores);
+  }catch(e){}
+}
+
+function drawScoreTrend(scores){
+  const ctx=document.getElementById('score_trend_chart').getContext('2d');
+  if(trendChart) trendChart.destroy();
+  const COLORS6=['#58a6ff','#f0b429','#ff3333','#33cc66','#a371f7','#79c0ff'];
+  const keys=['fundamental','valuation','chip','momentum','macro','news'];
+  trendChart=new Chart(ctx,{
+    type:'line',
+    data:{
+      labels:scores.map(s=>s.date.slice(5)),
+      datasets:keys.map((k,i)=>({
+        label:SCORE_LABELS[k],data:scores.map(s=>s[k]),
+        borderColor:COLORS6[i],backgroundColor:'transparent',
+        borderWidth:1.5,pointRadius:0,tension:0.4,
+      }))
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{labels:{color:'#7d8590',font:{size:10},boxWidth:10}},
+        tooltip:{backgroundColor:'#1c2128',borderColor:'#30363d',borderWidth:1,titleColor:'#e6edf3',bodyColor:'#adbac7'}
+      },
+      scales:{
+        x:{grid:{color:'rgba(48,54,61,.4)'},ticks:{color:'#7d8590',font:{size:9},maxTicksLimit:10}},
+        y:{min:0,max:100,grid:{color:'rgba(48,54,61,.4)'},ticks:{color:'#7d8590',font:{size:9},stepSize:25},position:'right'}
+      }
+    }
+  });
+}
+
+function setRange(r,btn){
+  currentRange=r;
+  document.querySelectorAll('.range-btn').forEach(b=>b.className='range-btn text-xs px-2 py-1 rounded text-gray-400');
+  btn.className='range-btn active text-xs px-2 py-1 rounded bg-surface-4 text-white';
+  loadKline();
+}
+
+loadQuote();
+loadKline();
+loadScores();
+setInterval(loadQuote,10000);
+</script>
+{% endblock %}

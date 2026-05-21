@@ -303,7 +303,6 @@ function drawKline(data){
 
 async function loadRadar(){
   try{
-    showStockDetailLink();
     const s=await api(`/stock/${currentCode}/latest_score`);
     document.getElementById('radar_empty').classList.add('hidden');
     document.getElementById('signal_badge').innerHTML=badgeSig(s.signal);
@@ -364,38 +363,6 @@ loadScreener();
 loadStock('2330');
 setInterval(loadOverview,30000);
 setInterval(loadTopMovers,15000);
-
-function showStockDetailLink(){
-  const code = (typeof currentCode !== 'undefined' && currentCode)
-    ? String(currentCode).trim()
-    : '';
-
-  if (!code) return;
-
-  let link = document.getElementById('stock_detail_link');
-
-  if (!link) {
-    link = document.createElement('a');
-    link.id = 'stock_detail_link';
-    link.textContent = '查看詳情';
-    link.className = 'ml-3 inline-flex items-center px-3 py-1.5 rounded bg-surface-4 text-accent border border-border text-xs font-medium hover:border-accent transition';
-
-    const title = Array.from(document.querySelectorAll('span'))
-      .find(el => el.textContent.includes('個股查詢'));
-
-    const host = title ? title.parentElement : null;
-
-    if (host) {
-      host.appendChild(link);
-    } else {
-      document.body.appendChild(link);
-    }
-  }
-
-  link.href = `/stock/${encodeURIComponent(code)}`;
-  link.classList.remove('hidden');
-}
-
 </script>
 
 <script>

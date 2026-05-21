@@ -56,7 +56,7 @@ class OHLCVDaily(Base):
     high        = Column(Float)
     low         = Column(Float)
     close       = Column(Float)
-    volume      = Column(Float)      # 成交量（張）
+    volume      = Column(Float)      # 成交量（股，TWSE 原始資料；前端顯示張數需 /1000）
     value       = Column(Float)      # 成交金額（千元）
     change      = Column(Float)      # 漲跌
     change_pct  = Column(Float)      # 漲跌幅

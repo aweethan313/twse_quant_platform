@@ -126,7 +126,7 @@ class FundamentalScorer:
             except (TypeError, ValueError):
                 pass
 
-        revenue_score = _minmax(float(np.mean(yoy_values)), -30, 50) if yoy_values else 50.0
+        revenue_score = _minmax(float(np.mean(yoy_values)), -20, 30) if yoy_values else 50.0
 
         # 3. 估值資料：只吃 valuation_date <= score_date 的 PE/PB，避免偷看未來。
         val_sql = text("""
@@ -178,14 +178,8 @@ class FundamentalScorer:
 
         # 4. 基本面分數：如果季報還沒補，先由月營收 YoY 拉動。
         if row is None:
-            f_components = [
-                50.0,           # ROE 尚未補
-                50.0,           # 毛利率 尚未補
-                50.0,           # 營業利益率 尚未補
-                revenue_score,  # 月營收 YoY
-                50.0,           # EPS 尚未補
-            ]
-            fundamental_score = round(float(np.mean(f_components)), 2)
+            # 無季報時，月營收 YoY 為主要依據（權重 80%），保留 20% neutral
+            fundamental_score = round(revenue_score * 0.8 + 50.0 * 0.2, 2)
 
             return {
                 "fundamental_score": fundamental_score,

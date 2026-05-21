@@ -641,3 +641,194 @@ async def api_strategy_metrics(account_id: int):
         return calc_metrics(account_id, db)
     finally:
         db.close()
+
+@app.get("/api/stock/{code}/technical")
+def api_stock_technical(code: str, days: int = 60, db: Session = Depends(get_db)):
+    """個股技術指標：MA5/MA20/Bollinger/成交量"""
+    import statistics
+    rows = db.execute(text("""
+        SELECT trade_date, open, high, low, close, volume
+        FROM ohlcv_daily WHERE code=:c
+        ORDER BY trade_date DESC LIMIT :n
+    """), {"c": code, "n": days + 25}).fetchall()
+    if not rows:
+        return {"code": code, "error": "無資料", "data": []}
+    rows = list(reversed(rows))
+    closes  = [r[4] for r in rows]
+    volumes = [r[5] for r in rows]
+
+    def ma(arr, n, i):
+        if i < n - 1: return None
+        return round(sum(arr[i-n+1:i+1]) / n, 2)
+
+    def boll(closes, i, n=20):
+        if i < n - 1: return None, None, None
+        window = closes[i-n+1:i+1]
+        mid = sum(window) / n
+        std = statistics.stdev(window)
+        return round(mid, 2), round(mid + 2*std, 2), round(mid - 2*std, 2)
+
+    result = []
+    for i, r in enumerate(rows):
+        m5  = ma(closes, 5, i)
+        m20 = ma(closes, 20, i)
+        mid, upper, lower = boll(closes, i)
+        vol_ma20 = ma(volumes, 20, i)
+        vol_ratio = round(r[5] / vol_ma20, 2) if vol_ma20 else None
+        result.append({
+            "date": str(r[0]), "open": r[1], "high": r[2],
+            "low": r[3], "close": r[4], "volume": r[5],
+            "ma5": m5, "ma20": m20,
+            "boll_mid": mid, "boll_upper": upper, "boll_lower": lower,
+            "volume_ma20": vol_ma20, "volume_ratio": vol_ratio
+        })
+    return {"code": code, "data": result[-days:]}
+
+@app.get("/api/stock/{code}/valuation")
+def api_stock_valuation(code: str, db: Session = Depends(get_db)):
+    """PE/PB 近一年歷史百分位"""
+    rows = db.execute(text("""
+        SELECT valuation_date, pe, pb, close, dividend_yield
+        FROM valuation_daily
+        WHERE code=:c AND valuation_date >= date('now','-365 days')
+        ORDER BY valuation_date ASC
+    """), {"c": code}).fetchall()
+    if not rows:
+        return {"code": code, "error": "無估值資料", "pe_percentile": None, "pb_percentile": None}
+
+    pes = [r[1] for r in rows if r[1] and r[1] > 0]
+    pbs = [r[2] for r in rows if r[2] and r[2] > 0]
+    latest = rows[-1]
+
+    def percentile(arr, val):
+        if not arr or val is None or val <= 0: return None
+        return round(sum(1 for x in arr if x <= val) / len(arr) * 100, 1)
+
+    pe_pct = percentile(pes, latest[1])
+    pb_pct = percentile(pbs, latest[2])
+
+    return {
+        "code": code,
+        "valuation_date": str(latest[0]),
+        "pe": latest[1],
+        "pb": latest[2],
+        "close": latest[3],
+        "dividend_yield": latest[4],
+        "pe_percentile": pe_pct,
+        "pb_percentile": pb_pct,
+        "pe_count": len(pes),
+        "pb_count": len(pbs),
+        "pe_note": f"目前 PE 位於近一年第 {pe_pct}%" if pe_pct else "PE 資料不足",
+        "pb_note": f"目前 PB 位於近一年第 {pb_pct}%" if pb_pct else "PB 資料不足",
+    }
+
+@app.get("/api/stock/{code}/chip")
+def api_stock_chip(code: str, db: Session = Depends(get_db)):
+    """籌碼分析：法人連買天數、近5日累計、近20日趨勢"""
+    rows = db.execute(text("""
+        SELECT trade_date, foreign_net, trust_net, dealer_net
+        FROM chip_daily WHERE code=:c
+        ORDER BY trade_date DESC LIMIT 25
+    """), {"c": code}).fetchall()
+    if not rows:
+        return {"code": code, "error": "無籌碼資料"}
+
+    rows = list(reversed(rows))
+
+    def consec_buy(series):
+        days = 0
+        for v in reversed(series):
+            if v and v > 0: days += 1
+            else: break
+        return days
+
+    def consec_sell(series):
+        days = 0
+        for v in reversed(series):
+            if v and v < 0: days += 1
+            else: break
+        return days
+
+    foreign = [r[1] or 0 for r in rows]
+    trust   = [r[2] or 0 for r in rows]
+    dealer  = [r[3] or 0 for r in rows]
+
+    latest = rows[-1]
+    return {
+        "code": code,
+        "trade_date": str(latest[0]),
+        "foreign_net": latest[1],
+        "trust_net": latest[2],
+        "dealer_net": latest[3],
+        "foreign_consec_buy":  consec_buy(foreign),
+        "foreign_consec_sell": consec_sell(foreign),
+        "trust_consec_buy":    consec_buy(trust),
+        "trust_consec_sell":   consec_sell(trust),
+        "foreign_5d": round(sum(foreign[-5:]), 0),
+        "trust_5d":   round(sum(trust[-5:]), 0),
+        "dealer_5d":  round(sum(dealer[-5:]), 0),
+        "foreign_20d": round(sum(foreign[-20:]), 0),
+        "trust_20d":   round(sum(trust[-20:]), 0),
+        "chip_summary": (
+            f"投信連買{consec_buy(trust)}天" if consec_buy(trust) >= 2 else
+            f"投信連賣{consec_sell(trust)}天" if consec_sell(trust) >= 2 else
+            f"投信近5日{'買超' if sum(trust[-5:])>0 else '賣超'}{abs(round(sum(trust[-5:]),0)):.0f}張"
+        )
+    }
+
+@app.get("/api/stock/{code}/fundamental")
+def api_stock_fundamental(code: str, db: Session = Depends(get_db)):
+    """基本面分析：用月營收計算 YoY/MoM 趨勢與分數"""
+    rows = db.execute(text("""
+        SELECT year, month, revenue, mom_pct, yoy_pct, accumulated, published_date
+        FROM monthly_revenue WHERE code=:c
+        ORDER BY year DESC, month DESC LIMIT 12
+    """), {"c": code}).fetchall()
+
+    if not rows:
+        return {"code": code, "error": "無月營收資料", "fundamental_score": 50,
+                "missing_data_flags": ["monthly_revenue"]}
+
+    latest = rows[0]
+    yoy = latest[4]
+    mom = latest[3]
+
+    # 計算近3個月 YoY 平均
+    recent_yoys = [r[4] for r in rows[:3] if r[4] is not None]
+    avg_yoy = sum(recent_yoys) / len(recent_yoys) if recent_yoys else 0
+
+    # 分數邏輯：YoY > 20% → 80+, YoY > 0% → 60+, YoY < -10% → 40-
+    def score_from_yoy(y):
+        if y is None: return 50
+        if y >= 30:  return min(95, 75 + y * 0.3)
+        if y >= 15:  return 70 + (y - 15) * 0.5
+        if y >= 0:   return 60 + y * 0.67
+        if y >= -10: return 50 + y * 1.0
+        return max(20, 40 + y * 0.5)
+
+    score = round(score_from_yoy(avg_yoy), 1)
+    # MoM 微調
+    if mom and mom > 5:  score = min(95, score + 3)
+    if mom and mom < -5: score = max(20, score - 3)
+
+    summary_parts = []
+    if yoy is not None:
+        summary_parts.append(f"營收YoY {yoy:+.1f}%")
+    if mom is not None:
+        summary_parts.append(f"MoM {mom:+.1f}%")
+    summary_parts.append(f"基本面分數 {score}")
+
+    return {
+        "code": code,
+        "latest_year": latest[0],
+        "latest_month": latest[1],
+        "revenue": latest[2],
+        "yoy_pct": yoy,
+        "mom_pct": mom,
+        "avg_yoy_3m": round(avg_yoy, 2),
+        "fundamental_score": score,
+        "data_source": "monthly_revenue",
+        "missing_data_flags": ["eps","roe","gross_margin"] if not rows else [],
+        "summary": " | ".join(summary_parts),
+        "published_date": str(latest[6]) if latest[6] else None
+    }
