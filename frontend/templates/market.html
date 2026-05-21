@@ -431,13 +431,51 @@ function showStockDetailLink(){
               <div style="font-size:0.68rem;color:#666">${l}</div>
               <div style="font-size:0.85rem;font-weight:700;color:${biasColor(v)}">${v}</div></div>`).join('')}
         </div>
-        <div>${symRows}</div>`;
+        <div>${symRows}</div>
+        <div id="v2-regime-row" style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.07);font-size:0.75rem;color:#666">載入市場 regime...</div>`;
+      fetch('/api/market/regime').then(r=>r.json()).then(rg=>{
+        const el=document.getElementById('v2-regime-row');
+        if(!el)return;
+        const c=rg.regime==='bullish'?'#ff4444':rg.regime==='bearish'?'#22cc66':'#aaa';
+        el.innerHTML=`<span style="color:#555">市場狀態：</span><span style="color:${c};font-weight:700">${rg.regime_zh}</span>
+          <span style="color:#444;margin:0 6px">|</span>
+          <span style="color:#555">倉位乘數：</span><span style="color:#bbb;font-weight:600">${rg.position_multiplier}x</span>
+          <span style="color:#444;margin:0 6px">|</span>
+          <span style="color:#555">廣度：</span><span style="color:#bbb">${rg.up_count}↑ ${rg.down_count}↓</span>`;
+      }).catch(()=>{});
       const wrap = document.querySelector('.container-fluid, main, body');
       if (wrap) wrap.appendChild(card);
     } catch(e) { console.warn('overnight:', e); }
   }
+  async function loadThemes(){
+    try{
+      const d=await fetch('/api/market/themes').then(r=>r.json());
+      if(!d.themes||!d.themes.length)return;
+      const existing=document.getElementById('v2-theme-card');
+      if(existing)existing.remove();
+      const card=document.createElement('div');
+      card.id='v2-theme-card';
+      card.style.cssText='margin-top:10px;background:#111418;border:1px solid rgba(255,255,255,0.07);border-radius:6px;padding:12px 14px;';
+      const rows=d.themes.map(t=>{
+        const c=t.score>=75?'#ff4444':t.score>=60?'#ffcc44':'#aaa';
+        const bar=Math.round(t.score);
+        return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.04)">
+          <span style="min-width:90px;font-size:0.78rem;color:#bbb">${t.theme}</span>
+          <div style="flex:1;background:rgba(255,255,255,0.05);border-radius:2px;height:6px">
+            <div style="width:${bar}%;height:6px;border-radius:2px;background:${c}"></div></div>
+          <span style="font-size:0.75rem;color:${c};font-weight:700;min-width:32px;text-align:right">${t.score}</span>
+          <span style="font-size:0.7rem;color:#555;min-width:80px">${t.leaders.slice(0,2).join(' ')}</span>
+        </div>`;
+      }).join('');
+      card.innerHTML=`<div style="font-size:0.82rem;font-weight:600;color:#bbb;margin-bottom:8px">🔥 主線題材熱度</div>${rows}`;
+      const oc=document.getElementById('v2-overnight-card');
+      if(oc)oc.after(card);
+    }catch(e){}
+  }
   document.addEventListener('DOMContentLoaded', loadOvernight);
+  document.addEventListener('DOMContentLoaded', loadThemes);
   setInterval(loadOvernight, 600000);
+  setInterval(loadThemes, 600000);
 })();
 </script>
 

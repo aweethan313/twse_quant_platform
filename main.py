@@ -832,3 +832,97 @@ def api_stock_fundamental(code: str, db: Session = Depends(get_db)):
         "summary": " | ".join(summary_parts),
         "published_date": str(latest[6]) if latest[6] else None
     }
+
+@app.get("/api/market/regime")
+def api_market_regime(db: Session = Depends(get_db)):
+    """市場 regime：結合夜盤、大盤廣度、趨勢判斷倉位乘數"""
+    latest = get_latest_trade_date(db)
+
+    # 大盤廣度
+    stats = db.execute(text("""
+        SELECT
+          SUM(CASE WHEN change>0 THEN 1 ELSE 0 END),
+          SUM(CASE WHEN change<0 THEN 1 ELSE 0 END),
+          AVG(change_pct), SUM(value)
+        FROM ohlcv_daily WHERE trade_date=:d
+    """), {"d": latest}).fetchone()
+    up, dn, avg_chg, total_val = (stats[0] or 0), (stats[1] or 0), (stats[2] or 0), (stats[3] or 0)
+    total = up + dn + max(1, (up+dn)*0.05)
+    up_ratio = round(up / total * 100, 1) if total > 0 else 50
+
+    # overnight
+    ctx = db.execute(text("""
+        SELECT overnight_score, next_day_bias, nasdaq_ret, sox_ret, ai_theme_score
+        FROM market_context_daily ORDER BY context_date DESC LIMIT 1
+    """)).fetchone()
+    overnight_score = float(ctx[0] or 50) if ctx else 50
+    next_day_bias = ctx[1] if ctx else "中性"
+
+    # 綜合判斷
+    breadth_score = min(100, max(0, up_ratio * 1.2))
+    combined = overnight_score * 0.4 + breadth_score * 0.6
+
+    if combined >= 65:   regime = "bullish";   pos_mult = 1.0
+    elif combined >= 50: regime = "neutral";   pos_mult = 0.8
+    elif combined >= 38: regime = "cautious";  pos_mult = 0.6
+    else:                regime = "bearish";   pos_mult = 0.4
+
+    regime_zh = {"bullish":"偏多","neutral":"中性","cautious":"謹慎偏空","bearish":"偏空"}[regime]
+
+    # 更新 market_context_daily
+    db.execute(text("""
+        INSERT INTO market_context_daily
+          (context_date, up_count, down_count, up_ratio, avg_change_pct,
+           total_value, breadth_score, overnight_score, next_day_bias,
+           market_bias_score, trend_regime)
+        VALUES (:d,:up,:dn,:ur,:ac,:tv,:bs,:os,:nb,:mb,:tr)
+        ON CONFLICT(context_date) DO UPDATE SET
+          up_count=excluded.up_count, down_count=excluded.down_count,
+          up_ratio=excluded.up_ratio, avg_change_pct=excluded.avg_change_pct,
+          breadth_score=excluded.breadth_score, market_bias_score=excluded.market_bias_score,
+          trend_regime=excluded.trend_regime
+    """), {"d":latest,"up":int(up),"dn":int(dn),"ur":up_ratio,"ac":round(avg_chg,3),
+           "tv":total_val,"bs":round(breadth_score,1),"os":overnight_score,
+           "nb":next_day_bias,"mb":round(combined,1),"tr":regime_zh})
+    db.commit()
+
+    return {
+        "trade_date": latest,
+        "regime": regime,
+        "regime_zh": regime_zh,
+        "combined_score": round(combined, 1),
+        "breadth_score": round(breadth_score, 1),
+        "overnight_score": overnight_score,
+        "up_count": int(up), "down_count": int(dn), "up_ratio": up_ratio,
+        "avg_change_pct": round(avg_chg, 3),
+        "position_multiplier": pos_mult,
+        "next_day_bias": next_day_bias,
+        "explanation": f"大盤上漲{up}家({up_ratio}%)，夜盤分數{overnight_score}，綜合{combined:.0f}→{regime_zh}，建議倉位乘數{pos_mult}"
+    }
+
+@app.get("/api/market/themes")
+def api_market_themes(db: Session = Depends(get_db)):
+    """主線題材趨勢：從 theme_trend_daily 取最新資料"""
+    latest = db.execute(text(
+        "SELECT MAX(context_date) FROM theme_trend_daily"
+    )).scalar()
+
+    if not latest:
+        return {"themes": [], "data_date": None, "note": "無題材資料"}
+
+    rows = db.execute(text("""
+        SELECT theme, score, momentum_score, breadth_score,
+               code_count, leader_codes, summary
+        FROM theme_trend_daily
+        WHERE context_date=:d
+        ORDER BY score DESC
+    """), {"d": latest}).fetchall()
+
+    return {
+        "data_date": str(latest),
+        "themes": [{"theme":r[0],"score":round(r[1],1),
+                    "momentum":round(r[2] or 0,1),
+                    "breadth":round(r[3] or 0,1),
+                    "code_count":r[4],"leaders":(r[5] or "").split(",")[:3],
+                    "summary":r[6]} for r in rows]
+    }
