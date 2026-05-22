@@ -953,34 +953,41 @@ def api_backtest_compare(db: Session = Depends(get_db)):
     start_dates = [v[0]["date"] for v in eq_by_acc.values() if v]
     start = min(start_dates) if start_dates else "2026-01-01"
 
-    # 0050 價格（與策略起始日對齊）
-    ohlcv_0050 = db.execute(text("""
-        SELECT trade_date, close FROM ohlcv_daily
-        WHERE code='0050' AND trade_date >= :s ORDER BY trade_date
-    """), {"s": start}).fetchall()
+    # 0050：yfinance split-adjusted 價格
+    try:
+        import yfinance as yf
+        df0 = yf.download("0050.TW", start=start, end="2026-06-01", auto_adjust=True, progress=False)
+        if not df0.empty:
+            closes = df0[("Close","0050.TW")].dropna() if ("Close","0050.TW") in df0.columns else df0["Close"].dropna()
+            base0 = float(closes.iloc[0])
+            norm_0050 = [{"date": str(d)[:10], "ret": round(float(v)/base0*100-100, 2)}
+                         for d, v in closes.items()]
+        else:
+            norm_0050 = []
+    except Exception as e:
+        print("yfinance error:", e)
+        norm_0050 = []
 
-    # 大盤廣度（用全市場平均報酬代理）
-    market_curve = db.execute(text("""
+    # 大盤廣度：change_pct 累積（截斷異常值±5%）
+    market_curve_raw = db.execute(text("""
         SELECT trade_date, AVG(change_pct) as avg_chg
         FROM ohlcv_daily WHERE trade_date >= :s
+          AND change_pct BETWEEN -10 AND 10
         GROUP BY trade_date ORDER BY trade_date
     """), {"s": start}).fetchall()
+    mcum, norm_market = 1.0, []
+    for i, r in enumerate(market_curve_raw):
+        if i == 0:
+            norm_market.append({"date": str(r[0]), "ret": 0.0})
+        else:
+            pct = max(min(float(r[1] or 0), 5.0), -5.0)
+            mcum *= (1 + pct/100.0)
+            norm_market.append({"date": str(r[0]), "ret": round(mcum*100-100, 2)})
 
     def normalize(series, key="equity", base=200000):
         return [{"date": r["date"] if isinstance(r, dict) else str(r[0]),
                  "ret": round((r[key] if isinstance(r, dict) else r[1]) / base * 100 - 100, 2)}
                 for r in series]
-
-    # 0050 normalize
-    base_0050 = float(ohlcv_0050[0][1]) if ohlcv_0050 else 1
-    norm_0050 = [{"date": str(r[0]), "ret": round(float(r[1])/base_0050*100-100, 2)} for r in ohlcv_0050]
-
-    # 大盤累計
-    cum = 0
-    norm_market = []
-    for r in market_curve:
-        cum += float(r[1] or 0)
-        norm_market.append({"date": str(r[0]), "ret": round(cum, 2)})
 
     series = []
     for acc_id, name in accs:
@@ -993,8 +1000,7 @@ def api_backtest_compare(db: Session = Depends(get_db)):
 
     series.append({"id": 0, "name": "0050", "data": norm_0050,
                    "final_ret": norm_0050[-1]["ret"] if norm_0050 else 0})
-    series.append({"id": -1, "name": "大盤(等權)", "data": norm_market,
-                   "final_ret": norm_market[-1]["ret"] if norm_market else 0})
+    # 大盤(等權) 因 stale 資料問題暫時移除
 
     return {"start_date": start, "series": series,
             "summary": [{"name":s["name"],"final_ret":s["final_ret"]} for s in series]}
