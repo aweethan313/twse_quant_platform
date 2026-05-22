@@ -333,7 +333,7 @@ def audit_signals(
     issues: list[AuditIssue] = []
 
     seen_key: dict[tuple[str, str, str, str], int] = {}
-    daily_actions: dict[tuple[str, str], list[SignalRow]] = {}
+    daily_actions: dict[tuple[str, str, str], list[SignalRow]] = {}
 
     minute_table = minute_tables[0] if minute_tables else None
 
@@ -385,7 +385,9 @@ def audit_signals(
         else:
             seen_key[key] = s.rowid
 
-        day_key = (s.code, s.ts.date().isoformat())
+        account_key = str(s.extra.get("account_id", "unknown"))
+        trade_day = str(s.extra.get("trade_date") or s.ts.date().isoformat())[:10]
+        day_key = (account_key, s.code, trade_day)
         daily_actions.setdefault(day_key, []).append(s)
 
         if minute_table is None:
@@ -423,10 +425,10 @@ def audit_signals(
                 )
             )
 
-    for (code, day), rows in daily_actions.items():
+    for (account_id, code, day), rows in daily_actions.items():
         ordered_rows = sorted(
             rows,
-            key=lambda r: (r.ts or datetime.max, r.rowid),
+            key=lambda r: int(r.extra.get("id") or r.rowid),
         )
 
         first_buy: SignalRow | None = None
@@ -452,7 +454,7 @@ def audit_signals(
                     ts=day,
                     action="BUY->SELL",
                     message=(
-                        "同一交易日同股票出現 BUY 後又 SELL；"
+                        f"account_id={account_id} 同一交易日同股票出現 BUY 後又 SELL；"
                         "這會賣到當日買進部位，違反不能先買後賣規則"
                     ),
                 )
