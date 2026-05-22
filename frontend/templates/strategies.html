@@ -99,7 +99,7 @@
       </div>
       <div>
         <div class="text-xs text-gray-500 mb-1">股票代號</div>
-        <input id="mo_code" placeholder="2330" class="bg-surface-3 border border-border rounded px-3 py-2 text-sm font-mono w-24 outline-none focus:border-blue">
+        <input id="mo_code" placeholder="2330" class="bg-surface-3 border border-border rounded px-3 py-2 text-sm font-mono w-24 outline-none focus:border-blue" onblur="autoFillPrice(this.value)">
       </div>
       <div>
         <div class="text-xs text-gray-500 mb-1">方向</div>
@@ -338,6 +338,18 @@ async function loadDetail(){
   } catch(e){ showToast('❌ '+e.message,'err'); }
 }
 
+async function autoFillPrice(code){
+  if(!code) return;
+  try{
+    const d = await api('/stock/'+code+'/kline?days=1');
+    const close = d && d.data && d.data.length ? d.data[d.data.length-1].close : null;
+    if(close){
+      document.getElementById('mo_price').value = close;
+      document.getElementById('mo_price').style.borderColor='#44ff88';
+      setTimeout(()=>document.getElementById('mo_price').style.borderColor='',1500);
+    }
+  }catch(e){}
+}
 async function manualOrder(){
   const id    = document.getElementById('mo_account').value;
   const code  = document.getElementById('mo_code').value.trim();
