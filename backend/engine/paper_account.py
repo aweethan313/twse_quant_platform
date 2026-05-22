@@ -58,6 +58,23 @@ class PaperAccount:
             return date.today()
         return date.fromisoformat(str(x)[:10])
 
+    def _bought_shares_on_date(self, db: Session, code: str, trade_date: date) -> int:
+        """
+        回傳同一帳戶、同一股票、同一交易日已買進的股數。
+
+        交易限制：
+        - 允許：先賣出原本持股，再買回。
+        - 禁止：今天買進的股數，在同一天又被賣出。
+        """
+        rows = db.query(TradeLog).filter_by(
+            account_id=self.account_id,
+            code=code,
+            direction="BUY",
+            trade_date=trade_date,
+        ).all()
+
+        return sum(int(r.lots or 0) for r in rows)
+
     def buy(self, code: str, lots: int, price: float,
             trigger: str = "", trade_date: date = None) -> OrderResult:
         """買入 shares 股。參數名 lots 是舊 schema 名稱，實際代表股數。"""
@@ -121,6 +138,20 @@ class PaperAccount:
             held = int(pos.lots or 0) if pos else 0
             if pos is None or held < shares:
                 return OrderResult(False, f"持股不足（持 {held}股，賣 {shares}股）")
+
+            bought_today = self._bought_shares_on_date(db, code, trade_date)
+            old_shares_available = max(0, held - bought_today)
+
+            if bought_today > 0 and shares > old_shares_available:
+                return OrderResult(
+                    False,
+                    (
+                        "禁止先買後賣："
+                        f"{trade_date} 今日已買進 {bought_today}股，"
+                        f"目前可賣原本持股 {old_shares_available}股，"
+                        f"本次欲賣 {shares}股"
+                    ),
+                )
 
             gross = price * shares
             fee = max(1, round(gross * settings.TRADE_FEE_RATE)) if gross > 0 else 0

@@ -424,28 +424,37 @@ def audit_signals(
             )
 
     for (code, day), rows in daily_actions.items():
-        actions = {r.action for r in rows}
+        ordered_rows = sorted(
+            rows,
+            key=lambda r: (r.ts or datetime.max, r.rowid),
+        )
 
-        if "BUY" in actions and "SELL" in actions:
-            first_buy = min(
-                (r for r in rows if r.action == "BUY"),
-                key=lambda x: x.ts or datetime.max,
-            )
-            first_sell = min(
-                (r for r in rows if r.action == "SELL"),
-                key=lambda x: x.ts or datetime.max,
-            )
+        first_buy: SignalRow | None = None
+        violation_sell: SignalRow | None = None
 
+        for r in ordered_rows:
+            if r.action == "BUY" and first_buy is None:
+                first_buy = r
+                continue
+
+            if r.action == "SELL" and first_buy is not None:
+                violation_sell = r
+                break
+
+        if first_buy is not None and violation_sell is not None:
             issues.append(
                 AuditIssue(
                     severity="HIGH",
-                    issue_type="same_day_buy_sell_risk",
+                    issue_type="same_day_buy_then_sell_violation",
                     source_table="multiple",
-                    rowid=f"{first_buy.rowid},{first_sell.rowid}",
+                    rowid=f"{first_buy.rowid},{violation_sell.rowid}",
                     code=code,
                     ts=day,
-                    action="BUY/SELL",
-                    message="同一交易日同股票同時出現 BUY 與 SELL，可能違反不能當沖規則",
+                    action="BUY->SELL",
+                    message=(
+                        "同一交易日同股票出現 BUY 後又 SELL；"
+                        "這會賣到當日買進部位，違反不能先買後賣規則"
+                    ),
                 )
             )
 
