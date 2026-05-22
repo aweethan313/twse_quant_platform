@@ -492,16 +492,18 @@ class NewsScorer:
     def _fetch_news_events(self, code: str, score_date: date, db: Session):
         start = score_date - timedelta(days=7)
         try:
-            return db.execute(
+            rows = db.execute(
                 text("""
                     SELECT sentiment, importance, event_type, title, event_date
                     FROM news_events
                     WHERE (code = :code OR code IS NULL)
                       AND event_date BETWEEN :start AND :end
+                      AND (title NOT LIKE '%籌碼事件%')
                     ORDER BY event_date DESC
                 """),
                 {"code": code, "start": start, "end": score_date},
             ).fetchall()
+            return rows
         except Exception:
             return []
 
