@@ -126,8 +126,8 @@ document.addEventListener('DOMContentLoaded',loadAlerts);
   <div id="toast_body" class="px-4 py-3 rounded-lg border text-sm font-medium shadow-lg"></div>
 </div>
 <script>
-/* ── 股票中文名稱對照 ── */
-const STOCK_NAMES = {
+/* ── 股票中文名稱對照（動態載入） ── */
+let STOCK_NAMES = {
   '2330':'台積電','2303':'聯電','2308':'台達電','2317':'鴻海','2324':'仁寶',
   '2327':'國巨','2344':'華邦電','2347':'聯強','2354':'鴻準','2356':'英業達',
   '2379':'瑞昱','2382':'廣達','2395':'研華','2454':'聯發科','2474':'可成',
@@ -149,6 +149,8 @@ const STOCK_NAMES = {
   '0054':'元大台商50','0055':'元大MSCI金融','0056':'元大高股息',
   '00878':'國泰永續高股息','00919':'群益台灣精選高息',
 };
+// 動態載入全市場名稱
+fetch('/api/stocks/names').then(r=>r.json()).then(d=>{Object.assign(STOCK_NAMES,d);});
 function stockName(code){ return STOCK_NAMES[code] ? STOCK_NAMES[code]+' '+code : code; }
 function stockNameOnly(code){ return STOCK_NAMES[code] || code; }
 

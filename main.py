@@ -108,6 +108,13 @@ def get_latest_trade_date(db) -> str:
     )).fetchone()
     return str(row[0]) if row and row[0] else str(date.today())
 
+
+@app.get("/api/stocks/names")
+def api_stocks_names(db: Session = Depends(get_db)):
+    """所有股票代號 → 中文名稱對照表"""
+    rows = db.execute(text("SELECT code, name FROM stock_meta WHERE name IS NOT NULL AND name != '' ORDER BY code")).fetchall()
+    return {r[0]: r[1] for r in rows}
+
 @app.get("/api/market/overview")
 def api_market_overview(db: Session = Depends(get_db)):
     """大盤概覽：今日漲跌家數、成交值"""
