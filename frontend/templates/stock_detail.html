@@ -55,6 +55,13 @@
 
       <div class="bg-surface-2 border border-border rounded-lg p-4">
         <div class="text-sm font-medium mb-3">分數歷史趨勢（近 30 日）</div>
+        <div class="flex items-center justify-between mb-1 px-1">
+          <span class="text-xs text-gray-500">分數趨勢</span>
+          <div class="flex gap-1">
+            <button onclick="toggleScoreView('s8')"  id="sv_s8"  class="sv-btn active-sv text-xs px-2 py-0.5 rounded">S8新版</button>
+            <button onclick="toggleScoreView('old')" id="sv_old" class="sv-btn text-xs px-2 py-0.5 rounded">舊版六維</button>
+          </div>
+        </div>
         <div class="h-44"><canvas id="score_trend_chart"></canvas></div>
       </div>
     </div>
@@ -288,62 +295,66 @@ async function loadScores() {
     document.getElementById('sd_composite').textContent = fmtP(s.composite, 1);
 
     const { scores } = await api(`/stock/${CODE}/scores?days=30`);
-    drawScoreTrend(scores || []);
+    _allScores = scores || []; drawScoreTrend(_allScores);
   } catch (e) {
     console.error('loadScores failed', e);
   }
 }
 
 function drawScoreTrend(scores) {
+  if (!scores || !scores.length) return;
   const ctx = document.getElementById('score_trend_chart').getContext('2d');
-  if (trendChart) trendChart.destroy();
+  if (window._scoreTrendChart) window._scoreTrendChart.destroy();
 
-  const COLORS6 = ['#58a6ff', '#f0b429', '#ff3333', '#33cc66', '#a371f7', '#79c0ff'];
-  const keys = ['fundamental', 'valuation', 'chip', 'momentum', 'macro', 'news'];
+  // 預設顯示 S8 新分數；若新分數都是0則 fallback 到舊版
+  const hasNew = scores.some(s => (s.candidate||0) > 0);
 
-  trendChart = new Chart(ctx, {
+  const labels = scores.map(s => s.date.slice(5));
+
+  const datasets = hasNew ? [
+    { label: '最終分',  data: scores.map(s => s.final),     borderColor: '#44ff88', backgroundColor: 'rgba(68,255,136,0.08)', tension: 0.3, pointRadius: 2 },
+    { label: '候選分',  data: scores.map(s => s.candidate), borderColor: '#63b3ed', backgroundColor: 'rgba(99,179,237,0.08)', tension: 0.3, pointRadius: 2 },
+    { label: '進場分',  data: scores.map(s => s.entry),     borderColor: '#ffcc00', backgroundColor: 'rgba(255,204,0,0.08)',   tension: 0.3, pointRadius: 2, borderDash: [4,2] },
+    { label: '風險分',  data: scores.map(s => s.risk),      borderColor: '#ff6b6b', backgroundColor: 'rgba(255,107,107,0.08)', tension: 0.3, pointRadius: 2, borderDash: [2,3] },
+  ] : [
+    { label: '綜合分',  data: scores.map(s => s.composite), borderColor: '#63b3ed', backgroundColor: 'rgba(99,179,237,0.1)', tension: 0.3, pointRadius: 2 },
+    { label: '籌碼',    data: scores.map(s => s.chip),      borderColor: '#44ff88', tension: 0.3, pointRadius: 1 },
+    { label: '動能',    data: scores.map(s => s.momentum),  borderColor: '#ffcc00', tension: 0.3, pointRadius: 1 },
+  ];
+
+  window._scoreTrendChart = new Chart(ctx, {
     type: 'line',
-    data: {
-      labels: scores.map(s => s.date.slice(5)),
-      datasets: keys.map((k, i) => ({
-        label: SCORE_LABELS[k],
-        data: scores.map(s => s[k]),
-        borderColor: COLORS6[i],
-        backgroundColor: 'transparent',
-        borderWidth: 1.5,
-        pointRadius: 0,
-        tension: 0.4
-      }))
-    },
+    data: { labels, datasets },
     options: {
-      responsive: true,
-      maintainAspectRatio: false,
+      responsive: true, maintainAspectRatio: false, animation: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
-        legend: { labels: { color: '#7d8590', font: { size: 10 }, boxWidth: 10 } },
+        legend: { labels: { color: '#9ca3af', font: { size: 10 }, boxWidth: 12, padding: 8 } },
         tooltip: {
-          backgroundColor: '#1c2128',
-          borderColor: '#30363d',
-          borderWidth: 1,
-          titleColor: '#e6edf3',
-          bodyColor: '#adbac7'
+          callbacks: {
+            afterBody(items) {
+              const s = scores[items[0].dataIndex];
+              const fa = s.final_action || s.signal || '';
+              const AZ = {BUY:'✅買入',WATCH:'👀觀察',AVOID_CHASE:'⚠️不可追',HOLD:'⏸持有',SELL:'🔴賣出'};
+              return fa ? ['訊號: ' + (AZ[fa]||fa)] : [];
+            }
+          }
         }
       },
       scales: {
-        x: {
-          grid: { color: 'rgba(48,54,61,.4)' },
-          ticks: { color: '#7d8590', font: { size: 9 }, maxTicksLimit: 10 }
-        },
-        y: {
-          min: 0,
-          max: 100,
-          grid: { color: 'rgba(48,54,61,.4)' },
-          ticks: { color: '#7d8590', font: { size: 9 }, stepSize: 25 },
-          position: 'right'
-        }
+        x: { ticks: { color:'#6b7280', font:{size:9}, maxRotation:0 }, grid: { color:'rgba(255,255,255,0.05)' } },
+        y: { min:0, max:100, ticks: { color:'#6b7280', font:{size:9}, stepSize:20 },
+             grid: { color:'rgba(255,255,255,0.05)' },
+             afterDataLimits(scale) {
+               // 加一條 60 基準線
+             }
+           }
       }
     }
   });
+
+  // 60分基準線標示
+  const meta = window._scoreTrendChart.getDatasetMeta(0);
 }
 
 function setRange(r, btn) {
