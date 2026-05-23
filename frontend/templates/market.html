@@ -103,6 +103,8 @@
           <span id="signal_badge"></span>
           <span id="composite_score" class="ml-2 font-mono text-lg font-bold text-accent"></span>
         </div>
+        <div id="stock_detail_info" class="mt-3 grid grid-cols-2 gap-1 text-xs text-gray-400"></div>
+        <div id="vol_info" class="mt-1 text-xs text-gray-400 text-center"></div>
       </div>
     </div>
   </div>
@@ -305,6 +307,39 @@ async function loadRadar(){
   try{
     showStockDetailLink();
     const s=await api(`/stock/${currentCode}/latest_score`);
+    // 取成交量資訊
+    try{
+      const tech=await api(`/stock/${currentCode}/technical?days=2`);
+      if(tech&&tech.data&&tech.data.length){
+        const latest=tech.data[tech.data.length-1];
+        const ratio=latest.volume_ratio||0;
+        let volText='';
+        if(ratio>=3)      volText=`🚀 爆量 ${ratio.toFixed(1)}x`;
+        else if(ratio>=2) volText=`📈 大量 ${ratio.toFixed(1)}x`;
+        else if(ratio>=1.5) volText=`↑ 放量 ${ratio.toFixed(1)}x`;
+        else if(ratio>=0.8) volText=`→ 正常量 ${ratio.toFixed(1)}x`;
+        else if(ratio>=0.5) volText=`↓ 縮量 ${ratio.toFixed(1)}x`;
+        else                volText=`📉 地量 ${ratio.toFixed(1)}x`;
+        const vol萬=Math.round((latest.volume||0)/10000);
+        const el=document.getElementById('vol_info');
+        if(el) el.innerHTML=`成交量 <span class="font-mono">${vol萬}萬股</span> <span style="opacity:.7">${volText}（vs 20日均）</span>`;
+
+      }
+    }catch(e){}
+    // PE/PB/殖利率/籌碼
+    try{
+      const [val, chip] = await Promise.all([
+        api(`/stock/${currentCode}/valuation`),
+        api(`/stock/${currentCode}/chip`)
+      ]);
+      const rows = [];
+      if(val.pe)  rows.push(`<div>本益比 <span class="text-white font-mono">${val.pe.toFixed(1)}</span> <span style="opacity:.5">(${val.pe_percentile}%位)</span></div>`);
+      if(val.pb)  rows.push(`<div>股價淨值比 <span class="text-white font-mono">${val.pb.toFixed(2)}</span> <span style="opacity:.5">(${val.pb_percentile}%位)</span></div>`);
+      if(val.dividend_yield) rows.push(`<div>殖利率 <span class="text-white font-mono">${val.dividend_yield.toFixed(2)}%</span></div>`);
+      if(chip.trust_consecutive_buy_days>0) rows.push(`<div>投信連買 <span style="color:#ff4444" class="font-mono">${chip.trust_consecutive_buy_days}天</span></div>`);
+      if(chip.foreign_consecutive_buy_days>0) rows.push(`<div>外資連買 <span style="color:#ff8844" class="font-mono">${chip.foreign_consecutive_buy_days}天</span></div>`);
+      document.getElementById('stock_detail_info').innerHTML = rows.join('');
+    }catch(e){}
     document.getElementById('radar_empty').classList.add('hidden');
     document.getElementById('signal_badge').innerHTML=badgeSig(s.signal);
     document.getElementById('composite_score').textContent=fmtP(s.composite,1);
@@ -313,10 +348,10 @@ async function loadRadar(){
     radarChart=new Chart(ctx,{
       type:'radar',
       data:{
-        labels:['基本面','估值','籌碼','動能','總經','新聞'],
+        labels:['基本面','估值','籌碼','動能','總經','新聞','量能'],
         datasets:[{
           label:'分數',
-          data:[s.fundamental,s.valuation,s.chip,s.momentum,s.macro,s.news],
+          data:[s.fundamental,s.valuation,s.chip,s.momentum,s.macro,s.news,s.volume_score||50],
           backgroundColor:'rgba(88,166,255,.12)',
           borderColor:'#58a6ff',
           pointBackgroundColor:'#58a6ff',
@@ -500,5 +535,90 @@ document.addEventListener('DOMContentLoaded',function(){
   setTimeout(loadSparks,1500);
 });
 </script>
+
+
+<div id="updateLatestBox" style="position:fixed;right:22px;bottom:22px;z-index:99999;">
+  <button id="updateLatestBtn"
+          onclick="updateLatestData()"
+          style="padding:10px 14px;border-radius:14px;background:#238636;color:white;font-weight:700;box-shadow:0 8px 24px rgba(0,0,0,.35);">
+    🔄 更新最新資料
+  </button>
+  <div id="updateLatestStatus"
+       style="margin-top:8px;max-width:340px;font-size:12px;color:#c9d1d9;background:rgba(13,17,23,.94);border:1px solid #30363d;border-radius:12px;padding:8px;display:none;">
+  </div>
+</div>
+
+<script>
+async function updateLatestData(){
+  const btn = document.getElementById("updateLatestBtn");
+  const status = document.getElementById("updateLatestStatus");
+
+  const now = new Date();
+  const target = new Date(now);
+  const day = target.getDay();
+
+  // 週六 / 週日先回推到週五；台股特殊假日之後再做交易日曆表
+  if(day === 6) target.setDate(target.getDate() - 1);
+  if(day === 0) target.setDate(target.getDate() - 2);
+
+  const today = `${target.getFullYear()}-${String(target.getMonth()+1).padStart(2,'0')}-${String(target.getDate()).padStart(2,'0')}`;
+
+  btn.disabled = true;
+  btn.textContent = "更新中...";
+  status.style.display = "block";
+  status.innerHTML = "正在更新夜盤、日 K、法人資料、分數...";
+
+  try{
+    const res = await fetch(`/api/admin/update_latest?trade_date=${today}`, {
+      method: "POST"
+    });
+
+    const data = await res.json();
+
+    const rows = (data.steps || []).map(s => {
+      const mark = s.ok ? "✅" : "❌";
+      let detail = "";
+
+      if(s.result){
+        if(s.result.ohlcv_daily_rows !== undefined){
+          detail = `日K ${s.result.ohlcv_daily_rows} 筆，法人 ${s.result.chip_daily_rows} 筆`;
+        }else if(s.result.daily_scores_rows !== undefined){
+          detail = `分數 ${s.result.daily_scores_rows} 筆`;
+        }else if(s.result.overnight_score !== undefined){
+          detail = `夜盤 ${s.result.overnight_score}，${s.result.overall || ""}`;
+        }else if(s.result.status){
+          detail = s.result.status;
+        }
+      }
+
+      if(s.error) detail = s.error;
+      return `<div>${mark} ${s.name} ${detail}</div>`;
+    }).join("");
+
+    status.innerHTML = `
+      <div style="font-weight:700;margin-bottom:6px;">更新日期：${data.trade_date || today}</div>
+      ${rows}
+      <div style="margin-top:8px;opacity:.75;">更新完成後會自動重新整理。</div>
+    `;
+
+    if(data.ok){
+      btn.textContent = "更新完成";
+      setTimeout(() => location.reload(), 1200);
+    }else{
+      btn.textContent = "部分失敗";
+    }
+
+  }catch(e){
+    status.innerHTML = "❌ 更新失敗：" + e;
+    btn.textContent = "更新失敗";
+  }finally{
+    setTimeout(() => {
+      btn.disabled = false;
+      btn.textContent = "🔄 更新最新資料";
+    }, 3000);
+  }
+}
+</script>
+
 
 {% endblock %}

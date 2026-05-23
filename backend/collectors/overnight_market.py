@@ -131,7 +131,7 @@ def save_to_db(data: dict, bias: dict):
         nasdaq_ret = data.get("QQQ", {}).get("ret", 0)
         sox_ret    = data.get("SOXX", {}).get("ret", 0)
         qqq_ret    = data.get("QQQ", {}).get("ret", 0)
-        sp500_ret  = data.get("SPY", {}).get("ret", 0)
+        sp500_ret  = data.get("^GSPC", data.get("SPY", {})).get("ret", 0)
         ai_score   = min(100, max(0, 50 + data.get("NVDA", {}).get("ret", 0) * 8))
 
         # upsert market_context_daily

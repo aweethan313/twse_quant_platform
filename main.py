@@ -206,12 +206,44 @@ def api_latest_score(code: str, db: Session = Depends(get_db)):
         text("SELECT name FROM stock_meta WHERE code=:code LIMIT 1"),
         {"code": code}
     ).fetchone()
+    # 量能分數：今日量 vs 20日均量，結合漲跌方向
+    vol_row = db.execute(text("""
+        SELECT o.volume, o.close, o.open,
+               (SELECT AVG(v2.volume) FROM ohlcv_daily v2
+                WHERE v2.code=:code AND v2.trade_date <= o.trade_date
+                LIMIT 20) as avg_vol
+        FROM ohlcv_daily o WHERE o.code=:code
+        ORDER BY o.trade_date DESC LIMIT 1
+    """), {"code": code}).fetchone()
+    volume_score = 50.0
+    if vol_row and vol_row[3] and vol_row[3] > 0:
+        ratio = float(vol_row[0] or 0) / float(vol_row[3])
+        chg = (float(vol_row[1] or 0) - float(vol_row[2] or 0)) / float(vol_row[2] or 1)
+        if ratio >= 2 and chg > 0:   volume_score = min(95, 50 + ratio * 15)
+        elif ratio >= 1.5 and chg > 0: volume_score = min(80, 50 + ratio * 10)
+        elif ratio >= 2 and chg < 0: volume_score = max(15, 50 - ratio * 12)
+        elif ratio >= 0.8:           volume_score = 50
+        else:                        volume_score = max(20, 50 - (1-ratio) * 30)
     return {
         "code": code, "name": (meta[0] if meta and meta[0] else code),
         "fundamental": row[0], "valuation": row[1], "chip": row[2],
         "momentum": row[3], "macro": row[4], "news": row[5],
-        "composite": row[6], "signal": row[7]
+        "composite": row[6], "signal": row[7],
+        "volume_score": round(volume_score, 1)
     }
+
+
+
+@app.post("/api/admin/update_latest")
+def api_admin_update_latest(trade_date: Optional[str] = None):
+    """
+    一鍵更新最新資料：
+    1. 夜盤 / 美股因子
+    2. 日 K + 法人資料
+    3. daily_scores 分數
+    """
+    from backend.services.latest_update import run_latest_update
+    return run_latest_update(trade_date)
 
 
 @app.get("/api/screener")
