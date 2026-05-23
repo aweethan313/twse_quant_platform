@@ -105,6 +105,45 @@
         </div>
         <div id="stock_detail_info" class="mt-3 grid grid-cols-2 gap-1 text-xs text-gray-400"></div>
         <div id="vol_info" class="mt-1 text-xs text-gray-400 text-center"></div>
+        <div id="s8_score_cards" class="mt-2" style="display:none">
+          <div class="grid grid-cols-2 gap-1 text-xs mb-1">
+            <div class="bg-surface-3 rounded p-2"><div class="text-gray-500 mb-1">候選分</div><div id="s8_candidate" class="font-mono font-bold text-accent text-base"></div></div>
+            <div class="bg-surface-3 rounded p-2"><div class="text-gray-500 mb-1">進場分</div><div id="s8_entry" class="font-mono font-bold text-base"></div></div>
+            <div class="bg-surface-3 rounded p-2"><div class="text-gray-500 mb-1">風險分</div><div id="s8_risk" class="font-mono font-bold text-base"></div></div>
+            <div class="bg-surface-3 rounded p-2"><div class="text-gray-500 mb-1">最終分</div><div id="s8_final" class="font-mono font-bold text-base"></div></div>
+          </div>
+          <div class="bg-surface-3 rounded p-2 text-xs mb-1 flex items-center gap-2">
+            <span id="s8_action_badge" class="font-bold text-sm"></span>
+            <span id="s8_class" class="text-gray-500 text-xs"></span>
+          </div>
+          <div id="s8_flags" class="flex flex-wrap gap-1 text-xs"></div>
+        </div>
+        <!-- S8 分數卡片 -->
+        <div id="s8_score_cards" class="mt-3" style="display:none">
+          <div class="grid grid-cols-2 gap-1 text-xs mb-1">
+            <div class="bg-surface-3 rounded p-2">
+              <div class="text-gray-500 mb-1">候選分</div>
+              <div id="s8_candidate" class="font-mono font-bold text-accent"></div>
+            </div>
+            <div class="bg-surface-3 rounded p-2">
+              <div class="text-gray-500 mb-1">進場分</div>
+              <div id="s8_entry" class="font-mono font-bold"></div>
+            </div>
+            <div class="bg-surface-3 rounded p-2">
+              <div class="text-gray-500 mb-1">風險分</div>
+              <div id="s8_risk" class="font-mono font-bold"></div>
+            </div>
+            <div class="bg-surface-3 rounded p-2">
+              <div class="text-gray-500 mb-1">最終分</div>
+              <div id="s8_final" class="font-mono font-bold"></div>
+            </div>
+          </div>
+          <div class="bg-surface-3 rounded p-2 text-xs mb-1 flex items-center gap-2">
+            <span id="s8_action_badge" class="font-bold text-sm"></span>
+            <span id="s8_class" class="text-gray-500"></span>
+          </div>
+          <div id="s8_flags" class="text-xs flex flex-wrap gap-1"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -172,6 +211,37 @@ async function loadScreener(){
 
 const RANGE_DAYS={'1M':30,'3M':90,'1Y':252};
 
+
+const _ACT_COLOR={BUY:'#44ff88',WATCH:'#ffcc00',AVOID_CHASE:'#ff8844',HOLD:'#888',REDUCE:'#ff4444',SELL:'#ff4444'};
+const _ACT_ZH={BUY:'✅ 買入',WATCH:'👀 觀察',AVOID_CHASE:'⚠️ 避免追高',HOLD:'⏸ 持有',REDUCE:'📉 減碼',SELL:'🔴 賣出'};
+const _CLS_ZH={ETF_CORE:'🏦 核心ETF',ETF_INCOME:'💰 收益ETF',CORE_LARGE_CAP:'🔵 核心大型股',LARGE_LIQUID:'🟢 中大型流動',LIQUID_MOMENTUM:'⚡ 流動強勢',SPECULATIVE_HOT:'🔥 短線題材',ILLIQUID_RISK:'⚠️ 低流動性',NORMAL:'一般股票'};
+const _FLAG_ZH={short_term_overheat:'短線過熱',too_far_from_ma:'離均線過遠',rsi_overheated:'RSI過熱',consecutive_limit_up:'連續漲停',high_volume_upper_shadow:'爆量長上影',gap_up_fade:'開高走低',high_volume_black_candle:'爆量黑K',limit_up_opened:'漲停打開',hot_money_day_trade_risk:'隔日沖風險',price_volume_divergence:'量價背離',institutions_sell_retail_buy:'法人賣散戶接'};
+const _MAJOR=new Set(['high_volume_upper_shadow','high_volume_black_candle','limit_up_opened','institutions_sell_retail_buy']);
+function updateS8Cards(s){
+  const card=document.getElementById('s8_score_cards');
+  if(!card)return;
+  card.style.display='';
+  const cs=s.candidate_score??s.composite;
+  const es=s.entry_score??50;
+  const rs=s.risk_score??30;
+  const fs=s.final_score??s.composite;
+  const fa=s.final_action??s.signal;
+  const sc=s.stock_class??'NORMAL';
+  document.getElementById('s8_candidate').textContent=(cs??0).toFixed(1);
+  document.getElementById('s8_entry').textContent=(es??0).toFixed(1);
+  const rEl=document.getElementById('s8_risk');
+  rEl.textContent=(rs??0).toFixed(1);
+  rEl.style.color=rs>=60?'#ff4444':rs>=45?'#ffcc00':'#44ff88';
+  const fEl=document.getElementById('s8_final');
+  fEl.textContent=(fs??0).toFixed(1);
+  fEl.style.color=fs>=65?'#44ff88':fs>=50?'#ffcc00':'#ff4444';
+  const ab=document.getElementById('s8_action_badge');
+  ab.textContent=_ACT_ZH[fa]??fa;
+  ab.style.color=_ACT_COLOR[fa]??'#888';
+  document.getElementById('s8_class').textContent=_CLS_ZH[sc]??sc;
+  const flags=s.risk_flags??[];
+  document.getElementById('s8_flags').innerHTML=flags.map(f=>`<span style="background:rgba(255,255,255,0.08);border-radius:3px;padding:1px 6px;color:${_MAJOR.has(f)?'#ff4444':'#ffcc00'}">${_FLAG_ZH[f]??f}</span>`).join('');
+}
 async function loadStock(code){
   if(code) currentCode=code;
   document.getElementById('code_input').value=currentCode;
@@ -341,6 +411,7 @@ async function loadRadar(){
       document.getElementById('stock_detail_info').innerHTML = rows.join('');
     }catch(e){}
     document.getElementById('radar_empty').classList.add('hidden');
+    updateS8Cards(s);
     document.getElementById('signal_badge').innerHTML=badgeSig(s.signal);
     document.getElementById('composite_score').textContent=fmtP(s.composite,1);
     const ctx=document.getElementById('radar_chart').getContext('2d');

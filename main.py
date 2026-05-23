@@ -129,6 +129,12 @@ def api_stocks_rankings(
         "hot_money_day_trade_risk":"隔日沖風險","price_volume_divergence":"量價背離",
         "institutions_sell_retail_buy":"法人賣散戶接",
     }
+    CLASS_ZH = {
+        "ETF_CORE":"核心ETF","ETF_INCOME":"收益ETF",
+        "CORE_LARGE_CAP":"核心大型股","LARGE_LIQUID":"中大型流動",
+        "LIQUID_MOMENTUM":"流動強勢","SPECULATIVE_HOT":"短線題材",
+        "ILLIQUID_RISK":"低流動性","NORMAL":"一般股票",
+    }
     base_q = """
         SELECT ds.code, sm.name, ds.composite_score, ds.signal,
                ds.candidate_score, ds.entry_score, ds.risk_score,
@@ -176,7 +182,7 @@ def api_stocks_rankings(
             "final_score":round(float(r[8] or r[2] or 0),2),
             "final_action":r[9] or r[3],
             "core_score":round(float(r[10] or r[2] or 0),2),
-            "stock_class":r[11] or "NORMAL",
+            "stock_class":r[11] or "NORMAL","stock_class_zh":CLASS_ZH.get(r[11] or "NORMAL","一般股票"),
             "volume_score":round(float(r[12] or 50),2),
             "close":r[13],"change_pct":r[14],
         })
