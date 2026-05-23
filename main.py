@@ -1134,3 +1134,69 @@ def api_backtest_compare(db: Session = Depends(get_db)):
 
     return {"start_date": start, "series": series,
             "summary": [{"name":s["name"],"final_ret":s["final_ret"]} for s in series]}
+
+
+# ═══════════════════════════════════
+# V3 APIs
+# ═══════════════════════════════════
+
+@app.get("/api/decisions/explanations")
+def api_decisions_explanations(
+    date: str = None, account_id: int = None, strategy_id: int = None,
+    code: str = None, action: str = None, limit: int = 100
+):
+    """V3-FIX-1 決策理由查詢"""
+    from backend.v3.decision_explanations import query_explanations
+    return query_explanations(
+        trade_date=date, account_id=account_id, strategy_id=strategy_id,
+        code=code, action=action, limit=limit
+    )
+
+
+@app.get("/api/strategies/router")
+def api_strategies_router(date: str = None):
+    """V3-FIX-2 策略路由器狀態"""
+    from backend.v3.strategy_router import get_latest_router, compute_router
+    from datetime import date as ddate
+    td = ddate.fromisoformat(date) if date else ddate.today()
+    result = get_latest_router(td)
+    if not result or "market_trend" not in result:
+        result = compute_router(td)
+    return result
+
+
+@app.get("/api/risk/budget")
+def api_risk_budget(account_id: int = None, date: str = None):
+    """V3-FIX-3 風險預算狀態"""
+    from backend.v3.risk_budget_manager import get_budget_status
+    return get_budget_status(account_id=account_id, trade_date=date)
+
+
+@app.get("/api/strategies/leaderboard")
+def api_strategies_leaderboard(date: str = None):
+    """V3-FIX-6 策略排名"""
+    from backend.v3.strategy_leaderboard import get_leaderboard, compute_leaderboard
+    from datetime import date as ddate
+    result = get_leaderboard(as_of_date=date)
+    if not result:
+        td = ddate.fromisoformat(date) if date else ddate.today()
+        result = compute_leaderboard(td)
+    return result
+
+
+@app.get("/api/paper/research-log")
+def api_paper_research_log(
+    code: str = None, strategy_id: int = None,
+    date_from: str = None, date_to: str = None, limit: int = 100
+):
+    """V3-FIX-7 Paper Trading Research Log"""
+    from backend.v3.strategy_leaderboard import get_research_log, get_research_summary
+    logs = get_research_log(code=code, strategy_id=strategy_id,
+                            date_from=date_from, date_to=date_to, limit=limit)
+    summary = get_research_summary(strategy_id=strategy_id)
+    return {"logs": logs, "summary": summary}
+
+
+@app.get("/candidates", response_class=HTMLResponse)
+def page_candidates(request: Request):
+    return templates.TemplateResponse("candidates.html", {"request": request})
