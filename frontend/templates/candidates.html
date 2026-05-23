@@ -1,0 +1,312 @@
+{% extends "base.html" %}
+{% block title %}今日候選 | TWSE QUANT{% endblock %}
+{% block nav_candidates %}bg-surface-3 text-white font-medium{% endblock %}
+
+{% block head %}
+<style>
+.card-hover { transition: all .15s; }
+.card-hover:hover { background: rgba(255,255,255,0.05); transform: translateY(-1px); }
+.score-bar { height: 4px; border-radius: 2px; transition: width .3s; }
+.tag { display:inline-block; padding:1px 8px; border-radius:4px; font-size:11px; margin:2px; }
+.reason-item { font-size:12px; color:#9ca3af; padding:2px 0; }
+.reason-item::before { content:'→ '; color:#58a6ff; }
+.risk-item { font-size:11px; padding:1px 6px; border-radius:3px; margin:2px;
+             display:inline-block; background:rgba(255,107,107,0.15); color:#ff6b6b; }
+.risk-major { background:rgba(255,50,50,0.25); color:#ff4444; font-weight:600; }
+.section-title { font-size:11px; color:#6b7280; font-weight:600; text-transform:uppercase;
+                 letter-spacing:.05em; margin-bottom:8px; }
+.stat-box { background:rgba(255,255,255,0.04); border-radius:8px; padding:12px 16px; }
+.filter-btn { background:rgba(255,255,255,0.07); color:#9ca3af; border-radius:6px;
+              padding:4px 12px; font-size:12px; cursor:pointer; transition:all .15s; border:none; }
+.filter-btn:hover { background:rgba(255,255,255,0.15); color:#fff; }
+.filter-btn.active { background:rgba(99,179,237,0.2); color:#63b3ed; font-weight:600; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto px-4 py-6">
+
+  <!-- 頁面標題 -->
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-xl font-bold text-white">📋 今日候選清單</h1>
+      <p class="text-sm text-gray-500 mt-1" id="update_time">載入中...</p>
+    </div>
+    <div class="flex items-center gap-3">
+      <button onclick="loadCandidates()" class="filter-btn text-xs px-4 py-2">
+        🔄 重新載入
+      </button>
+      <a href="/" class="filter-btn text-xs px-4 py-2">← 返回行情</a>
+    </div>
+  </div>
+
+  <!-- 統計摘要 -->
+  <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6" id="summary_cards">
+    <div class="stat-box"><div class="text-xs text-gray-500 mb-1">今日買入信號</div><div class="text-2xl font-bold text-green-400" id="stat_buy">—</div></div>
+    <div class="stat-box"><div class="text-xs text-gray-500 mb-1">觀察候選</div><div class="text-2xl font-bold text-yellow-400" id="stat_watch">—</div></div>
+    <div class="stat-box"><div class="text-xs text-gray-500 mb-1">不可追</div><div class="text-2xl font-bold text-orange-400" id="stat_avoid">—</div></div>
+    <div class="stat-box"><div class="text-xs text-gray-500 mb-1">市場環境</div><div class="text-sm font-bold" id="stat_market">—</div></div>
+    <div class="stat-box"><div class="text-xs text-gray-500 mb-1">0050 今日</div><div class="text-sm font-bold" id="stat_0050">—</div></div>
+  </div>
+
+  <!-- 篩選器 -->
+  <div class="flex flex-wrap gap-2 mb-4">
+    <button class="filter-btn active" onclick="setFilter('all', this)">全部</button>
+    <button class="filter-btn" onclick="setFilter('BUY', this)">✅ 買入</button>
+    <button class="filter-btn" onclick="setFilter('WATCH', this)">👀 觀察</button>
+    <button class="filter-btn" onclick="setFilter('AVOID_CHASE', this)">⚠️ 不可追</button>
+    <span class="border-l border-gray-700 mx-1"></span>
+    <button class="filter-btn" onclick="setClass('CORE_LARGE_CAP', this)">🔵 核心</button>
+    <button class="filter-btn" onclick="setClass('LARGE_LIQUID', this)">🟢 中大型</button>
+    <button class="filter-btn" onclick="setClass('LIQUID_MOMENTUM', this)">⚡ 強勢</button>
+    <button class="filter-btn" onclick="setClass('SPECULATIVE_HOT', this)">🔥 題材</button>
+  </div>
+
+  <!-- 候選清單 -->
+  <div id="candidates_list" class="space-y-3"></div>
+
+  <!-- 空狀態 -->
+  <div id="empty_state" class="hidden text-center py-16 text-gray-500">
+    <div class="text-4xl mb-3">🔍</div>
+    <div>目前沒有符合條件的候選股</div>
+  </div>
+
+</div>
+
+<script>
+let _allData = [];
+let _filterAction = 'all';
+let _filterClass = '';
+
+const CLASS_INFO = {
+  CORE_LARGE_CAP:  { icon:'🔵', label:'核心大型', color:'#63b3ed' },
+  LARGE_LIQUID:    { icon:'🟢', label:'中大型',   color:'#68d391' },
+  LIQUID_MOMENTUM: { icon:'⚡', label:'強勢股',   color:'#fbd38d' },
+  SPECULATIVE_HOT: { icon:'🔥', label:'短線題材', color:'#fc8181' },
+  ILLIQUID_RISK:   { icon:'⚠️', label:'低流動',   color:'#fc8181' },
+  ETF_CORE:        { icon:'🏦', label:'核心ETF',  color:'#76e4f7' },
+  ETF_INCOME:      { icon:'💰', label:'收益ETF',  color:'#b794f4' },
+  NORMAL:          { icon:'⬜', label:'一般',     color:'#9ca3af' },
+};
+
+const ACTION_INFO = {
+  BUY:         { label:'✅ 買入',   color:'#44ff88', bg:'rgba(68,255,136,0.12)' },
+  WATCH:       { label:'👀 觀察',   color:'#ffcc00', bg:'rgba(255,204,0,0.12)' },
+  AVOID_CHASE: { label:'⚠️ 不可追', color:'#ff8844', bg:'rgba(255,136,68,0.12)' },
+  HOLD:        { label:'⏸ 持有',   color:'#888888', bg:'rgba(136,136,136,0.08)' },
+};
+
+const FLAG_ZH = {
+  short_term_overheat:     '短線過熱',
+  too_far_from_ma:         '離均線過遠',
+  rsi_overheated:          'RSI過熱',
+  consecutive_limit_up:    '連續漲停',
+  high_volume_upper_shadow:'爆量長上影',
+  gap_up_fade:             '開高走低',
+  high_volume_black_candle:'爆量黑K',
+  limit_up_opened:         '漲停打開',
+  hot_money_day_trade_risk:'隔日沖風險',
+  price_volume_divergence: '量價背離',
+  institutions_sell_retail_buy: '法人賣散戶接',
+};
+const MAJOR_FLAGS = new Set(['high_volume_upper_shadow','high_volume_black_candle',
+                             'limit_up_opened','institutions_sell_retail_buy']);
+
+function generateReasons(r) {
+  const reasons = [];
+  const c = r.candidate_score ?? 0;
+  const e = r.entry_score ?? 50;
+  const risk = r.risk_score ?? 30;
+
+  if (c >= 65) reasons.push(`候選分 ${c.toFixed(1)}，整體強度高`);
+  else if (c >= 60) reasons.push(`候選分 ${c.toFixed(1)}，具備候選條件`);
+
+  if (e >= 65) reasons.push(`進場分 ${e.toFixed(1)}，技術面進場訊號強`);
+  else if (e >= 55) reasons.push(`進場分 ${e.toFixed(1)}，進場時機尚可`);
+  else if (e < 45) reasons.push(`進場分 ${e.toFixed(1)}，建議等待更佳時機`);
+
+  if (risk <= 25) reasons.push(`風險分 ${risk.toFixed(0)}，風險極低`);
+  else if (risk <= 40) reasons.push(`風險分 ${risk.toFixed(0)}，風險可控`);
+
+  if (r.change_pct > 3) reasons.push(`今日漲幅 +${r.change_pct.toFixed(2)}%，強勢表現`);
+  else if (r.change_pct < -2) reasons.push(`今日回檔 ${r.change_pct.toFixed(2)}%，注意支撐`);
+
+  if (r.stock_class === 'LIQUID_MOMENTUM') reasons.push('量價俱揚，趨勢健康');
+  if (r.stock_class === 'CORE_LARGE_CAP') reasons.push('核心大型股，流動性佳');
+
+  return reasons.slice(0, 3);
+}
+
+function renderCard(r) {
+  const action = ACTION_INFO[r.final_action] ?? ACTION_INFO.HOLD;
+  const cls = CLASS_INFO[r.stock_class] ?? CLASS_INFO.NORMAL;
+  const flags = r.risk_flags ?? [];
+  const reasons = generateReasons(r);
+  const pct = r.change_pct ?? 0;
+  const pctColor = pct >= 0 ? '#ff6b6b' : '#51cf66';
+  const pctStr = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
+  const fs = r.final_score ?? 0;
+  const barColor = fs >= 65 ? '#44ff88' : fs >= 50 ? '#ffcc00' : '#ff6b6b';
+
+  return `
+  <div class="card-hover rounded-xl border border-gray-800 p-4 cursor-pointer"
+       style="background:${action.bg}"
+       onclick="window.location='/stock/${r.code}'">
+    <div class="flex items-start justify-between gap-3">
+
+      <!-- 左側：股票資訊 -->
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 mb-2 flex-wrap">
+          <span class="font-mono font-bold text-blue-400 text-sm">${r.code}</span>
+          <span class="font-medium text-white">${r.name}</span>
+          <span class="tag" style="background:rgba(255,255,255,0.07);color:${cls.color}">${cls.icon} ${cls.label}</span>
+          <span class="tag font-bold" style="color:${action.color};background:rgba(255,255,255,0.05)">${action.label}</span>
+        </div>
+
+        <!-- 進場理由 -->
+        <div class="space-y-0.5 mb-2">
+          ${reasons.map(r => `<div class="reason-item">${r}</div>`).join('')}
+        </div>
+
+        <!-- 風險標籤 -->
+        ${flags.length ? `<div class="mt-2">${flags.map(f =>
+          `<span class="risk-item ${MAJOR_FLAGS.has(f)?'risk-major':''}">${FLAG_ZH[f]??f}</span>`
+        ).join('')}</div>` : ''}
+      </div>
+
+      <!-- 右側：分數和價格 -->
+      <div class="text-right flex-shrink-0" style="min-width:100px">
+        <div class="text-xl font-mono font-bold text-white mb-1">${r.close ?? '—'}</div>
+        <div class="text-sm font-bold mb-3" style="color:${pctColor}">${pctStr}</div>
+
+        <div class="space-y-1.5 text-xs">
+          <div class="flex items-center justify-between gap-4">
+            <span class="text-gray-500">最終</span>
+            <span class="font-mono font-bold" style="color:${barColor}">${fs.toFixed(1)}</span>
+          </div>
+          <div class="score-bar bg-gray-800 w-full">
+            <div class="score-bar" style="width:${fs}%;background:${barColor}"></div>
+          </div>
+          <div class="flex justify-between text-gray-500">
+            <span>進場 ${(r.entry_score??50).toFixed(0)}</span>
+            <span style="color:${(r.risk_score??30)>=60?'#ff4444':(r.risk_score??30)>=45?'#ffcc00':'#44ff88'}">
+              風險 ${(r.risk_score??30).toFixed(0)}
+            </span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>`;
+}
+
+function setFilter(action, btn) {
+  _filterAction = action;
+  document.querySelectorAll('.filter-btn').forEach(b => {
+    if (['all','BUY','WATCH','AVOID_CHASE'].some(a => b.onclick?.toString().includes(`'${a}'`))) {
+      b.classList.remove('active');
+    }
+  });
+  btn.classList.add('active');
+  _filterClass = '';
+  render();
+}
+
+function setClass(cls, btn) {
+  _filterClass = _filterClass === cls ? '' : cls;
+  btn.classList.toggle('active');
+  render();
+}
+
+function render() {
+  let data = _allData;
+  if (_filterAction !== 'all') data = data.filter(r => r.final_action === _filterAction);
+  if (_filterClass) data = data.filter(r => r.stock_class === _filterClass);
+
+  const list = document.getElementById('candidates_list');
+  const empty = document.getElementById('empty_state');
+
+  if (!data.length) {
+    list.innerHTML = '';
+    empty.classList.remove('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+  list.innerHTML = data.map(renderCard).join('');
+}
+
+async function load0050() {
+  try {
+    const d = await fetch('/api/stock/0050/latest_score').then(r => r.json());
+    const price = await fetch('/api/stock/0050/kline?days=2').then(r => r.json());
+    const el = document.getElementById('stat_0050');
+    if (price.data && price.data.length >= 2) {
+      const last = price.data[price.data.length-1];
+      const prev = price.data[price.data.length-2];
+      const pct = ((last.close - prev.close) / prev.close * 100).toFixed(2);
+      const color = pct >= 0 ? '#ff6b6b' : '#51cf66';
+      el.innerHTML = `<span>${last.close}</span> <span style="color:${color}">${pct>=0?'+':''}${pct}%</span>`;
+    }
+  } catch(e) {}
+}
+
+async function loadCandidates() {
+  document.getElementById('candidates_list').innerHTML =
+    '<div class="text-center py-16 text-gray-500">🔍 分析中...</div>';
+
+  try {
+    // 載入所有候選（BUY + WATCH + AVOID_CHASE）
+    const [buy, watch, avoid] = await Promise.all([
+      fetch('/api/stocks/rankings?rank_mode=final&limit=30&max_risk_score=60').then(r=>r.json()),
+      fetch('/api/stocks/rankings?rank_mode=candidate&limit=15&max_risk_score=100').then(r=>r.json()),
+      fetch('/api/stocks/rankings?rank_mode=avoid_chase&limit=10').then(r=>r.json()),
+    ]);
+
+    // 合併去重
+    const seen = new Set();
+    _allData = [];
+    for (const r of [...buy, ...watch, ...avoid]) {
+      if (!seen.has(r.code)) {
+        seen.add(r.code);
+        _allData.push(r);
+      }
+    }
+
+    // 統計
+    const nBuy   = _allData.filter(r => r.final_action === 'BUY').length;
+    const nWatch = _allData.filter(r => r.final_action === 'WATCH').length;
+    const nAvoid = _allData.filter(r => r.final_action === 'AVOID_CHASE').length;
+    document.getElementById('stat_buy').textContent   = nBuy;
+    document.getElementById('stat_watch').textContent = nWatch;
+    document.getElementById('stat_avoid').textContent = nAvoid;
+
+    // 市場環境（用0050判斷）
+    const mktEl = document.getElementById('stat_market');
+    try {
+      const etf = await fetch('/api/stock/0050/kline?days=65').then(r=>r.json());
+      const closes = etf.data.map(d => d.close);
+      const ma60 = closes.slice(-60).reduce((a,b) => a+b, 0) / 60;
+      const last = closes[closes.length-1];
+      if (last > ma60 * 1.02) {
+        mktEl.innerHTML = '<span style="color:#44ff88">✅ 多頭</span>';
+      } else if (last > ma60 * 0.98) {
+        mktEl.innerHTML = '<span style="color:#ffcc00">⚠️ 盤整</span>';
+      } else {
+        mktEl.innerHTML = '<span style="color:#ff4444">🔴 空頭</span>';
+      }
+    } catch(e) { mktEl.textContent = '—'; }
+
+    document.getElementById('update_time').textContent =
+      `更新時間：${new Date().toLocaleString('zh-TW')}　共 ${_allData.length} 檔`;
+
+    render();
+    load0050();
+  } catch(e) {
+    document.getElementById('candidates_list').innerHTML =
+      '<div class="text-center py-16 text-red-400">載入失敗，請確認 server 運行中</div>';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', loadCandidates);
+</script>
+{% endblock %}

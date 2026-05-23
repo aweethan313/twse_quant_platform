@@ -54,6 +54,10 @@ async def page_market(request: Request):
 async def page_strategies(request: Request):
     return templates.TemplateResponse(request=request, name="strategies.html", context={})
 
+
+@app.get("/candidates", response_class=HTMLResponse)
+def page_candidates(request: Request):
+    return templates.TemplateResponse("candidates.html", {"request": request})
 @app.get("/competition", response_class=HTMLResponse)
 async def page_competition(request: Request):
     return templates.TemplateResponse(request=request, name="competition.html", context={})
