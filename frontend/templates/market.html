@@ -185,6 +185,71 @@ async function loadTopMovers(){
   }catch(e){}
 }
 
+
+let _screenMode = 'screener';
+let _classFilter = '';
+
+function switchScreenMode(mode) {
+  _screenMode = mode;
+  document.querySelectorAll('.smode-btn').forEach(b => b.classList.remove('active-smode'));
+  const btn = document.getElementById('btn_' + mode);
+  if (btn) btn.classList.add('active-smode');
+  const labels = {screener:'綜合分',final:'最終分',candidate:'候選分',core:'核心分',risk:'風險分',avoid_chase:'候選分'};
+  const lbl = document.getElementById('score_col_label');
+  if (lbl) lbl.textContent = labels[mode] ?? '綜合分';
+  if (mode === 'screener') loadScreener();
+  else loadRankingsInline(mode);
+}
+
+function setClassFilter(cls) {
+  _classFilter = cls;
+  document.querySelectorAll('.cf-btn').forEach(b => b.classList.remove('active-cf'));
+  const idMap={'':'cf_all','CORE_LARGE_CAP':'cf_core','LARGE_LIQUID':'cf_ll',
+               'LIQUID_MOMENTUM':'cf_lm','SPECULATIVE_HOT':'cf_sh','ETF_CORE':'cf_etf'};
+  const el = document.getElementById(idMap[cls]||'cf_all');
+  if (el) el.classList.add('active-cf');
+  if (_screenMode === 'screener') loadScreener();
+  else loadRankingsInline(_screenMode);
+}
+
+async function loadRankingsInline(mode) {
+  const tbody = document.getElementById('screener_body');
+  tbody.innerHTML = '<tr><td colspan="8" class="px-4 py-6 text-center text-gray-500">載入中...</td></tr>';
+  let url = `/api/stocks/rankings?rank_mode=${mode}&limit=50`;
+  if (_classFilter) url += `&stock_class=${_classFilter}`;
+  const AC = {BUY:'#44ff88',WATCH:'#ffcc00',AVOID_CHASE:'#ff8844',HOLD:'#888',SELL:'#ff4444'};
+  const AZ = {BUY:'買入',WATCH:'觀察',AVOID_CHASE:'不可追',HOLD:'持有',SELL:'賣出'};
+  const CI = {CORE_LARGE_CAP:'🔵',LARGE_LIQUID:'🟢',LIQUID_MOMENTUM:'⚡',
+              SPECULATIVE_HOT:'🔥',ILLIQUID_RISK:'⚠️',ETF_CORE:'🏦',ETF_INCOME:'💰',NORMAL:'⬜'};
+  try {
+    const data = await (await fetch(url)).json();
+    if (!data.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="px-4 py-6 text-center text-gray-500">無符合資料</td></tr>';
+      return;
+    }
+    tbody.innerHTML = data.map(r => {
+      const score = mode==='final'?r.final_score:mode==='candidate'?r.candidate_score:
+                    mode==='core'?r.core_score:mode==='risk'?r.risk_score:r.composite;
+      const pct = r.change_pct;
+      const pc = pct>0?'#ff6b6b':pct<0?'#51cf66':'#888';
+      const ps = pct!=null?(pct>0?'+':'')+pct.toFixed(2)+'%':'-';
+      const rc = (r.risk_score??0)>=60?'#ff4444':(r.risk_score??0)>=45?'#ffcc00':'#44ff88';
+      return `<tr class="hover:bg-surface-3 cursor-pointer border-b border-border text-xs" onclick="loadStock('${r.code}')">
+        <td class="px-4 py-2 text-blue-400 font-mono">${r.code}</td>
+        <td class="px-4 py-2">${CI[r.stock_class]??'⬜'} ${r.name}</td>
+        <td class="px-4 py-2 text-right">${r.close??'-'}</td>
+        <td class="px-4 py-2 text-right" style="color:${pc}">${ps}</td>
+        <td class="px-4 py-2 text-right font-mono">${(score??0).toFixed(1)}</td>
+        <td class="px-4 py-2 text-right font-mono" style="color:${rc}">${(r.risk_score??0).toFixed(0)}</td>
+        <td class="px-4 py-2 text-center" style="color:${AC[r.final_action]??'#888'}">${AZ[r.final_action]??'-'}</td>
+        <td class="px-4 py-2 text-center"><a href="/stock/${r.code}" class="text-blue-400 hover:underline" onclick="event.stopPropagation()">詳情</a></td>
+      </tr>`;
+    }).join('');
+  } catch(e) {
+    tbody.innerHTML = '<tr><td colspan="8" class="px-4 py-4 text-center text-red-400">載入失敗</td></tr>';
+  }
+}
+
 async function loadScreener(){
   const min=document.getElementById('min_score').value;
   const sig=document.getElementById('sig_filter').value;
