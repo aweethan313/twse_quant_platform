@@ -27,9 +27,9 @@ HIGH_VOL_CODES = {"2303","3481","2409","2408","6669","2337","3706","6770"}
 def _get_account_portfolio(account_id: int, trade_date: date, db) -> dict:
     """取得帳戶目前持倉與現金"""
     equity_row = db.execute(text("""
-        SELECT total, cash FROM equity_curve
-        WHERE strategy_id = :aid
-          AND date = (SELECT MAX(date) FROM equity_curve WHERE strategy_id=:aid AND date<=:d)
+        SELECT total_equity, cash FROM equity_curve
+        WHERE account_id = :aid
+          AND snap_date = (SELECT MAX(snap_date) FROM equity_curve WHERE account_id=:aid AND snap_date<=:d)
     """), {"aid": account_id, "d": str(trade_date)}).fetchone()
 
     total = float(equity_row[0]) if equity_row else 200_000
@@ -37,16 +37,17 @@ def _get_account_portfolio(account_id: int, trade_date: date, db) -> dict:
 
     # 取目前持倉
     positions = db.execute(text("""
-        SELECT code, shares, avg_cost FROM trade_logs
-        WHERE account_id = :aid AND action='BUY'
-          AND trade_date <= :d
+        SELECT code, SUM(CASE WHEN direction='buy' THEN lots ELSE -lots END) as net_lots, AVG(price) as avg_cost
+        FROM trade_logs
+        WHERE account_id = :aid
+          AND ts <= :d
         GROUP BY code
-        HAVING SUM(CASE WHEN action='BUY' THEN shares ELSE -shares END) > 0
+        HAVING net_lots > 0
     """), {"aid": account_id, "d": str(trade_date)}).fetchall()
 
     holdings = {}
     for p in positions:
-        code, shares, cost = p[0], float(p[1] or 0), float(p[2] or 0)
+        code, shares, cost = p[0], float(p[1] or 0) * 1000, float(p[2] or 0)
         price_row = db.execute(text("""
             SELECT close FROM ohlcv_daily
             WHERE code=:c AND trade_date<=:d AND close IS NOT NULL

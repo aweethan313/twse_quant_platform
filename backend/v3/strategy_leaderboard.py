@@ -138,9 +138,9 @@ def _compute_strategy_metrics(strategy_id: int, as_of_date: date, db) -> dict:
     try:
         # 取 equity curve
         equity_rows = db.execute(text("""
-            SELECT date, total FROM equity_curve
-            WHERE strategy_id=:sid AND date<=:d
-            ORDER BY date
+            SELECT snap_date, total_equity FROM equity_curve
+            WHERE account_id=:sid AND snap_date<=:d
+            ORDER BY snap_date
         """), {"sid": strategy_id, "d": str(as_of_date)}).fetchall()
 
         if len(equity_rows) < 2:
@@ -160,12 +160,12 @@ def _compute_strategy_metrics(strategy_id: int, as_of_date: date, db) -> dict:
 
         # 取交易記錄
         trades = db.execute(text("""
-            SELECT action, pnl, trade_date,
-                   (SELECT MIN(trade_date) FROM trade_logs tl2
-                    WHERE tl2.strategy_id=:sid AND tl2.code=tl.code
-                      AND tl2.action='BUY' AND tl2.trade_date<=tl.trade_date) as buy_date
+            SELECT direction, pnl, ts,
+                   (SELECT MIN(ts) FROM trade_logs tl2
+                    WHERE tl2.account_id=:sid AND tl2.code=tl.code
+                      AND tl2.direction='buy' AND tl2.ts<=tl.ts) as buy_date
             FROM trade_logs tl
-            WHERE strategy_id=:sid AND action='SELL' AND trade_date<=:d AND pnl IS NOT NULL
+            WHERE account_id=:sid AND direction='sell' AND ts<=:d AND pnl IS NOT NULL
         """), {"sid": strategy_id, "d": str(as_of_date)}).fetchall()
 
         if not trades:
@@ -188,7 +188,7 @@ def _compute_strategy_metrics(strategy_id: int, as_of_date: date, db) -> dict:
         monthly = {}
         for r in equity_rows:
             m = str(r[0])[:7]
-            monthly[m] = float(r[1])
+            monthly[m] = float(r[1] or 0)
 
         monthly_rets = []
         months = sorted(monthly.keys())

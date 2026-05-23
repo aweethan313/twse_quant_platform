@@ -79,8 +79,8 @@ def _get_market_context(trade_date: date, db) -> dict:
 def _get_theme_strength(trade_date: date, db) -> dict:
     """取得主題熱度"""
     rows = db.execute(text("""
-        SELECT theme_name, score FROM theme_trend_daily
-        WHERE trade_date = (SELECT MAX(trade_date) FROM theme_trend_daily WHERE trade_date <= :d)
+        SELECT theme, score FROM theme_trend_daily
+        WHERE context_date = (SELECT MAX(context_date) FROM theme_trend_daily WHERE context_date <= :d)
         ORDER BY score DESC LIMIT 10
     """), {"d": trade_date}).fetchall()
     return {r[0]: float(r[1]) for r in rows} if rows else {}
