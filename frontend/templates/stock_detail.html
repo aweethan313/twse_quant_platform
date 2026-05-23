@@ -317,12 +317,13 @@ function drawScoreTrendOld(scores) {
   const ctx = document.getElementById('score_trend_chart').getContext('2d');
   if (window._scoreTrendChart) window._scoreTrendChart.destroy();
   const KEYS = [
-    {k:'composite', l:'綜合', c:'#63b3ed'},
-    {k:'chip',      l:'籌碼', c:'#44ff88'},
-    {k:'momentum',  l:'動能', c:'#ffcc00'},
+    {k:'composite',  l:'綜合',  c:'#63b3ed'},
+    {k:'chip',       l:'籌碼',  c:'#44ff88'},
+    {k:'momentum',   l:'動能',  c:'#ffcc00'},
     {k:'fundamental',l:'基本面',c:'#f6ad55'},
-    {k:'valuation', l:'估值', c:'#fc8181'},
-    {k:'news',      l:'新聞', c:'#b794f4'},
+    {k:'valuation',  l:'估值',  c:'#fc8181'},
+    {k:'news',       l:'新聞',  c:'#b794f4'},
+    {k:'volume',     l:'量能',  c:'#76e4f7'},
   ];
   window._scoreTrendChart = new Chart(ctx, {
     type: 'line',
