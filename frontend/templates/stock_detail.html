@@ -301,6 +301,50 @@ async function loadScores() {
   }
 }
 
+
+let _allScores = [];
+
+function toggleScoreView(mode) {
+  document.querySelectorAll('.sv-btn').forEach(b => b.classList.remove('active-sv'));
+  const el = document.getElementById('sv_' + mode);
+  if (el) el.classList.add('active-sv');
+  if (mode === 'old') drawScoreTrendOld(_allScores);
+  else drawScoreTrend(_allScores);
+}
+
+function drawScoreTrendOld(scores) {
+  if (!scores || !scores.length) return;
+  const ctx = document.getElementById('score_trend_chart').getContext('2d');
+  if (window._scoreTrendChart) window._scoreTrendChart.destroy();
+  const KEYS = [
+    {k:'composite', l:'綜合', c:'#63b3ed'},
+    {k:'chip',      l:'籌碼', c:'#44ff88'},
+    {k:'momentum',  l:'動能', c:'#ffcc00'},
+    {k:'fundamental',l:'基本面',c:'#f6ad55'},
+    {k:'valuation', l:'估值', c:'#fc8181'},
+    {k:'news',      l:'新聞', c:'#b794f4'},
+  ];
+  window._scoreTrendChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: scores.map(s => s.date.slice(5)),
+      datasets: KEYS.map(({k,l,c:col}) => ({
+        label: l, data: scores.map(s => s[k] ?? 0),
+        borderColor: col, backgroundColor: col+'18',
+        tension: 0.3, pointRadius: 1, borderWidth: 1.5
+      }))
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      plugins: { legend: { labels: { color:'#9ca3af', font:{size:10}, boxWidth:12, padding:6 } } },
+      scales: {
+        x: { ticks:{color:'#6b7280',font:{size:9},maxRotation:0}, grid:{color:'rgba(255,255,255,0.05)'} },
+        y: { min:0, max:100, ticks:{color:'#6b7280',font:{size:9},stepSize:20}, grid:{color:'rgba(255,255,255,0.05)'} }
+      }
+    }
+  });
+}
+
 function drawScoreTrend(scores) {
   if (!scores || !scores.length) return;
   const ctx = document.getElementById('score_trend_chart').getContext('2d');
