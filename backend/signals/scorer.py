@@ -761,3 +761,8 @@ def compute_scores(codes: list[str], score_date: date = None):
         logger.success(f"[SCORE] {score_date} 計算完成，共 {len(rows)} 檔")
 
     db.close()
+    try:
+        from backend.signals.scorer_v2 import compute_extended_scores
+        compute_extended_scores(codes, score_date)
+    except Exception as e:
+        logger.warning(f"[SCORER_V2] 擴充分數失敗: {e}")

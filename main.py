@@ -109,6 +109,79 @@ def get_latest_trade_date(db) -> str:
     return str(row[0]) if row and row[0] else str(date.today())
 
 
+
+@app.get("/api/stocks/rankings")
+def api_stocks_rankings(
+    rank_mode: str = "final",
+    max_risk_score: float = 100,
+    stock_class: str = None,
+    core_only: bool = False,
+    final_action: str = None,
+    limit: int = 30,
+    db: Session = Depends(get_db)
+):
+    import json as _json
+    FLAG_ZH = {
+        "short_term_overheat":"短線過熱","too_far_from_ma":"離均線過遠",
+        "rsi_overheated":"RSI過熱","consecutive_limit_up":"連續漲停",
+        "high_volume_upper_shadow":"爆量長上影","gap_up_fade":"開高走低",
+        "high_volume_black_candle":"爆量黑K","limit_up_opened":"漲停打開",
+        "hot_money_day_trade_risk":"隔日沖風險","price_volume_divergence":"量價背離",
+        "institutions_sell_retail_buy":"法人賣散戶接",
+    }
+    base_q = """
+        SELECT ds.code, sm.name, ds.composite_score, ds.signal,
+               ds.candidate_score, ds.entry_score, ds.risk_score,
+               ds.risk_flags, ds.final_score, ds.final_action,
+               ds.core_score, ds.stock_class, ds.volume_score,
+               o.close, o.change_pct
+        FROM daily_scores ds
+        LEFT JOIN stock_meta sm ON sm.code = ds.code
+        LEFT JOIN ohlcv_daily o ON o.code = ds.code
+            AND o.trade_date = (SELECT MAX(trade_date) FROM ohlcv_daily)
+        WHERE ds.score_date = (SELECT MAX(score_date) FROM daily_scores)
+          AND (ds.risk_score IS NULL OR ds.risk_score <= :max_risk)
+    """
+    params = {"max_risk": max_risk_score, "limit": limit}
+    if stock_class:
+        base_q += " AND ds.stock_class = :sc"; params["sc"] = stock_class
+    if core_only:
+        base_q += " AND ds.stock_class = 'CORE_LARGE_CAP'"
+    if final_action:
+        base_q += " AND ds.final_action = :fa"; params["fa"] = final_action
+    if rank_mode == "avoid_chase":
+        base_q += " AND (ds.final_action = 'AVOID_CHASE' OR ds.risk_score >= 60)"
+    if rank_mode == "core":
+        base_q += " AND ds.stock_class = 'CORE_LARGE_CAP'"
+    ORDER = {"final":"ds.final_score DESC, ds.risk_score ASC",
+             "candidate":"ds.candidate_score DESC",
+             "core":"ds.core_score DESC, ds.risk_score ASC",
+             "avoid_chase":"ds.candidate_score DESC, ds.risk_score DESC",
+             "risk":"ds.risk_score DESC"}
+    rows = db.execute(text(base_q + f" ORDER BY {ORDER.get(rank_mode,'ds.final_score DESC')} LIMIT :limit"), params).fetchall()
+    result = []
+    for r in rows:
+        flags = []
+        try:
+            if r[7]: flags = _json.loads(r[7])
+        except Exception: pass
+        result.append({
+            "code":r[0],"name":r[1] or r[0],
+            "composite":round(float(r[2] or 0),2),"signal":r[3],
+            "candidate_score":round(float(r[4] or r[2] or 0),2),
+            "entry_score":round(float(r[5] or 50),2),
+            "risk_score":round(float(r[6] or 30),2),
+            "risk_flags":flags,
+            "risk_flags_zh":[FLAG_ZH.get(f,f) for f in flags],
+            "final_score":round(float(r[8] or r[2] or 0),2),
+            "final_action":r[9] or r[3],
+            "core_score":round(float(r[10] or r[2] or 0),2),
+            "stock_class":r[11] or "NORMAL",
+            "volume_score":round(float(r[12] or 50),2),
+            "close":r[13],"change_pct":r[14],
+        })
+    return result
+
 @app.get("/api/stocks/names")
 def api_stocks_names(db: Session = Depends(get_db)):
     """所有股票代號 → 中文名稱對照表"""
@@ -195,7 +268,9 @@ def api_latest_score(code: str, db: Session = Depends(get_db)):
     row = db.execute(
         text("""
             SELECT fundamental_score, valuation_score, chip_score,
-                   momentum_score, macro_score, news_score, composite_score, signal
+                   momentum_score, macro_score, news_score, composite_score, signal,
+                   volume_score, candidate_score, entry_score, risk_score,
+                   risk_flags, final_score, final_action, core_score, stock_class
             FROM daily_scores WHERE code=:code
             ORDER BY score_date DESC LIMIT 1
         """), {"code": code}
@@ -224,12 +299,21 @@ def api_latest_score(code: str, db: Session = Depends(get_db)):
         elif ratio >= 2 and chg < 0: volume_score = max(15, 50 - ratio * 12)
         elif ratio >= 0.8:           volume_score = 50
         else:                        volume_score = max(20, 50 - (1-ratio) * 30)
+    import json as _json
     return {
         "code": code, "name": (meta[0] if meta and meta[0] else code),
         "fundamental": row[0], "valuation": row[1], "chip": row[2],
         "momentum": row[3], "macro": row[4], "news": row[5],
         "composite": row[6], "signal": row[7],
-        "volume_score": round(volume_score, 1)
+        "volume_score":    round(float(row[8] or 50), 2),
+        "candidate_score": round(float(row[9] or row[6] or 0), 2),
+        "entry_score":     round(float(row[10] or 50), 2),
+        "risk_score":      round(float(row[11] or 30), 2),
+        "risk_flags":      _json.loads(row[12]) if row[12] else [],
+        "final_score":     round(float(row[13] or row[6] or 0), 2),
+        "final_action":    row[14] or row[7],
+        "core_score":      round(float(row[15] or row[6] or 0), 2),
+        "stock_class":     row[16] or "NORMAL",
     }
 
 
