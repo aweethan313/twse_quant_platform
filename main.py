@@ -259,12 +259,13 @@ def api_scores(code: str, days: int = 30, db: Session = Depends(get_db)):
     rows = db.execute(
         text("""
             SELECT score_date, fundamental_score, valuation_score, chip_score,
-                   momentum_score, macro_score, news_score, composite_score, signal
+                   momentum_score, macro_score, news_score, composite_score, signal,
+                   candidate_score, entry_score, risk_score, final_score, final_action
             FROM daily_scores WHERE code=:code
             ORDER BY score_date DESC LIMIT :n
         """), {"code": code, "n": days}
     ).fetchall()
-    keys = ["date","fundamental","valuation","chip","momentum","macro","news","composite","signal"]
+    keys = ["date","fundamental","valuation","chip","momentum","macro","news","composite","signal","candidate","entry","risk","final","final_action"]
     return {"code": code, "scores": [dict(zip(keys, r)) for r in reversed(rows)]}
 
 
