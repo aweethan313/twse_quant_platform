@@ -202,7 +202,7 @@ async function loadScreener(){
         <td class="px-4 py-2 text-right font-mono text-sm">${fmtP(r.close)}</td>
         <td class="px-4 py-2 text-right font-mono text-sm ${clsPN(r.change_pct)}">${fmtPct(r.change_pct)}</td>
         <td class="px-4 py-2 text-right"><span class="font-mono text-accent font-bold">${fmtP(r.composite,1)}</span></td>
-        <td class="px-4 py-2 text-center">${badgeSig(r.signal)}</td>
+        <td class="px-4 py-2 text-center">${badgeSig(r.final_action ?? r.signal)}</td>
         <td class="px-4 py-2"><canvas class="v2-spark" data-code="${r.code}" width="72" height="28" style="display:block"></canvas></td>
         <td class="px-4 py-2 text-center"><a href="/stock/${r.code}" class="text-xs text-blue hover:underline">詳情</a></td>
       </tr>`).join('');
@@ -412,7 +412,7 @@ async function loadRadar(){
     }catch(e){}
     document.getElementById('radar_empty').classList.add('hidden');
     updateS8Cards(s);
-    document.getElementById('signal_badge').innerHTML=badgeSig(s.signal);
+    document.getElementById('signal_badge').innerHTML=badgeSig(s.final_action ?? s.signal);
     document.getElementById('composite_score').textContent=fmtP(s.composite,1);
     const ctx=document.getElementById('radar_chart').getContext('2d');
     if(radarChart) radarChart.destroy();
@@ -594,6 +594,79 @@ function drawSpark(cv,prices){
   prices.forEach(function(v,i){var x=i/(prices.length-1)*w,y=h-(v-mn)/rng*(h-4)-2;i===0?ctx.moveTo(x,y):ctx.lineTo(x,y)});
   ctx.strokeStyle=prices[prices.length-1]>=prices[0]?'#ff4444':'#22cc66';ctx.lineWidth=1.5;ctx.stroke();
 }
+
+let _rankMode = 'final';
+let _rankClass = '';
+
+function setRankClass(cls) {
+  _rankClass = cls;
+  document.querySelectorAll('.cls-btn').forEach(b => b.classList.remove('active-cls'));
+  event.target.classList.add('active-cls');
+  loadRankings(_rankMode);
+}
+
+async function loadRankings(mode) {
+  _rankMode = mode;
+  document.querySelectorAll('.rank-btn').forEach(b => b.classList.remove('active-rank'));
+  event && event.target && event.target.classList.add('active-rank');
+
+  const el = document.getElementById('rankings_table');
+  el.innerHTML = '<div class="text-gray-500 py-2">載入中...</div>';
+
+  let url = `/api/stocks/rankings?rank_mode=${mode}&limit=20`;
+  if (_rankClass) url += `&stock_class=${_rankClass}`;
+
+  const ACTION_COLOR = {BUY:'#44ff88',WATCH:'#ffcc00',AVOID_CHASE:'#ff8844',HOLD:'#888',SELL:'#ff4444'};
+  const ACTION_ZH = {BUY:'買入',WATCH:'觀察',AVOID_CHASE:'不可追',HOLD:'持有',SELL:'賣出'};
+  const CLASS_ICON = {CORE_LARGE_CAP:'🔵',LARGE_LIQUID:'🟢',LIQUID_MOMENTUM:'⚡',
+                      SPECULATIVE_HOT:'🔥',ILLIQUID_RISK:'⚠️',ETF_CORE:'🏦',ETF_INCOME:'💰',NORMAL:'⬜'};
+
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!data.length) { el.innerHTML = '<div class="text-gray-500 py-2">無資料</div>'; return; }
+
+    el.innerHTML = `
+      <table class="w-full">
+        <thead>
+          <tr class="text-gray-500 border-b border-gray-700">
+            <th class="text-left py-1 pr-2">代號</th>
+            <th class="text-left py-1 pr-2">名稱</th>
+            <th class="text-right py-1 pr-2">分數</th>
+            <th class="text-right py-1 pr-2">風險</th>
+            <th class="text-right py-1 pr-1">漲跌</th>
+            <th class="text-center py-1">訊號</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${data.map(r => {
+            const score = r.final_score ?? r.candidate_score ?? r.composite;
+            const pct = r.change_pct;
+            const pctColor = pct > 0 ? '#ff6b6b' : pct < 0 ? '#51cf66' : '#888';
+            const pctStr = pct != null ? (pct > 0 ? '+' : '') + pct.toFixed(2) + '%' : '-';
+            const icon = CLASS_ICON[r.stock_class] ?? '⬜';
+            const aColor = ACTION_COLOR[r.final_action] ?? '#888';
+            const aZH = ACTION_ZH[r.final_action] ?? r.final_action;
+            return `<tr class="border-b border-gray-800 hover:bg-surface-3 cursor-pointer"
+                        onclick="loadStock('${r.code}')">
+              <td class="py-1 pr-2 font-mono text-blue-400">${r.code}</td>
+              <td class="py-1 pr-2">${icon} ${r.name}</td>
+              <td class="py-1 pr-2 text-right font-mono">${score.toFixed(1)}</td>
+              <td class="py-1 pr-2 text-right font-mono" style="color:${r.risk_score>=60?'#ff4444':r.risk_score>=45?'#ffcc00':'#44ff88'}">${r.risk_score.toFixed(0)}</td>
+              <td class="py-1 pr-1 text-right" style="color:${pctColor}">${pctStr}</td>
+              <td class="py-1 text-center text-xs" style="color:${aColor}">${aZH}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>`;
+  } catch(e) {
+    el.innerHTML = '<div class="text-red-400">載入失敗</div>';
+  }
+}
+
+// 頁面載入時自動顯示
+document.addEventListener('DOMContentLoaded', () => setTimeout(() => loadRankings('final'), 800));
+
 async function loadSparks(){
   var cvs=document.querySelectorAll('canvas.v2-spark');if(!cvs.length)return;
   var codes=[...new Set([...cvs].map(function(c){return c.dataset.code}))].join(',');
