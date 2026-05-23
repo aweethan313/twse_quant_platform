@@ -1154,11 +1154,11 @@ def api_decisions_explanations(
 
 
 @app.get("/api/strategies/router")
-def api_strategies_router(date: str = None):
+def api_strategies_router(query_date: str = None):
     """V3-FIX-2 策略路由器狀態"""
     from backend.v3.strategy_router import get_latest_router, compute_router
     from datetime import date as ddate
-    td = ddate.fromisoformat(date) if date else ddate.today()
+    td = ddate.fromisoformat(query_date) if query_date else ddate.today()
     result = get_latest_router(td)
     if not result or "market_trend" not in result:
         result = compute_router(td)
@@ -1173,13 +1173,13 @@ def api_risk_budget(account_id: int = None, date: str = None):
 
 
 @app.get("/api/strategies/leaderboard")
-def api_strategies_leaderboard(date: str = None):
+def api_strategies_leaderboard(query_date: str = None):
     """V3-FIX-6 策略排名"""
     from backend.v3.strategy_leaderboard import get_leaderboard, compute_leaderboard
     from datetime import date as ddate
-    result = get_leaderboard(as_of_date=date)
+    result = get_leaderboard(as_of_date=query_date)
     if not result:
-        td = ddate.fromisoformat(date) if date else ddate.today()
+        td = ddate.fromisoformat(query_date) if query_date else ddate.today()
         result = compute_leaderboard(td)
     return result
 

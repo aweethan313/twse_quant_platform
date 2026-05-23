@@ -167,6 +167,48 @@
   }
   document.addEventListener('DOMContentLoaded',drawEc);
 })();
+
+async function loadV3Router() {
+  try {
+    const d = await fetch('/api/strategies/router').then(r=>r.json());
+    const trend = {bullish:'🟢 多頭', neutral:'🟡 盤整', bearish:'🔴 空頭'}[d.market_trend] ?? d.market_trend;
+    const risk  = {low:'低', medium:'中', high:'高'}[d.risk_level] ?? d.risk_level;
+    const pm    = d.position_multiplier ?? 0.65;
+    const en    = (d.enabled_strategies || []).map(s=>`S${s}`).join(' ');
+    const dis   = (d.disabled_strategies || []).map(s=>`S${s}`).join(' ') || '無';
+    document.getElementById('v3_router').innerHTML = `
+      <div class="flex justify-between"><span>市場狀態</span><span class="font-bold">${trend}</span></div>
+      <div class="flex justify-between"><span>風險等級</span><span>${risk}</span></div>
+      <div class="flex justify-between"><span>部位倍率</span><span class="font-mono text-accent">${(pm*100).toFixed(0)}%</span></div>
+      <div class="flex justify-between"><span>啟用策略</span><span class="text-green-400">${en}</span></div>
+      <div class="flex justify-between"><span>停用策略</span><span class="text-red-400">${dis}</span></div>
+      <div class="mt-2 text-gray-600">${(d.reasons||[]).join('；')}</div>
+    `;
+  } catch(e) { document.getElementById('v3_router').textContent = '載入失敗'; }
+}
+
+async function loadV3Leaderboard() {
+  try {
+    const data = await fetch('/api/strategies/leaderboard').then(r=>r.json());
+    const RL_COLOR = {'穩定':'#44ff88','高報酬高風險':'#ffcc00','回撤過大':'#ff8844',
+                      '交易太少':'#888','疑似過度擬合':'#ff4444'};
+    document.getElementById('v3_leaderboard').innerHTML = data.map(r => `
+      <div class="flex items-center gap-2 py-1 border-b border-gray-800">
+        <span class="text-gray-600 w-4">#${r.rank}</span>
+        <span class="text-blue-400 w-6">S${r.strategy_id}</span>
+        <span class="flex-1 truncate">${r.strategy_name||'S'+r.strategy_id}</span>
+        <span class="font-mono text-accent">${(r.strategy_rank_score||0).toFixed(1)}</span>
+        <span class="text-xs px-1 rounded" style="color:${RL_COLOR[r.risk_label]||'#888'}">${r.risk_label||''}</span>
+      </div>
+    `).join('');
+  } catch(e) { document.getElementById('v3_leaderboard').textContent = '載入失敗'; }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadV3Router();
+  loadV3Leaderboard();
+});
+
 </script>
 {% endblock %}
 
@@ -236,7 +278,22 @@ function renderCards(){
         </div>
         <button onclick="openDelModal(${a.account_id})" class="text-gray-600 hover:text-dn text-lg leading-none">×</button>
       </div>
-      <div class="space-y-1.5">
+      
+<!-- V3 策略路由器 + 排行榜 -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+  <!-- 策略路由器 -->
+  <div class="bg-surface-2 border border-border rounded-lg p-4">
+    <div class="text-sm font-medium mb-3">🔀 今日策略路由器</div>
+    <div id="v3_router" class="space-y-2 text-xs text-gray-400">載入中...</div>
+  </div>
+  <!-- 策略排名 -->
+  <div class="bg-surface-2 border border-border rounded-lg p-4">
+    <div class="text-sm font-medium mb-3">🏆 策略排名（V3）</div>
+    <div id="v3_leaderboard" class="space-y-1 text-xs">載入中...</div>
+  </div>
+</div>
+
+<div class="space-y-1.5">
         <div class="flex justify-between text-xs">
           <span class="text-gray-500">總資產</span>
           <span class="font-mono font-bold">${fmt(a.total_equity)}</span>
