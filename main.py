@@ -114,6 +114,7 @@ def get_latest_trade_date(db) -> str:
 def api_stocks_rankings(
     rank_mode: str = "final",
     max_risk_score: float = 100,
+    min_risk_score: float = 0,
     stock_class: str = None,
     core_only: bool = False,
     final_action: str = None,
@@ -147,8 +148,9 @@ def api_stocks_rankings(
             AND o.trade_date = (SELECT MAX(trade_date) FROM ohlcv_daily)
         WHERE ds.score_date = (SELECT MAX(score_date) FROM daily_scores)
           AND (ds.risk_score IS NULL OR ds.risk_score <= :max_risk)
+          AND (ds.risk_score IS NULL OR ds.risk_score >= :min_risk)
     """
-    params = {"max_risk": max_risk_score, "limit": limit}
+    params = {"max_risk": max_risk_score, "min_risk": min_risk_score, "limit": limit}
     if stock_class:
         base_q += " AND ds.stock_class = :sc"; params["sc"] = stock_class
     if core_only:

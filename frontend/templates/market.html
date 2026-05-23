@@ -208,6 +208,11 @@ function switchScreenMode(mode) {
   const labels = {screener:'綜合分',final:'最終分',candidate:'候選分',core:'核心分',risk:'風險分',avoid_chase:'候選分'};
   const lbl = document.getElementById('score_col_label');
   if (lbl) lbl.textContent = labels[mode] ?? '綜合分';
+  // 切換模式時重置類型篩選
+  _classFilter = '';
+  document.querySelectorAll('.cf-btn').forEach(b => b.classList.remove('active-cf'));
+  const cfAll = document.getElementById('cf_all');
+  if (cfAll) cfAll.classList.add('active-cf');
   if (mode === 'screener') loadScreener();
   else loadRankingsInline(mode);
 }
@@ -228,6 +233,10 @@ async function loadRankingsInline(mode) {
   tbody.innerHTML = '<tr><td colspan="8" class="px-4 py-6 text-center text-gray-500">載入中...</td></tr>';
   let url = `/api/stocks/rankings?rank_mode=${mode}&limit=50`;
   if (_classFilter) url += `&stock_class=${_classFilter}`;
+  // 各模式預設排除條件
+  if (mode === 'risk')        url += '&min_risk_score=40';
+  if (mode === 'final')       url += '&max_risk_score=60';
+  if (mode === 'avoid_chase') url += '&max_risk_score=100';
   const AC = {BUY:'#44ff88',WATCH:'#ffcc00',AVOID_CHASE:'#ff8844',HOLD:'#888',SELL:'#ff4444'};
   const AZ = {BUY:'買入',WATCH:'觀察',AVOID_CHASE:'不可追',HOLD:'持有',SELL:'賣出'};
   const CI = {CORE_LARGE_CAP:'🔵',LARGE_LIQUID:'🟢',LIQUID_MOMENTUM:'⚡',
