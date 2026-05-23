@@ -28,21 +28,32 @@
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
     <!-- 選股篩選器 -->
     <div class="lg:col-span-2 bg-surface-2 border border-border rounded-lg">
-      <div class="flex items-center justify-between px-4 py-3 border-b border-border">
-        <span class="text-sm font-medium">📊 選股篩選器</span>
-        <div class="flex items-center gap-2">
-          <label class="text-xs text-gray-500">最低綜合分</label>
-          <input id="min_score" type="range" min="0" max="100" value="50"
-            class="w-24 accent-accent"
-            oninput="document.getElementById('min_score_val').textContent=this.value;loadScreener()">
-          <span id="min_score_val" class="text-xs font-mono text-accent w-5">50</span>
-          <select id="sig_filter" class="bg-surface-3 border border-border rounded px-2 py-1 text-xs"
-                  onchange="loadScreener()">
-            <option value="">全部訊號</option>
-            <option value="BUY">買入</option>
-            <option value="HOLD">持有</option>
-            <option value="SELL">賣出</option>
-          </select>
+      <div class="px-4 py-3 border-b border-border">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-sm font-medium">📊 選股 / 排行榜</span>
+          <div class="flex items-center gap-2">
+            <label class="text-xs text-gray-500">最低分</label>
+            <input id="min_score" type="range" min="0" max="100" value="50" class="w-20 accent-accent"
+              oninput="document.getElementById('min_score_val').textContent=this.value;if(_screenMode==='screener')loadScreener()">
+            <span id="min_score_val" class="text-xs font-mono text-accent w-5">50</span>
+          </div>
+        </div>
+        <div class="flex flex-wrap gap-1 mb-1">
+          <button onclick="switchScreenMode('screener')"    id="btn_screener"    class="smode-btn active-smode text-xs px-2 py-0.5 rounded">篩選器</button>
+          <button onclick="switchScreenMode('final')"       id="btn_final"       class="smode-btn text-xs px-2 py-0.5 rounded">🏆 綜合推薦</button>
+          <button onclick="switchScreenMode('candidate')"   id="btn_candidate"   class="smode-btn text-xs px-2 py-0.5 rounded">🔍 候選分</button>
+          <button onclick="switchScreenMode('core')"        id="btn_core"        class="smode-btn text-xs px-2 py-0.5 rounded">🔵 核心大型</button>
+          <button onclick="switchScreenMode('avoid_chase')" id="btn_avoid_chase" class="smode-btn text-xs px-2 py-0.5 rounded">⚠️ 不可追</button>
+          <button onclick="switchScreenMode('risk')"        id="btn_risk"        class="smode-btn text-xs px-2 py-0.5 rounded">🚨 高風險</button>
+        </div>
+        <div class="flex flex-wrap gap-1">
+          <span class="text-xs text-gray-600 self-center mr-1">類型:</span>
+          <button onclick="setClassFilter('')"                 id="cf_all"  class="cf-btn active-cf text-xs px-2 py-0.5 rounded">全部</button>
+          <button onclick="setClassFilter('CORE_LARGE_CAP')"  id="cf_core" class="cf-btn text-xs px-2 py-0.5 rounded">🔵核心</button>
+          <button onclick="setClassFilter('LARGE_LIQUID')"    id="cf_ll"   class="cf-btn text-xs px-2 py-0.5 rounded">🟢中大型</button>
+          <button onclick="setClassFilter('LIQUID_MOMENTUM')" id="cf_lm"   class="cf-btn text-xs px-2 py-0.5 rounded">⚡強勢</button>
+          <button onclick="setClassFilter('SPECULATIVE_HOT')" id="cf_sh"   class="cf-btn text-xs px-2 py-0.5 rounded">🔥題材</button>
+          <button onclick="setClassFilter('ETF_CORE')"        id="cf_etf"  class="cf-btn text-xs px-2 py-0.5 rounded">🏦ETF</button>
         </div>
       </div>
       <div class="overflow-x-auto">
@@ -53,7 +64,8 @@
               <th class="px-4 py-2 text-left">名稱</th>
               <th class="px-4 py-2 text-right">收盤</th>
               <th class="px-4 py-2 text-right">漲跌幅</th>
-              <th class="px-4 py-2 text-right">綜合分</th>
+              <th class="px-4 py-2 text-right" id="score_col_label">綜合分</th>
+              <th class="px-4 py-2 text-right">風險</th>
               <th class="px-4 py-2 text-center">訊號</th>
               <th class="px-4 py-2 text-center">詳情</th>
             </tr>
@@ -62,7 +74,6 @@
         </table>
       </div>
     </div>
-
     <!-- 漲幅排行 -->
     <div class="bg-surface-2 border border-border rounded-lg">
       <div class="px-4 py-3 border-b border-border text-sm font-medium">🔥 今日漲幅排行</div>
