@@ -99,9 +99,9 @@ def run():
 
     api_endpoints = [
         "/api/decisions/explanations",
-        "/api/strategies/router",
+        "/api/v3/strategies/router",
         "/api/risk/budget",
-        "/api/strategies/leaderboard",
+        "/api/v3/strategies/leaderboard",
         "/api/paper/research-log",
         "/api/stocks/rankings?rank_mode=final&limit=5",
     ]

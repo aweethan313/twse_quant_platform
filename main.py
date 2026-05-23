@@ -1153,7 +1153,7 @@ def api_decisions_explanations(
     )
 
 
-@app.get("/api/strategies/router")
+@app.get("/api/v3/strategies/router")
 def api_strategies_router(query_date: str = None):
     """V3-FIX-2 策略路由器狀態"""
     from backend.v3.strategy_router import get_latest_router, compute_router
@@ -1172,7 +1172,7 @@ def api_risk_budget(account_id: int = None, date: str = None):
     return get_budget_status(account_id=account_id, trade_date=date)
 
 
-@app.get("/api/strategies/leaderboard")
+@app.get("/api/v3/strategies/leaderboard")
 def api_strategies_leaderboard(query_date: str = None):
     """V3-FIX-6 策略排名"""
     from backend.v3.strategy_leaderboard import get_leaderboard, compute_leaderboard

@@ -170,7 +170,7 @@
 
 async function loadV3Router() {
   try {
-    const d = await fetch('/api/strategies/router').then(r=>r.json());
+    const d = await fetch('/api/v3/strategies/router').then(r=>r.json());
     const trend = {bullish:'🟢 多頭', neutral:'🟡 盤整', bearish:'🔴 空頭'}[d.market_trend] ?? d.market_trend;
     const risk  = {low:'低', medium:'中', high:'高'}[d.risk_level] ?? d.risk_level;
     const pm    = d.position_multiplier ?? 0.65;
@@ -189,7 +189,7 @@ async function loadV3Router() {
 
 async function loadV3Leaderboard() {
   try {
-    const data = await fetch('/api/strategies/leaderboard').then(r=>r.json());
+    const data = await fetch('/api/v3/strategies/leaderboard').then(r=>r.json());
     const RL_COLOR = {'穩定':'#44ff88','高報酬高風險':'#ffcc00','回撤過大':'#ff8844',
                       '交易太少':'#888','疑似過度擬合':'#ff4444'};
     document.getElementById('v3_leaderboard').innerHTML = data.map(r => `
