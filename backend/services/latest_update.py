@@ -162,6 +162,7 @@ def recompute_scores_for_date(target_date: date) -> dict[str, Any]:
 
 def update_theme_trends(target_date) -> dict:
     """更新主線題材熱度 theme_trend_daily"""
+    from loguru import logger
     from backend.models.database import SessionLocal
     from sqlalchemy import text
     import json
