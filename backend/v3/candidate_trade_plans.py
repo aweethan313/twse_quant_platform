@@ -133,7 +133,7 @@ def generate_trade_plan(
 
         # 不建議追高判斷
         invalid_conditions = []
-        if rrr < CFG.min_risk_reward_ratio:
+        if rrr < 1.2:  # 10%目標/8%停損=1.25，用1.2門檻
             invalid_conditions.append(f"風報比 {rrr} < {CFG.min_risk_reward_ratio}，不建議")
         if ma20 and (p - ma20)/ma20 > 0.15:
             invalid_conditions.append("距均線過遠，不可追高")

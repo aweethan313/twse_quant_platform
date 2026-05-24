@@ -42,10 +42,13 @@ def generate_morning_alerts(alert_date: date = None) -> list[dict]:
                    ctp.risk_reward_ratio, ctp.suggested_shares, ctp.suggested_amount,
                    ctp.invalid_buy_condition, ctp.final_plan_summary,
                    ds.final_action, ds.final_score, ds.risk_score, ds.stock_class
-            FROM candidate_trade_plans ctp
+            FROM (
+                SELECT code, MAX(id) as max_id FROM candidate_trade_plans
+                WHERE plan_date=:d GROUP BY code
+            ) latest
+            JOIN candidate_trade_plans ctp ON ctp.id=latest.max_id
             LEFT JOIN daily_scores ds ON ds.code=ctp.code
               AND ds.score_date=(SELECT MAX(score_date) FROM daily_scores)
-            WHERE ctp.plan_date=:d
             ORDER BY ds.final_score DESC
         """), {"d": str(alert_date)}).fetchall()
 
@@ -70,7 +73,7 @@ def generate_morning_alerts(alert_date: date = None) -> list[dict]:
             if invalid:
                 alert_type = "DO_NOT_CHASE"
                 warning = f"⚠️ {invalid}"
-            elif action == "BUY" and (rrr or 0) >= 1.5:
+            elif action == "BUY" and (rrr or 0) >= 1.2:
                 alert_type = "BUY_WATCH"
                 warning = None
             elif action == "WATCH":
@@ -145,62 +148,125 @@ def generate_morning_alerts(alert_date: date = None) -> list[dict]:
 
 def _write_markdown_report(alerts: list, alert_date: date,
                             market_summary: str, risk_level: str):
+    from backend.models.database import SessionLocal
+    from sqlalchemy import text as _text
+
     path = Path(f"data/reports/morning_watchlist_alerts_{alert_date}.md")
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    rl_emoji = {"low": "🟢", "medium": "🟡", "high": "🔴"}.get(risk_level, "⚪")
+    rl_emoji = {"low":"🟢","medium":"🟡","high":"🔴"}.get(risk_level,"⚪")
+
+    # 取 0050 狀態
+    db = SessionLocal()
+    etf_row = db.execute(_text("""
+        SELECT close, change_pct FROM ohlcv_daily
+        WHERE code='0050' ORDER BY trade_date DESC LIMIT 1
+    """)).fetchone()
+    etf_str = f"0050 {etf_row[0]} ({'+' if etf_row[1]>=0 else ''}{etf_row[1]:.2f}%)" if etf_row else "N/A"
+
+    # 取核心大型股候選
+    core_stocks = db.execute(_text("""
+        SELECT ds.code, sm.name, o.close, o.change_pct,
+               ds.final_score, ds.candidate_score, ds.risk_score,
+               ds.final_action, ds.stock_class
+        FROM daily_scores ds
+        LEFT JOIN stock_meta sm ON sm.code=ds.code
+        LEFT JOIN ohlcv_daily o ON o.code=ds.code
+          AND o.trade_date=(SELECT MAX(trade_date) FROM ohlcv_daily)
+        WHERE ds.score_date=(SELECT MAX(score_date) FROM daily_scores)
+          AND ds.stock_class IN ('CORE_LARGE_CAP','LARGE_LIQUID')
+          AND ds.candidate_score >= 50
+          AND ds.final_action IN ('BUY','WATCH','HOLD')
+        ORDER BY ds.candidate_score DESC LIMIT 12
+    """)).fetchall()
+    db.close()
+
+    buy_list   = [a for a in alerts if a["alert_type"]=="BUY_WATCH"]
+    watch_list = [a for a in alerts if a["alert_type"]=="HOLD_WATCH"]
+    avoid_list = [a for a in alerts if a["alert_type"]=="DO_NOT_CHASE"]
+
     lines = [
-        f"# 📋 今日候選清單提醒 {alert_date}",
+        f"# 📋 今日看盤提醒 {alert_date}",
         f"",
-        f"**⚠️ 本報告僅供輔助看盤，所有交易須由使用者自行確認後執行。**",
+        f"> ⚠️ **輔助看盤用途，所有交易須使用者自行確認後執行，系統不自動下單。**",
         f"",
-        f"## 大盤狀態",
-        f"- 風險等級：{rl_emoji} {risk_level.upper()}",
-        f"- 摘要：{market_summary}",
-        f"",
-        f"## 今日候選股（{len(alerts)} 檔）",
+        f"## 📊 大盤概況",
+        f"| 項目 | 狀態 |",
+        f"|------|------|",
+        f"| 市場風險 | {rl_emoji} {risk_level.upper()} |",
+        f"| 核心 ETF | {etf_str} |",
+        f"| 摘要 | {market_summary} |",
         f"",
     ]
 
-    buy_list = [a for a in alerts if a["alert_type"] == "BUY_WATCH"]
-    watch_list = [a for a in alerts if a["alert_type"] == "HOLD_WATCH"]
-    avoid_list = [a for a in alerts if a["alert_type"] == "DO_NOT_CHASE"]
+    # 核心大型股觀察
+    lines += ["## 🔵 核心大型股 / 中大型股觀察", ""]
+    lines += ["| 代號 | 名稱 | 收盤 | 漲跌 | 候選分 | 訊號 | 備註 |",
+              "|------|------|------|------|--------|------|------|"]
+    for r in core_stocks:
+        code, name, close, pct, fs, cs, rs, fa, sc = r
+        pct_str = f"{'+' if (pct or 0)>=0 else ''}{pct:.2f}%" if pct else "—"
+        action_map = {"BUY":"✅買入","WATCH":"👀觀察","HOLD":"⏸持有","AVOID_CHASE":"⚠️不可追"}
+        note = "高分候選" if cs>=65 else "觀察中"
+        if rs and rs>=50: note += f" 風險{rs:.0f}"
+        lines.append(f"| {code} | {name or ''} | {close or '—'} | {pct_str} | {cs:.1f} | {action_map.get(fa,fa)} | {note} |")
+    lines += ["", "---", ""]
 
+    # 強勢候選（BUY）
     if buy_list:
-        lines += ["### ✅ 買入觀察", ""]
+        lines += [f"## ✅ 買入觀察（{len(buy_list)} 檔）", ""]
         for a in buy_list:
             lines += [
-                f"**{a['code']} {a['name']}**",
-                f"- 進場區間：{a['entry_price_low']} ～ {a['entry_price_high']}",
-                f"- 目標價：{a['target_price_1']}（+{CFG.default_target_pct_1*100:.0f}%）/ {a['target_price_2']}（+{CFG.default_target_pct_2*100:.0f}%）",
-                f"- 停損價：{a['stop_loss_price']}（-{CFG.default_stop_loss_pct*100:.0f}%）",
-                f"- 風報比：{a['risk_reward_ratio']}",
-                f"- 建議：{a['suggested_shares']} 股 / {a['suggested_amount']:,.0f} 元",
-                f"- 理由：{a['alert_reason']}",
+                f"### {a['code']} {a['name']}",
+                f"",
+                f"| 項目 | 數值 |",
+                f"|------|------|",
+                f"| 進場區間 | **{a['entry_price_low']} ～ {a['entry_price_high']}** |",
+                f"| 目標價 1 | {a['target_price_1']}（+{CFG.default_target_pct_1*100:.0f}%）|",
+                f"| 目標價 2 | {a['target_price_2']}（+{CFG.default_target_pct_2*100:.0f}%）|",
+                f"| 停損價 | {a['stop_loss_price']}（-{CFG.default_stop_loss_pct*100:.0f}%）|",
+                f"| 風報比 | {a['risk_reward_ratio']} |",
+                f"| 建議股數 | {a['suggested_shares']} 股 / {a['suggested_amount']:,.0f} 元 |",
+                f"| 理由 | {a['alert_reason']} |",
                 f"",
             ]
+            if a.get("warning_message"):
+                lines.append(f"> ⚠️ {a['warning_message']}")
+                lines.append("")
 
+    # 觀察候選
     if watch_list:
-        lines += ["### 👀 持續觀察", ""]
+        lines += [f"## 👀 持續觀察（{len(watch_list)} 檔）", ""]
+        lines += ["| 代號 | 名稱 | 進場區間 | 目標 | 停損 | 理由 |",
+                  "|------|------|----------|------|------|------|"]
         for a in watch_list:
-            lines.append(f"- **{a['code']} {a['name']}** — {a['alert_reason']}")
+            lines.append(
+                f"| {a['code']} | {a['name']} | "
+                f"{a['entry_price_low']}～{a['entry_price_high']} | "
+                f"{a['target_price_1']} | {a['stop_loss_price']} | "
+                f"{a['alert_reason'][:30]} |"
+            )
         lines.append("")
 
+    # 不可追
     if avoid_list:
-        lines += ["### ⚠️ 不可追高", ""]
+        lines += [f"## ⚠️ 今日不可追高（{len(avoid_list)} 檔）", ""]
         for a in avoid_list:
-            lines.append(f"- **{a['code']} {a['name']}** — {a['warning_message']}")
+            lines.append(f"- **{a['code']} {a['name']}** — {a['warning_message'] or a['alert_reason']}")
         lines.append("")
 
     lines += [
         "---",
-        f"*系統模式：{CFG.mode} | 需使用者確認：{CFG.require_user_confirmation} | 不允許自動下單*",
+        f"*資金設定：總資產 {CFG.total_capital:,.0f} | 短線資金 {CFG.active_capital:,.0f} | 單筆最大虧損 {CFG.max_single_trade_loss_amount:,.0f}*",
+        f"*模式：{CFG.mode} | 需確認：{CFG.require_user_confirmation} | 不自動下單*",
     ]
 
     path.write_text("\n".join(lines), encoding="utf-8")
     logger.info(f"[WATCHLIST] Markdown 報告輸出：{path}")
 
 
+
+def _write_csv
 def _write_csv_report(alerts: list, alert_date: date):
     import csv
     path = Path(f"data/reports/morning_watchlist_alerts_{alert_date}.csv")
