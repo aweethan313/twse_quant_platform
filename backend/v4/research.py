@@ -341,8 +341,8 @@ def run_scenario_stress_test(account_id: int = None, test_date: date = None) -> 
     db = SessionLocal()
     results = []
     try:
-        # 取持倉
-                eq = db.execute(text("""
+        # 用 equity_curve 估算曝險
+        eq = db.execute(text("""
             SELECT SUM(COALESCE(market_value, total_equity*0.4))
             FROM equity_curve WHERE snap_date=(SELECT MAX(snap_date) FROM equity_curve)
         """)).fetchone()
