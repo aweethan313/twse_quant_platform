@@ -322,16 +322,16 @@ def run_portfolio_optimizer(account_id: int = None, plan_date: date = None) -> d
 # ═══════════════════════════════════
 
 SCENARIOS = [
-    {"name": "台股大盤-3%",     "impact": -0.03, "affected": ["AI/半導體","AI伺服器","PCB/載板"]},
-    {"name": "台股大盤-5%",     "impact": -0.05, "affected": ["AI/半導體","AI伺服器","PCB/載板","金融"]},
-    {"name": "NASDAQ-3%",       "impact": -0.025,"affected": ["AI/半導體","AI伺服器"]},
-    {"name": "SOX-5%",          "impact": -0.04, "affected": ["AI/半導體","PCB/載板"]},
-    {"name": "TSMC ADR-5%",     "impact": -0.045,"affected": ["AI/半導體"]},
-    {"name": "AI題材退燒",       "impact": -0.08, "affected": ["AI/半導體","AI伺服器","電源/散熱","PCB/載板"]},
-    {"name": "PCB/CCL題材退燒",  "impact": -0.06, "affected": ["PCB/載板"]},
-    {"name": "半導體全面回檔",    "impact": -0.07, "affected": ["AI/半導體"]},
-    {"name": "台幣急升",         "impact": -0.02, "affected": ["AI伺服器","航運"]},
-    {"name": "高估值股修正",      "impact": -0.05, "affected": ["AI/半導體","AI伺服器","電源/散熱"]},
+    {"name": "台股大盤-3%",     "impact": -0.03, "affected": ["AI/半導體","AI伺服器","PCB/載板","電子零組件","半導體"]},
+    {"name": "台股大盤-5%",     "impact": -0.05, "affected": ["AI/半導體","AI伺服器","PCB/載板","金融","電子零組件","半導體"]},
+    {"name": "NASDAQ-3%",       "impact": -0.025,"affected": ["AI/半導體","AI伺服器","半導體"]},
+    {"name": "SOX-5%",          "impact": -0.04, "affected": ["AI/半導體","PCB/載板","半導體"]},
+    {"name": "TSMC ADR-5%",     "impact": -0.045,"affected": ["AI/半導體","半導體"]},
+    {"name": "AI題材退燒",       "impact": -0.08, "affected": ["AI/半導體","AI伺服器","電源/散熱","PCB/載板","電子零組件","半導體"]},
+    {"name": "PCB/CCL題材退燒",  "impact": -0.06, "affected": ["PCB/載板","電子零組件"]},
+    {"name": "半導體全面回檔",    "impact": -0.07, "affected": ["AI/半導體","半導體","電子零組件"]},
+    {"name": "台幣急升",         "impact": -0.02, "affected": ["AI伺服器","航運","半導體"]},
+    {"name": "高估值股修正",      "impact": -0.05, "affected": ["AI/半導體","AI伺服器","電源/散熱","半導體"]},
 ]
 
 
