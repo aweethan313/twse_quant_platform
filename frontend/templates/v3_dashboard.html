@@ -225,8 +225,9 @@ async function loadV4Tab() {
     const data = await fetch('/api/workflow/daily-runs?limit=20').then(r=>r.json());
     if (!data.length) { document.getElementById('v4_workflow_detail').textContent='尚無記錄'; return; }
     document.getElementById('v4_workflow_detail').innerHTML =
-      data.map(r=>`<div class="v3-row">
-        <span>${{'PASS':'✅','WARN':'⚠️','FAIL':'❌','SKIPPED':'⏭'}[r.status]||'•'} ${r.step_name}</span>
+      const _wfIcon = {PASS:'✅',WARN:'⚠️',FAIL:'❌',SKIPPED:'⏭'};
+    data.map(r=>`<div class="v3-row">
+        <span>${_wfIcon[r.status]||'•'} ${r.step_name}</span>
         <span class="text-gray-400 text-xs">${r.message||''}</span>
         <span class="text-gray-600 text-xs">${r.run_date}</span>
       </div>`).join('');
