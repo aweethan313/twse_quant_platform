@@ -232,12 +232,7 @@ async function loadV4Tab() {
   } catch(e) {}
 }
 
-// showTab 加入 v4
-const _origShowTab = showTab;
-showTab = function(name, btn) {
-  _origShowTab(name, btn);
-  if (name==='v4') loadV4Tab();
-};
+
 
 let _fillsLoaded=false, _wfLoaded=false, _decisionsLoaded=false, _accLoaded=false;
 
@@ -488,6 +483,6 @@ async function loadAccuracy() {
   } catch(e) {}
 }
 
-document.addEventListener('DOMContentLoaded', () => { loadOverview(); setTimeout(loadV4Tab, 1000); });
+document.addEventListener('DOMContentLoaded', loadOverview);
 </script>
 {% endblock %}
