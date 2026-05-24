@@ -16,15 +16,18 @@ if __name__ == "__main__":
         cats[c["primary_category"]] = cats.get(c["primary_category"], 0) + 1
     for cat, cnt in sorted(cats.items(), key=lambda x: x[1], reverse=True):
         print(f"  {cat:20} {cnt} 檔")
-
     path = Path(f"data/reports/v4_13_market_sector_classification_{td}.csv")
     path.parent.mkdir(parents=True, exist_ok=True)
+    fieldnames = ["code","name","primary_category","secondary_category",
+                  "theme_tags_json","risk_type","is_core_etf","theme_heat_score",
+                  "is_defensive","classification_confidence"]
     with open(path, "w", newline="", encoding="utf-8") as f:
-        fieldnames = ["code","name","primary_category","secondary_category","theme_tags_json","risk_type","is_core_etf","theme_heat_score","is_defensive","classification_confidence"]
-    w = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
-        w.writeheader(); w.writerows(all_cls)
+        w = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
+        w.writeheader()
+        w.writerows(all_cls)
     print(f"\n驗收:")
     for code in ["0050","2330","2324","6271","2882"]:
         c = get_classification(code=code)
-        if c: print(f"  {code} {c[0]['name']:8} → {c[0]['primary_category']} / {c[0]['secondary_category']}")
+        if c:
+            print(f"  {code} {c[0]['name']:8} → {c[0]['primary_category']} / {c[0]['secondary_category']}")
     print(f"\n✓ {path}")
