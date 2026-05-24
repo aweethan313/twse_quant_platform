@@ -35,6 +35,7 @@
       <button class="tab-btn" onclick="showTab('walkforward',this)">Walk-forward</button>
       <button class="tab-btn" onclick="showTab('decisions',this)">決策理由</button>
       <button class="tab-btn" onclick="showTab('accuracy',this)">候選勝率</button>
+      <button class="tab-btn" onclick="showTab('v4',this)">🆕 V4</button>
     </div>
   </div>
 
@@ -135,6 +136,29 @@
     </div>
   </div>
 
+
+  <!-- V4 Tab -->
+  <div id="tab_v4" class="hidden">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+      <div class="v3-card">
+        <div class="text-xs text-gray-500 mb-3 font-semibold uppercase tracking-wide">📊 資料品質（V4-1）</div>
+        <div id="v4_quality_detail">載入中...</div>
+      </div>
+      <div class="v3-card">
+        <div class="text-xs text-gray-500 mb-3 font-semibold uppercase tracking-wide">🚨 策略 Kill Switch（V4-9）</div>
+        <div id="v4_kill_detail">載入中...</div>
+      </div>
+    </div>
+    <div class="v3-card mb-4">
+      <div class="text-xs text-gray-500 mb-3 font-semibold uppercase tracking-wide">🏭 股市分類 + 主題曝險（V4-13）</div>
+      <div id="v4_sector_detail">載入中...</div>
+    </div>
+    <div class="v3-card">
+      <div class="text-xs text-gray-500 mb-3 font-semibold uppercase tracking-wide">⚙️ 每日工作流程（V4-3）</div>
+      <div id="v4_workflow_detail">載入中...</div>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -151,6 +175,70 @@ function showTab(name, btn) {
   if (name==='decisions' && !_decisionsLoaded){ loadDecisions('all'); _decisionsLoaded=true; }
   if (name==='accuracy' && !_accLoaded)      { loadAccuracy(); _accLoaded=true; }
 }
+
+
+let _v4Loaded = false;
+async function loadV4Tab() {
+  if (_v4Loaded) return; _v4Loaded = true;
+
+  // 資料品質
+  try {
+    const d = await fetch('/api/quality/data').then(r=>r.json());
+    const checks = d.checks || [];
+    document.getElementById('v4_quality_detail').innerHTML =
+      checks.map(c=>`<div class="v3-row">
+        <span>${{'PASS':'✅','WARN':'⚠️','FAIL':'❌','SKIPPED':'⏭'}[c.status]||'•'} ${c.check_type}</span>
+        <span class="text-gray-400 text-xs">${c.message||''}</span>
+      </div>`).join('') || '<div class="text-gray-600">尚無資料</div>';
+  } catch(e) {}
+
+  // Kill Switch
+  try {
+    const data = await fetch('/api/v4/strategies/kill-switch').then(r=>r.json());
+    const STATUS_COLOR = {ACTIVE:'#44ff88',REDUCED:'#ffcc00',PAUSED:'#ff4444',WATCHLIST:'#888'};
+    document.getElementById('v4_kill_detail').innerHTML =
+      data.map(r=>`<div class="v3-row">
+        <span>S${r.strategy_id} ${r.strategy_name||''}</span>
+        <span style="color:${STATUS_COLOR[r.status]||'#888'}">${r.status}</span>
+        <span class="text-gray-500 text-xs">${(r.reason||'').slice(0,40)}</span>
+      </div>`).join('') || '<div class="text-gray-600">尚無資料</div>';
+  } catch(e) {}
+
+  // 主題熱度
+  try {
+    const data = await fetch('/api/market/sector-heat').then(r=>r.json());
+    document.getElementById('v4_sector_detail').innerHTML = `
+      <table class="w-full text-xs">
+        <thead><tr class="text-gray-500"><th class="text-left py-1">類別</th><th class="text-right">熱度</th><th class="text-right">股票數</th></tr></thead>
+        <tbody>
+        ${data.map(r=>`<tr class="border-t border-gray-800">
+          <td class="py-1">${r.category}</td>
+          <td class="text-right font-mono" style="color:${r.avg_heat>=70?'#ff6b6b':r.avg_heat>=50?'#ffcc00':'#9ca3af'}">${r.avg_heat.toFixed(1)}</td>
+          <td class="text-right text-gray-500">${r.count}</td>
+        </tr>`).join('')}
+        </tbody>
+      </table>`;
+  } catch(e) {}
+
+  // 工作流程
+  try {
+    const data = await fetch('/api/workflow/daily-runs?limit=20').then(r=>r.json());
+    if (!data.length) { document.getElementById('v4_workflow_detail').textContent='尚無記錄'; return; }
+    document.getElementById('v4_workflow_detail').innerHTML =
+      data.map(r=>`<div class="v3-row">
+        <span>${{'PASS':'✅','WARN':'⚠️','FAIL':'❌','SKIPPED':'⏭'}[r.status]||'•'} ${r.step_name}</span>
+        <span class="text-gray-400 text-xs">${r.message||''}</span>
+        <span class="text-gray-600 text-xs">${r.run_date}</span>
+      </div>`).join('');
+  } catch(e) {}
+}
+
+// showTab 加入 v4
+const _origShowTab = showTab;
+showTab = function(name, btn) {
+  _origShowTab(name, btn);
+  if (name==='v4') loadV4Tab();
+};
 
 let _fillsLoaded=false, _wfLoaded=false, _decisionsLoaded=false, _accLoaded=false;
 

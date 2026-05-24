@@ -26,6 +26,28 @@
   </div>
 
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    
+<!-- V4 資料品質 + Kill Switch -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4" id="v4_summary_row">
+  <div class="bg-surface-2 border border-border rounded-lg p-3">
+    <div class="text-xs text-gray-500 mb-1">📊 資料品質</div>
+    <div class="text-xl font-bold" id="v4_dq_score">—</div>
+    <div class="text-xs text-gray-600" id="v4_dq_detail"></div>
+  </div>
+  <div class="bg-surface-2 border border-border rounded-lg p-3">
+    <div class="text-xs text-gray-500 mb-1">🚨 策略狀態</div>
+    <div class="text-xs" id="v4_ks_summary">—</div>
+  </div>
+  <div class="bg-surface-2 border border-border rounded-lg p-3">
+    <div class="text-xs text-gray-500 mb-1">🔥 主題熱度 TOP1</div>
+    <div class="text-sm font-bold" id="v4_top_theme">—</div>
+  </div>
+  <div class="bg-surface-2 border border-border rounded-lg p-3">
+    <div class="text-xs text-gray-500 mb-1">🏦 0050</div>
+    <div class="text-sm font-bold" id="v4_etf_status">—</div>
+  </div>
+</div>
+
     <!-- 選股篩選器 -->
     <div class="lg:col-span-2 bg-surface-2 border border-border rounded-lg">
       <div class="px-4 py-3 border-b border-border">
@@ -269,6 +291,60 @@ async function loadRankingsInline(mode) {
     tbody.innerHTML = '<tr><td colspan="8" class="px-4 py-4 text-center text-red-400">載入失敗</td></tr>';
   }
 }
+
+
+async function loadV4Summary() {
+  // 資料品質
+  try {
+    const d = await fetch('/api/quality/data').then(r=>r.json());
+    const checks = d.checks || [];
+    const passes = checks.filter(c=>c.status==='PASS').length;
+    const fails  = checks.filter(c=>c.status==='FAIL').length;
+    const warns  = checks.filter(c=>c.status==='WARN').length;
+    const hs = Math.max(0, 100 - fails*20 - warns*5);
+    const hsColor = hs>=80?'#44ff88':hs>=60?'#ffcc00':'#ff4444';
+    document.getElementById('v4_dq_score').innerHTML =
+      `<span style="color:${hsColor}">${hs.toFixed(0)}/100</span>`;
+    document.getElementById('v4_dq_detail').textContent =
+      `✅${passes} ⚠️${warns} ❌${fails}`;
+  } catch(e) {}
+
+  // Kill Switch
+  try {
+    const data = await fetch('/api/v4/strategies/kill-switch').then(r=>r.json());
+    const paused  = data.filter(s=>s.status==='PAUSED').length;
+    const reduced = data.filter(s=>s.status==='REDUCED').length;
+    const active  = data.filter(s=>s.status==='ACTIVE').length;
+    document.getElementById('v4_ks_summary').innerHTML =
+      `✅${active}啟用 ⚠️${reduced}降權 🛑${paused}暫停`;
+  } catch(e) {}
+
+  // 主題 TOP1
+  try {
+    const d = await fetch('/api/market/themes').then(r=>r.json());
+    const top = (d.themes||[])[0];
+    if (top) {
+      document.getElementById('v4_top_theme').textContent =
+        `${top.theme} ${top.score.toFixed(0)}分`;
+    }
+  } catch(e) {}
+
+  // 0050
+  try {
+    const d = await fetch('/api/stock/0050/latest_score').then(r=>r.json());
+    const p = await fetch('/api/stock/0050/kline?days=2').then(r=>r.json());
+    if (p.data && p.data.length >= 2) {
+      const last = p.data[p.data.length-1];
+      const prev = p.data[p.data.length-2];
+      const pct = ((last.close-prev.close)/prev.close*100).toFixed(2);
+      const color = pct>=0?'#ff6b6b':'#51cf66';
+      document.getElementById('v4_etf_status').innerHTML =
+        `${last.close} <span style="color:${color}">${pct>=0?'+':''}${pct}%</span>`;
+    }
+  } catch(e) {}
+}
+
+document.addEventListener('DOMContentLoaded', loadV4Summary);
 
 async function loadScreener(){
   const min=document.getElementById('min_score').value;
