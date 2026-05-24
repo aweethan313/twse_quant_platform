@@ -179,8 +179,6 @@ function showTab(name, btn) {
 
 let _v4Loaded = false;
 async function loadV4Tab() {
-  if (_v4Loaded) return; _v4Loaded = true;
-
   // 資料品質
   try {
     const d = await fetch('/api/quality/data').then(r=>r.json());
@@ -490,6 +488,6 @@ async function loadAccuracy() {
   } catch(e) {}
 }
 
-document.addEventListener('DOMContentLoaded', loadOverview);
+document.addEventListener('DOMContentLoaded', () => { loadOverview(); setTimeout(loadV4Tab, 1000); });
 </script>
 {% endblock %}
