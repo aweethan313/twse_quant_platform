@@ -163,7 +163,7 @@
 
 <script>
 function showTab(name, btn) {
-  ['overview','fills','walkforward','decisions','accuracy'].forEach(t => {
+  ['overview','fills','walkforward','decisions','accuracy','v4'].forEach(t => {
     document.getElementById('tab_'+t).classList.add('hidden');
   });
   document.getElementById('tab_'+name).classList.remove('hidden');
@@ -484,5 +484,6 @@ async function loadAccuracy() {
 }
 
 document.addEventListener('DOMContentLoaded', loadOverview);
+document.addEventListener('DOMContentLoaded', () => setTimeout(loadV4Tab, 500));
 </script>
 {% endblock %}
