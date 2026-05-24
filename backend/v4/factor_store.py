@@ -56,10 +56,10 @@ def build_factor_store(target_date: date = None, codes: list[str] = None) -> int
         # 取 daily_scores
         q = """
             SELECT ds.code, sm.name,
-                   ds.technical_score, ds.entry_score, ds.momentum_score,
+                   ds.composite_score, ds.entry_score, ds.momentum_score,
                    ds.chip_score, ds.fundamental_score, ds.valuation_score,
                    ds.candidate_score, ds.risk_score, ds.final_score,
-                   ds.volume_score, ds.ai_theme_score, ds.stock_class,
+                   ds.volume_score, ds.core_score, ds.stock_class,
                    ds.final_action
             FROM daily_scores ds
             LEFT JOIN stock_meta sm ON sm.code=ds.code
@@ -70,10 +70,10 @@ def build_factor_store(target_date: date = None, codes: list[str] = None) -> int
             q += " AND ds.code IN (" + ",".join(f"'{c}'" for c in codes) + ")"
 
         rows = db.execute(text(q), params).fetchall()
-        cols = ["code","name","technical_score","entry_score","momentum_score",
+        cols = ["code","name","composite_score","entry_score","momentum_score",
                 "chip_score","fundamental_score","valuation_score",
                 "candidate_score","risk_score","final_score",
-                "volume_score","ai_theme_score","stock_class","final_action"]
+                "volume_score","core_score","stock_class","final_action"]
 
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -84,7 +84,7 @@ def build_factor_store(target_date: date = None, codes: list[str] = None) -> int
 
             # 寫入各因子
             factors = [
-                ("technical_score",   d["technical_score"],  "technical",   "daily_scores"),
+                ("composite_score",   d["composite_score"],  "technical",   "daily_scores"),
                 ("entry_score",       d["entry_score"],       "technical",   "daily_scores"),
                 ("momentum_score",    d["momentum_score"],    "technical",   "daily_scores"),
                 ("chip_score",        d["chip_score"],        "chip",        "daily_scores"),
@@ -94,7 +94,7 @@ def build_factor_store(target_date: date = None, codes: list[str] = None) -> int
                 ("risk_score",        d["risk_score"],        "risk",        "daily_scores"),
                 ("final_score",       d["final_score"],       "composite",   "daily_scores"),
                 ("volume_score",      d["volume_score"],      "volume",      "daily_scores"),
-                ("ai_theme_score",    d["ai_theme_score"],    "theme",       "daily_scores"),
+                ("core_score",        d["core_score"],        "composite",   "daily_scores"),
             ]
 
             for fname, fval, fgroup, src in factors:
