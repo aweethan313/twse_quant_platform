@@ -1060,7 +1060,7 @@ def api_market_themes(db: Session = Depends(get_db)):
         "themes": [{"theme":r[0],"score":round(r[1],1),
                     "momentum":round(r[2] or 0,1),
                     "breadth":round(r[3] or 0,1),
-                    "code_count":r[4],"leaders":(r[5] or "").split(",")[:3],
+                    "code_count":r[4],"leaders":(__import__("json").loads(r[5]) if r[5] and r[5].startswith("[") else (r[5] or "").split(","))[:3],
                     "summary":r[6]} for r in rows]
     }
 
