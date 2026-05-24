@@ -98,7 +98,7 @@ def run():
     conn.close()
 
     # APIs
-    for ep in ["/api/quality/data", "/api/strategies/kill-switch",
+    for ep in ["/api/quality/data", "/api/v4/strategies/kill-switch",
                "/api/market/classification", "/api/v3/strategies/router",
                "/api/v3/strategies/leaderboard", "/api/candidates/trade-plans",
                "/api/watchlist/alerts", "/api/workflow/daily-runs"]:

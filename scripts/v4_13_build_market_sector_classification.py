@@ -20,8 +20,8 @@ if __name__ == "__main__":
     path = Path(f"data/reports/v4_13_market_sector_classification_{td}.csv")
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, ["code","name","primary_category","secondary_category",
-                                "theme_tags_json","risk_type","is_core_etf","theme_heat_score"])
+        fieldnames = ["code","name","primary_category","secondary_category","theme_tags_json","risk_type","is_core_etf","theme_heat_score","is_defensive","classification_confidence"]
+    w = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
         w.writeheader(); w.writerows(all_cls)
     print(f"\n驗收:")
     for code in ["0050","2330","2324","6271","2882"]:

@@ -1385,7 +1385,7 @@ def api_tomorrow_trade_plan(query_date: str = None, limit: int = 30):
     return plans
 
 
-@app.get("/api/strategies/kill-switch")
+@app.get("/api/v4/strategies/kill-switch")
 def api_strategy_kill_switch(query_date: str = None):
     """V4-9 策略 Kill Switch 狀態"""
     from backend.v4.strategy_kill_switch import run_kill_switch, get_kill_switch_status
