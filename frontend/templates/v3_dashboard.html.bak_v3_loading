@@ -46,7 +46,7 @@
       <!-- 策略路由器 -->
       <div class="v3-card">
         <div class="text-xs text-gray-500 mb-3 font-semibold uppercase tracking-wide">🔀 策略路由器</div>
-        <div id="v3_router">載入中...</div>
+        <div id="v3_router_overview">載入中...</div>
       </div>
 
       <!-- 資金設定 -->
@@ -74,7 +74,7 @@
         <div class="text-xs text-gray-500 font-semibold uppercase tracking-wide">📋 今日看盤提醒</div>
         <span class="text-xs text-gray-600">⚠️ 僅供參考，需使用者確認後執行</span>
       </div>
-      <div id="v3_alerts">載入中...</div>
+      <div id="v3_alerts_overview">載入中...</div>
     </div>
   </div>
 
@@ -163,33 +163,31 @@
 
 <script>
 function showTab(name, btn) {
-  ['overview','fills','walkforward','decisions','accuracy','v4'].forEach(function(t) {
-    var tab = document.getElementById('tab_' + t);
+  ['overview','fills','walkforward','decisions','accuracy','v4'].forEach(t => {
+    const tab = document.getElementById('tab_'+t);
     if (tab) tab.classList.add('hidden');
   });
 
-  var currentTab = document.getElementById('tab_' + name);
+  const currentTab = document.getElementById('tab_'+name);
   if (currentTab) currentTab.classList.remove('hidden');
 
-  document.querySelectorAll('.tab-btn').forEach(function(b) {
-    b.classList.remove('active');
-  });
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
 
-  if (name === 'fills' && !_fillsLoaded) loadFills();
-  if (name === 'walkforward' && !_wfLoaded) loadWalkforward();
-  if (name === 'decisions' && !_decisionsLoaded) loadDecisions();
-  if (name === 'accuracy' && !_accLoaded) loadAccuracy();
-  if (name === 'v4') loadV4Tab();
+  if (name==='fills' && !_fillsLoaded) loadFills();
+  if (name==='walkforward' && !_wfLoaded) loadWalkforward();
+  if (name==='decisions' && !_decisionsLoaded) loadDecisions();
+  if (name==='accuracy' && !_accLoaded) loadAccuracy();
+  if (name==='v4') loadV4Tab();
 }
 
 
-var _v4Loaded = false;
+let _v4Loaded = false;
 async function loadV4Tab() {
   // 資料品質
   try {
-    var d = await fetch('/api/quality/data').then(r=>r.json());
-    var checks = d.checks || [];
+    const d = await fetch('/api/quality/data').then(r=>r.json());
+    const checks = d.checks || [];
     document.getElementById('v4_quality_detail').innerHTML =
       checks.map(c=>`<div class="v3-row">
         <span>${({PASS:'✅',WARN:'⚠️',FAIL:'❌',SKIPPED:'⏭'})[c.status]||'•'} ${c.check_type}</span>
@@ -199,8 +197,8 @@ async function loadV4Tab() {
 
   // Kill Switch
   try {
-    var data = await fetch('/api/v4/strategies/kill-switch').then(r=>r.json());
-    var STATUS_COLOR = {ACTIVE:'#44ff88',REDUCED:'#ffcc00',PAUSED:'#ff4444',WATCHLIST:'#888'};
+    const data = await fetch('/api/v4/strategies/kill-switch').then(r=>r.json());
+    const STATUS_COLOR = {ACTIVE:'#44ff88',REDUCED:'#ffcc00',PAUSED:'#ff4444',WATCHLIST:'#888'};
     document.getElementById('v4_kill_detail').innerHTML =
       data.map(r=>`<div class="v3-row">
         <span>S${r.strategy_id} ${r.strategy_name||''}</span>
@@ -211,7 +209,7 @@ async function loadV4Tab() {
 
   // 主題熱度
   try {
-    var data = await fetch('/api/market/sector-heat').then(r=>r.json());
+    const data = await fetch('/api/market/sector-heat').then(r=>r.json());
     document.getElementById('v4_sector_detail').innerHTML = `
       <table class="w-full text-xs">
         <thead><tr class="text-gray-500"><th class="text-left py-1">類別</th><th class="text-right">熱度</th><th class="text-right">股票數</th></tr></thead>
@@ -227,10 +225,10 @@ async function loadV4Tab() {
 
   // 工作流程
   try {
-    var data = await fetch('/api/workflow/daily-runs?limit=20').then(r=>r.json());
+    const data = await fetch('/api/workflow/daily-runs?limit=20').then(r=>r.json());
     if (!data.length) { document.getElementById('v4_workflow_detail').textContent='尚無記錄'; return; }
     document.getElementById('v4_workflow_detail').innerHTML =
-      var _wfIcon = {PASS:'✅',WARN:'⚠️',FAIL:'❌',SKIPPED:'⏭'};
+      const _wfIcon = {PASS:'✅',WARN:'⚠️',FAIL:'❌',SKIPPED:'⏭'};
     data.map(r=>`<div class="v3-row">
         <span>${_wfIcon[r.status]||'•'} ${r.step_name}</span>
         <span class="text-gray-400 text-xs">${r.message||''}</span>
@@ -241,134 +239,104 @@ async function loadV4Tab() {
 
 
 
-var _fillsLoaded=false, _wfLoaded=false, _decisionsLoaded=false, _accLoaded=false;
+let _fillsLoaded=false, _wfLoaded=false, _decisionsLoaded=false, _accLoaded=false;
 
-var AC = {BUY:'badge-buy',WATCH:'badge-watch',AVOID_CHASE:'badge-avoid',
+const AC = {BUY:'badge-buy',WATCH:'badge-watch',AVOID_CHASE:'badge-avoid',
             HOLD:'badge-hold',SELL:'badge-fail'};
-var AZ = {BUY:'買入',WATCH:'觀察',AVOID_CHASE:'不可追',HOLD:'持有',SELL:'賣出'};
+const AZ = {BUY:'買入',WATCH:'觀察',AVOID_CHASE:'不可追',HOLD:'持有',SELL:'賣出'};
 
 // ── 總覽 ──
-
-async function safeJson(url) {
-  var r = await fetch(url, {cache: 'no-store'});
-  if (!r.ok) throw new Error(`${url} HTTP ${r.status}`);
-  return await r.json();
-}
-
-function setBox(id, html) {
-  var el = document.getElementById(id);
-  if (!el) {
-    console.warn(`[V3] missing element #${id}`);
-    return;
-  }
-  el.innerHTML = html;
-}
-
-function setBoxError(id, err) {
-  setBox(id, `<div class="text-red-400 text-sm">載入失敗：${err.message || err}</div>`);
-}
-
-function row(label, value) {
-  return `<div class="v3-row"><span>${label}</span><span>${value}</span></div>`;
-}
-
-// ── 總覽：穩定版，每張卡片獨立載入，不讓單一錯誤卡死整頁 ──
 async function loadOverview() {
-  console.log("[V3] loadOverview start");
-
-  // 1) 策略路由器
+  // 路由器
   try {
-    var d = await safeJson('/api/v3/strategies/router');
-    var trend = {bullish:'🟢 多頭', neutral:'🟡 盤整', bearish:'🔴 空頭'}[d.market_trend] ?? (d.market_trend ?? '-');
-    var pm = ((d.position_multiplier ?? 0.65) * 100).toFixed(0);
-    setBox('v3_router', `
-      ${row('市場狀態', `<b>${trend}</b>`)}
-      ${row('風險等級', d.risk_level ?? 'medium')}
-      ${row('部位倍率', `<span class="text-accent font-mono">${pm}%</span>`)}
-      ${row('啟用策略', `<span class="text-green-400">${(d.enabled_strategies || []).map(s => 'S' + s).join(' ') || '-'}</span>`)}
-      ${row('停用策略', `<span class="text-red-400">${(d.disabled_strategies || []).map(s => 'S' + s).join(' ') || '-'}</span>`)}
-    `);
-  } catch(e) {
-    console.error("[V3] router failed", e);
-    setBoxError('v3_router', e);
-  }
+    const d = await fetch('/api/v3/strategies/router').then(r=>r.json());
+    const trend = {bullish:'🟢 多頭',neutral:'🟡 盤整',bearish:'🔴 空頭'}[d.market_trend]??d.market_trend;
+    const pm = ((d.position_multiplier??0.65)*100).toFixed(0);
+    document.getElementById('v3_router_overview').innerHTML = `
+      <div class="v3-row"><span>市場狀態</span><b>${trend}</b></div>
+      <div class="v3-row"><span>風險等級</span><span>${d.risk_level??'medium'}</span></div>
+      <div class="v3-row"><span>部位倍率</span><span class="text-accent font-mono">${pm}%</span></div>
+      <div class="v3-row"><span>啟用策略</span><span class="text-green-400">${(d.enabled_strategies||[]).map(s=>'S'+s).join(' ')}</span></div>
+      <div class="v3-row"><span>停用策略</span><span class="text-red-400">${(d.disabled_strategies||[]).map(s=>'S'+s).join(' ')||'無'}</span></div>
+    `;
+  } catch(e) { document.getElementById('v3_router_overview').textContent='載入失敗'; }
 
-  // 2) 資金設定
+  // 資金
   try {
-    var d = await safeJson('/api/capital/config');
-    var mode = d.mode ?? d.trading_mode ?? '-';
-    var total = d.total_capital ?? d.initial_capital ?? d.capital ?? '-';
-    setBox('v3_capital', `
-      ${row('模式', mode)}
-      ${row('總資金', typeof total === 'number' ? total.toLocaleString() : total)}
-      ${row('核心比例', d.core_ratio != null ? Math.round(d.core_ratio * 100) + '%' : '-')}
-      ${row('主動交易比例', d.active_ratio != null ? Math.round(d.active_ratio * 100) + '%' : '-')}
-    `);
-  } catch(e) {
-    console.error("[V3] capital failed", e);
-    setBoxError('v3_capital', e);
-  }
+    const d = await fetch('/api/capital/config').then(r=>r.json());
+    document.getElementById('v3_capital').innerHTML = `
+      <div class="v3-row"><span>總資金</span><b>${Number(d.total_capital).toLocaleString()}</b></div>
+      <div class="v3-row"><span>0050 核心</span><span>${Number(d.core_capital).toLocaleString()} (50%)</span></div>
+      <div class="v3-row"><span>短線資金</span><span>${Number(d.active_capital).toLocaleString()} (50%)</span></div>
+      <div class="v3-row"><span>單筆最大虧損</span><span class="text-red-400">${Number(d.max_single_loss).toLocaleString()}</span></div>
+      <div class="v3-row"><span>停損</span><span>${d.stop_loss_pct} / 目標 ${d.target_pct_1}</span></div>
+      <div class="v3-row"><span>模式</span><span class="text-yellow-400">${d.mode}</span></div>
+    `;
+  } catch(e) { document.getElementById('v3_capital').textContent='載入失敗'; }
 
-  // 3) 市場總覽
+  // 市場
   try {
-    var d = await safeJson('/api/market/overview');
-    setBox('v3_market', `
-      ${row('交易日', d.trade_date ?? d.latest_trade_date ?? '-')}
-      ${row('上漲家數', d.up ?? '-')}
-      ${row('下跌家數', d.down ?? '-')}
-      ${row('平盤家數', d.flat ?? '-')}
-    `);
-  } catch(e) {
-    console.error("[V3] market overview failed", e);
-    setBoxError('v3_market', e);
-  }
+    const d = await fetch('/api/market/overview').then(r=>r.json());
+    const pct = (d.change_pct??0).toFixed(2);
+    const pc = pct>=0?'#ff6b6b':'#51cf66';
+    document.getElementById('v3_market').innerHTML = `
+      <div class="v3-row"><span>加權指數</span><span style="color:${pc}">${pct>=0?'+':''}${pct}%</span></div>
+      <div class="v3-row"><span>上漲</span><span class="text-up">${d.up_count??'—'}</span></div>
+      <div class="v3-row"><span>下跌</span><span class="text-dn">${d.down_count??'—'}</span></div>
+      <div class="v3-row"><span>量能比</span><span>${d.volume_ratio??'—'}</span></div>
+    `;
+  } catch(e) {}
 
-  // 4) 策略排行榜
+  // 排名
   try {
-    var d = await safeJson('/api/v3/strategies/leaderboard');
-    var rows = Array.isArray(d) ? d : (d.items || d.strategies || []);
-    setBox('v3_leaderboard_overview', rows.slice(0, 8).map((r, i) => `
-      <div class="v3-row">
-        <span>#${i + 1} ${r.name || r.strategy_name || ('S' + (r.strategy_id ?? r.id ?? '-'))}</span>
-        <span class="font-mono">${r.total_return != null ? Number(r.total_return).toFixed(2) + '%' : (r.score ?? '-')}</span>
-      </div>
-    `).join('') || `<div class="text-gray-400 text-sm">目前沒有排行榜資料</div>`);
-  } catch(e) {
-    console.error("[V3] leaderboard failed", e);
-    setBoxError('v3_leaderboard_overview', e);
-  }
+    const data = await fetch('/api/v3/strategies/leaderboard').then(r=>r.json());
+    document.getElementById('v3_leaderboard_overview').innerHTML = `
+      <table class="w-full text-xs">
+        <thead><tr class="text-gray-500">
+          <th class="text-left py-1">排名</th><th class="text-left">策略</th>
+          <th class="text-right">總報酬</th><th class="text-right">最大回撤</th>
+          <th class="text-right">勝率</th><th class="text-right">綜合分</th>
+          <th class="text-right">標籤</th>
+        </tr></thead>
+        <tbody>
+        ${data.map(r=>`<tr class="border-t border-gray-800">
+          <td class="py-1 text-gray-600">#${r.rank}</td>
+          <td>S${r.strategy_id} ${r.strategy_name||''}</td>
+          <td class="text-right font-mono" style="color:${r.total_return>=0?'#ff6b6b':'#51cf66'}">${r.total_return>=0?'+':''}${(r.total_return??0).toFixed(1)}%</td>
+          <td class="text-right font-mono text-red-400">${(r.max_drawdown??0).toFixed(1)}%</td>
+          <td class="text-right font-mono">${(r.win_rate??0).toFixed(0)}%</td>
+          <td class="text-right font-mono text-accent">${(r.strategy_rank_score??0).toFixed(1)}</td>
+          <td class="text-right"><span class="badge ${r.risk_label==='穩定'?'badge-ok':r.risk_label?.includes('過大')?'badge-fail':'badge-warn'}">${r.risk_label||''}</span></td>
+        </tr>`).join('')}
+        </tbody>
+      </table>`;
+  } catch(e) {}
 
-  // 5) 自選提醒
+  // 提醒
   try {
-    var d = await safeJson('/api/watchlist/alerts?limit=5');
-    var rows = Array.isArray(d) ? d : (d.items || d.alerts || []);
-    setBox('v3_alerts', rows.slice(0, 5).map(r => `
-      <div class="v3-row">
-        <span>${r.code || ''} ${r.name || ''}</span>
-        <span>${r.message || r.reason || r.alert_type || '-'}</span>
-      </div>
-    `).join('') || `<div class="text-gray-400 text-sm">目前沒有提醒</div>`);
-  } catch(e) {
-    console.error("[V3] alerts failed", e);
-    setBoxError('v3_alerts', e);
-  }
-
-  // 6) 防呆：如果總覽裡還有「載入中」，至少不要讓它永遠卡住
-  document.querySelectorAll('#tab_overview *').forEach(el => {
-    if (el.children.length === 0 && /載入中/.test(el.textContent || '')) {
-      el.textContent = '此區塊尚未接上資料，請看 Console 錯誤';
-      el.classList.add('text-yellow-400');
+    const data = await fetch('/api/watchlist/alerts?limit=20').then(r=>r.json());
+    if (!data.length) {
+      document.getElementById('v3_alerts_overview').innerHTML = '<div class="text-gray-600 text-xs py-4 text-center">今日尚無提醒（請執行 morning alerts 腳本）</div>';
+      return;
     }
-  });
-
-  console.log("[V3] loadOverview done");
+    document.getElementById('v3_alerts_overview').innerHTML = data.slice(0,10).map(a=>`
+      <div class="v3-row">
+        <span><span class="badge ${AC[a.alert_type]||'badge-hold'}">${a.alert_type}</span>
+          <span class="ml-2 text-blue-400 font-mono">${a.code}</span> ${a.name}</span>
+        <span class="text-right text-gray-400">
+          進場 ${a.entry_price_low}～${a.entry_price_high} |
+          停損 ${a.stop_loss_price} | 目標 ${a.target_price_1}
+          ${a.warning_message?`<br><span class="text-orange-400">${a.warning_message}</span>`:''}
+        </span>
+      </div>
+    `).join('');
+  } catch(e) {}
 }
-
 
 // ── 成交記錄 ──
 async function loadFills() {
   try {
-    var data = await fetch('/api/backtest/realistic/results?limit=50').then(r=>r.json());
+    const data = await fetch('/api/backtest/realistic/results?limit=50').then(r=>r.json());
     if (!data.length) {
       document.getElementById('v3_fills_table').innerHTML = '<div class="text-gray-600 text-xs py-4 text-center">尚無成交記錄</div>';
       return;
@@ -401,7 +369,7 @@ async function loadFills() {
 // ── Walk-forward ──
 async function loadWalkForward() {
   try {
-    var data = await fetch('/api/backtest/walk-forward').then(r=>r.json());
+    const data = await fetch('/api/backtest/walk-forward').then(r=>r.json());
     if (!data.length) {
       document.getElementById('v3_wf_table').innerHTML = '<div class="text-gray-600 text-xs py-4 text-center">尚無 Walk-forward 結果（點「執行驗證」開始）</div>';
       return;
@@ -413,7 +381,7 @@ async function loadWalkForward() {
 async function runWalkForward() {
   document.getElementById('v3_wf_table').innerHTML = '<div class="text-gray-500 text-xs py-4 text-center">執行中...</div>';
   try {
-    var data = await fetch('/api/backtest/walk-forward/run', {method:'POST'}).then(r=>r.json());
+    const data = await fetch('/api/backtest/walk-forward/run', {method:'POST'}).then(r=>r.json());
     renderWfTable(Array.isArray(data) ? data : data.results || []);
   } catch(e) {
     document.getElementById('v3_wf_table').innerHTML = '<div class="text-red-400 text-xs">執行失敗</div>';
@@ -445,67 +413,54 @@ function renderWfTable(data) {
     </table>`;
 }
 
-
 // ── 決策理由 ──
-var _decisionFilter = 'all';
-
+let _decisionFilter = 'all';
 async function loadDecisions(action) {
-  _decisionFilter = action || 'all';
-
-  var url = '/api/decisions/explanations?limit=50';
-  if (_decisionFilter !== 'all') {
-    url = '/api/decisions/explanations?action=' + encodeURIComponent(_decisionFilter) + '&limit=50';
-  }
-
+  _decisionFilter = action;
+  const url = action==='all'?'/api/decisions/explanations?limit=50':`/api/decisions/explanations?action=${action}&limit=50`;
   try {
-    var data = await fetch(url, {cache: 'no-store'}).then(function(r) { return r.json(); });
-    var box = document.getElementById('v3_decisions_table');
-    if (!box) return;
-
-    if (!Array.isArray(data) || data.length === 0) {
-      box.innerHTML = '<div class="text-gray-600 text-xs py-4 text-center">無記錄</div>';
-      _decisionsLoaded = true;
+    const data = await fetch(url).then(r=>r.json());
+    if (!data.length) {
+      document.getElementById('v3_decisions_table').innerHTML = '<div class="text-gray-600 text-xs py-4 text-center">無記錄</div>';
       return;
     }
+    document.getElementById('v3_decisions_table').innerHTML = `
+      <table class="w-full text-xs">
+        <thead><tr class="text-gray-500">
+          <th class="text-left py-1">日期</th><th>代號</th><th>動作</th>
+          <th class="text-right">最終分</th><th class="text-right">風險分</th>
+          <th class="text-left">決策說明</th>
+        </tr></thead>
+        <tbody>
+        ${data.map(r=>`<tr class="border-t border-gray-800">
+          <td class="py-1 text-gray-500">${r.trade_date}</td>
+          <td><span class="text-blue-400 font-mono">${r.code}</span> ${r.name||''}</td>
+          <td><span class="badge ${AC[r.action]||'badge-hold'}">${AZ[r.action]||r.action}</span></td>
+          <td class="text-right font-mono text-accent">${(r.final_score??0).toFixed(1)}</td>
+          <td class="text-right font-mono" style="color:${(r.market_regime_score??30)>=60?'#ff4444':(r.market_regime_score??30)>=45?'#ffcc00':'#44ff88'}">${(r.market_regime_score??0).toFixed(0)}</td>
+          <td class="text-gray-400">${r.final_explanation?.slice(0,60)||''}</td>
+        </tr>`).join('')}
+        </tbody>
+      </table>`;
+  } catch(e) {}
+}
 
-    box.innerHTML =
-      '<table class="w-full text-sm">' +
-      '<thead><tr class="text-gray-500 border-b border-gray-800">' +
-      '<th class="py-2 text-left">日期</th>' +
-      '<th class="py-2 text-left">股票</th>' +
-      '<th class="py-2 text-left">動作</th>' +
-      '<th class="py-2 text-left">理由</th>' +
-      '</tr></thead><tbody>' +
-      data.map(function(r) {
-        return '<tr class="border-b border-gray-900">' +
-          '<td class="py-2 text-gray-500">' + (r.trade_date || r.created_at || '') + '</td>' +
-          '<td class="py-2 font-mono">' + (r.code || '') + '</td>' +
-          '<td class="py-2">' + (r.action || r.signal || '') + '</td>' +
-          '<td class="py-2 text-gray-400">' + (r.reason || r.explanation || r.message || '') + '</td>' +
-        '</tr>';
-      }).join('') +
-      '</tbody></table>';
-
-    _decisionsLoaded = true;
-  } catch(e) {
-    console.error('[V3] loadDecisions failed', e);
-    var box = document.getElementById('v3_decisions_table');
-    if (box) {
-      box.innerHTML = '<div class="text-red-400 text-xs py-4">決策理由載入失敗：' + (e.message || e) + '</div>';
-    }
-  }
+function filterDecisions(action, btn) {
+  document.querySelectorAll('#tab_decisions .tab-btn').forEach(b=>b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  loadDecisions(action);
 }
 
 // ── 候選勝率 ──
 async function loadAccuracy() {
   try {
-    var d = await fetch('/api/candidates/accuracy').then(r=>r.json());
-    var s = d.stats;
+    const d = await fetch('/api/candidates/accuracy').then(r=>r.json());
+    const s = d.stats;
     document.getElementById('acc_hit').textContent   = (s.hit_rate??0).toFixed(1)+'%';
     document.getElementById('acc_stop').textContent  = (s.stop_rate??0).toFixed(1)+'%';
     document.getElementById('acc_total').textContent = s.total??0;
 
-    var recs = d.records||[];
+    const recs = d.records||[];
     if (!recs.length) {
       document.getElementById('v3_accuracy_table').innerHTML = '<div class="text-gray-600 text-xs py-4 text-center">尚無追蹤記錄</div>';
       return;
@@ -533,6 +488,7 @@ async function loadAccuracy() {
   } catch(e) {}
 }
 
-document.addEventListener('DOMContentLoaded', function() { loadOverview(); }); });
+document.addEventListener('DOMContentLoaded', loadOverview);
+document.addEventListener('DOMContentLoaded', () => setTimeout(loadV4Tab, 500));
 </script>
 {% endblock %}

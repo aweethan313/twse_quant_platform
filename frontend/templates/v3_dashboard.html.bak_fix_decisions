@@ -74,7 +74,7 @@
         <div class="text-xs text-gray-500 font-semibold uppercase tracking-wide">📋 今日看盤提醒</div>
         <span class="text-xs text-gray-600">⚠️ 僅供參考，需使用者確認後執行</span>
       </div>
-      <div id="v3_alerts">載入中...</div>
+      <div id="v3_alerts_overview">載入中...</div>
     </div>
   </div>
 
@@ -445,55 +445,42 @@ function renderWfTable(data) {
     </table>`;
 }
 
-
 // ── 決策理由 ──
 var _decisionFilter = 'all';
-
 async function loadDecisions(action) {
-  _decisionFilter = action || 'all';
-
-  var url = '/api/decisions/explanations?limit=50';
-  if (_decisionFilter !== 'all') {
-    url = '/api/decisions/explanations?action=' + encodeURIComponent(_decisionFilter) + '&limit=50';
-  }
-
+  _decisionFilter = action;
+  var url = action==='all'?'/api/decisions/explanations?limit=50':`/api/decisions/explanations?action=${action}&limit=50`;
   try {
-    var data = await fetch(url, {cache: 'no-store'}).then(function(r) { return r.json(); });
-    var box = document.getElementById('v3_decisions_table');
-    if (!box) return;
-
-    if (!Array.isArray(data) || data.length === 0) {
-      box.innerHTML = '<div class="text-gray-600 text-xs py-4 text-center">無記錄</div>';
-      _decisionsLoaded = true;
+    var data = await fetch(url).then(r=>r.json());
+    if (!data.length) {
+      document.getElementById('v3_decisions_table').innerHTML = '<div class="text-gray-600 text-xs py-4 text-center">無記錄</div>';
       return;
     }
+    document.getElementById('v3_decisions_table').innerHTML = `
+      <table class="w-full text-xs">
+        <thead><tr class="text-gray-500">
+          <th class="text-left py-1">日期</th><th>代號</th><th>動作</th>
+          <th class="text-right">最終分</th><th class="text-right">風險分</th>
+          <th class="text-left">決策說明</th>
+        </tr></thead>
+        <tbody>
+        ${data.map(r=>`<tr class="border-t border-gray-800">
+          <td class="py-1 text-gray-500">${r.trade_date}</td>
+          <td><span class="text-blue-400 font-mono">${r.code}</span> ${r.name||''}</td>
+          <td><span class="badge ${AC[r.action]||'badge-hold'}">${AZ[r.action]||r.action}</span></td>
+          <td class="text-right font-mono text-accent">${(r.final_score??0).toFixed(1)}</td>
+          <td class="text-right font-mono" style="color:${(r.market_regime_score??30)>=60?'#ff4444':(r.market_regime_score??30)>=45?'#ffcc00':'#44ff88'}">${(r.market_regime_score??0).toFixed(0)}</td>
+          <td class="text-gray-400">${r.final_explanation?.slice(0,60)||''}</td>
+        </tr>`).join('')}
+        </tbody>
+      </table>`;
+  } catch(e) {}
+}
 
-    box.innerHTML =
-      '<table class="w-full text-sm">' +
-      '<thead><tr class="text-gray-500 border-b border-gray-800">' +
-      '<th class="py-2 text-left">日期</th>' +
-      '<th class="py-2 text-left">股票</th>' +
-      '<th class="py-2 text-left">動作</th>' +
-      '<th class="py-2 text-left">理由</th>' +
-      '</tr></thead><tbody>' +
-      data.map(function(r) {
-        return '<tr class="border-b border-gray-900">' +
-          '<td class="py-2 text-gray-500">' + (r.trade_date || r.created_at || '') + '</td>' +
-          '<td class="py-2 font-mono">' + (r.code || '') + '</td>' +
-          '<td class="py-2">' + (r.action || r.signal || '') + '</td>' +
-          '<td class="py-2 text-gray-400">' + (r.reason || r.explanation || r.message || '') + '</td>' +
-        '</tr>';
-      }).join('') +
-      '</tbody></table>';
-
-    _decisionsLoaded = true;
-  } catch(e) {
-    console.error('[V3] loadDecisions failed', e);
-    var box = document.getElementById('v3_decisions_table');
-    if (box) {
-      box.innerHTML = '<div class="text-red-400 text-xs py-4">決策理由載入失敗：' + (e.message || e) + '</div>';
-    }
-  }
+function filterDecisions(action, btn) {
+  document.querySelectorAll('#tab_decisions .tab-btn').forEach(b=>b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  loadDecisions(action);
 }
 
 // ── 候選勝率 ──
@@ -533,6 +520,6 @@ async function loadAccuracy() {
   } catch(e) {}
 }
 
-document.addEventListener('DOMContentLoaded', function() { loadOverview(); }); });
+document.addEventListener('DOMContentLoaded', loadOverview); });
 </script>
 {% endblock %}
