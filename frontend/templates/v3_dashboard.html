@@ -157,6 +157,20 @@
       <div class="text-xs text-gray-500 mb-3 font-semibold uppercase tracking-wide">⚙️ 每日工作流程（V4-3）</div>
       <div id="v4_workflow_detail">載入中...</div>
     </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="v3-card">
+        <div class="text-xs text-gray-500 mb-3 font-semibold uppercase tracking-wide">🔥 壓力測試（V4-10）</div>
+        <div id="v4_stress_detail">載入中...</div>
+      </div>
+      <div class="v3-card">
+        <div class="text-xs text-gray-500 mb-3 font-semibold uppercase tracking-wide">💼 投組配置（V4-7）</div>
+        <div id="v4_portfolio_detail">載入中...</div>
+      </div>
+    </div>
+    <div class="v3-card">
+      <div class="text-xs text-gray-500 mb-3 font-semibold uppercase tracking-wide">📈 策略獲利歸因（V4-6）</div>
+      <div id="v4_attribution_detail">載入中...</div>
+    </div>
   </div>
 
 </div>
@@ -224,6 +238,47 @@ async function loadV4Tab() {
         </tbody>
       </table>`;
   } catch(e) {}
+
+  // 壓力測試
+  try {
+    var stress = await fetch('/api/risk/scenario-stress').then(r=>r.json());
+    var sarr = Array.isArray(stress) ? stress : [];
+    document.getElementById('v4_stress_detail').innerHTML = sarr.length ?
+      sarr.slice(0,6).map(s=>`<div class="v3-row">
+        <span>${parseFloat(s.estimated_return||0)<-5?'🔴':parseFloat(s.estimated_return||0)<-2?'⚠️':'🟡'} ${s.scenario_name}</span>
+        <span class="font-mono" style="color:${parseFloat(s.estimated_return||0)<0?'#ff4444':'#44ff88'}">${parseFloat(s.estimated_return||0).toFixed(1)}%</span>
+      </div>`).join('') : '<div class="text-gray-600">尚無資料</div>';
+  } catch(e) { document.getElementById('v4_stress_detail').textContent='載入失敗'; }
+
+  // 投組配置
+  try {
+    var port = await fetch('/api/portfolio/optimizer').then(r=>r.json());
+    document.getElementById('v4_portfolio_detail').innerHTML = `
+      <div class="v3-row"><span>總資產</span><b>${Math.round(port.total_capital||0).toLocaleString()}</b></div>
+      <div class="v3-row"><span>現金</span><span>${Math.round(port.cash||0).toLocaleString()}（${port.cash_ratio||0}%）</span></div>
+      <div class="v3-row"><span>風險等級</span><span style="color:${port.risk_level==='high'?'#ff4444':port.risk_level==='low'?'#44ff88':'#ffcc00'}">${port.risk_level||'-'}</span></div>
+      <div class="mt-2 text-xs text-gray-400">${(port.suggestions||[]).join('<br>')}</div>
+    `;
+  } catch(e) { document.getElementById('v4_portfolio_detail').textContent='載入失敗'; }
+
+  // 策略歸因
+  try {
+    var attr = await fetch('/api/research/strategy-attribution?limit=10').then(r=>r.json());
+    var aarr = Array.isArray(attr) ? attr : [];
+    document.getElementById('v4_attribution_detail').innerHTML = aarr.length ?
+      `<table class="w-full text-xs"><thead><tr class="text-gray-500">
+        <th class="text-left py-1">策略</th><th class="text-left">類型</th>
+        <th class="text-left">標的</th><th class="text-right">損益</th><th class="text-right">貢獻</th>
+      </tr></thead><tbody>` +
+      aarr.map(r=>`<tr class="border-t border-gray-800">
+        <td class="py-1">S${r.strategy_id||'-'}</td>
+        <td>${r.attribution_type||'-'}</td>
+        <td class="text-blue-400">${r.attribution_key||'-'}</td>
+        <td class="text-right font-mono" style="color:${parseFloat(r.total_pnl||0)>=0?'#ff6b6b':'#51cf66'}">${parseFloat(r.total_pnl||0)>=0?'+':''}${Math.round(r.total_pnl||0).toLocaleString()}</td>
+        <td class="text-right">${parseFloat(r.pnl_contribution_pct||0).toFixed(1)}%${r.concentration_warning?'⚠️':''}</td>
+      </tr>`).join('') + '</tbody></table>' :
+      '<div class="text-gray-600">尚無歸因資料</div>';
+  } catch(e) { document.getElementById('v4_attribution_detail').textContent='載入失敗'; }
 
   // 工作流程
   try {
