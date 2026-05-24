@@ -229,9 +229,9 @@ async function loadV4Tab() {
   try {
     var data = await fetch('/api/workflow/daily-runs?limit=20').then(r=>r.json());
     if (!data.length) { document.getElementById('v4_workflow_detail').textContent='尚無記錄'; return; }
-    var _wfIcon = {PASS:'✅',WARN:'⚠️',FAIL:'❌',SKIPPED:'⏭'};
     document.getElementById('v4_workflow_detail').innerHTML =
-      data.map(r=>`<div class="v3-row">
+      var _wfIcon = {PASS:'✅',WARN:'⚠️',FAIL:'❌',SKIPPED:'⏭'};
+    data.map(r=>`<div class="v3-row">
         <span>${_wfIcon[r.status]||'•'} ${r.step_name}</span>
         <span class="text-gray-400 text-xs">${r.message||''}</span>
         <span class="text-gray-600 text-xs">${r.run_date}</span>
@@ -536,122 +536,3 @@ async function loadAccuracy() {
 document.addEventListener('DOMContentLoaded', function() { loadOverview(); }); });
 </script>
 {% endblock %}
-
-
-<script id="v3-rescue-loader">
-(function () {
-  function put(ids, html) {
-    for (var i = 0; i < ids.length; i++) {
-      var el = document.getElementById(ids[i]);
-      if (el) {
-        el.innerHTML = html;
-        return true;
-      }
-    }
-    return false;
-  }
-
-  function esc(x) {
-    if (x === null || x === undefined) return '';
-    return String(x).replace(/[&<>"']/g, function (m) {
-      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];
-    });
-  }
-
-  function row(a, b) {
-    return '<div class="v3-row"><span>' + esc(a) + '</span><span>' + b + '</span></div>';
-  }
-
-  function getJson(url) {
-    return fetch(url, {cache: 'no-store'}).then(function (r) {
-      if (!r.ok) throw new Error(url + ' HTTP ' + r.status);
-      return r.json();
-    });
-  }
-
-  function fail(ids, err) {
-    put(ids, '<div class="text-red-400 text-xs">載入失敗：' + esc(err.message || err) + '</div>');
-  }
-
-  function loadV3Rescue() {
-    console.log('[V3 rescue] start');
-
-    getJson('/api/v3/strategies/router').then(function (d) {
-      var trendMap = {bullish:'🟢 多頭', neutral:'🟡 盤整', bearish:'🔴 空頭'};
-      var trend = trendMap[d.market_trend] || d.market_trend || '-';
-      var pm = Math.round((d.position_multiplier || 0.65) * 100) + '%';
-      var enabled = (d.enabled_strategies || []).map(function (s) { return 'S' + s; }).join(' ') || '-';
-      var disabled = (d.disabled_strategies || []).map(function (s) { return 'S' + s; }).join(' ') || '-';
-
-      put(['v3_router', 'v3_router_overview'], 
-        row('市場狀態', '<b>' + esc(trend) + '</b>') +
-        row('風險等級', esc(d.risk_level || 'medium')) +
-        row('部位倍率', '<span class="text-accent font-mono">' + esc(pm) + '</span>') +
-        row('啟用策略', '<span class="text-green-400">' + esc(enabled) + '</span>') +
-        row('停用策略', '<span class="text-red-400">' + esc(disabled) + '</span>')
-      );
-    }).catch(function (e) {
-      console.error('[V3 rescue] router failed', e);
-      fail(['v3_router', 'v3_router_overview'], e);
-    });
-
-    getJson('/api/capital/config').then(function (d) {
-      var total = d.total_capital || d.initial_capital || d.capital || '-';
-      if (typeof total === 'number') total = total.toLocaleString('zh-TW');
-      put(['v3_capital', 'v3_capital_overview'],
-        row('模式', esc(d.mode || d.trading_mode || '-')) +
-        row('總資金', esc(total)) +
-        row('核心比例', d.core_ratio != null ? Math.round(d.core_ratio * 100) + '%' : '-') +
-        row('主動比例', d.active_ratio != null ? Math.round(d.active_ratio * 100) + '%' : '-')
-      );
-    }).catch(function (e) {
-      console.error('[V3 rescue] capital failed', e);
-      fail(['v3_capital', 'v3_capital_overview'], e);
-    });
-
-    getJson('/api/market/overview').then(function (d) {
-      put(['v3_market', 'v3_market_overview'],
-        row('交易日', esc(d.trade_date || d.latest_trade_date || '-')) +
-        row('上漲家數', esc(d.up || '-')) +
-        row('下跌家數', esc(d.down || '-')) +
-        row('平盤家數', esc(d.flat || '-'))
-      );
-    }).catch(function (e) {
-      console.error('[V3 rescue] market failed', e);
-      fail(['v3_market', 'v3_market_overview'], e);
-    });
-
-    getJson('/api/v3/strategies/leaderboard').then(function (data) {
-      var rows = Array.isArray(data) ? data : (data.items || data.strategies || []);
-      var html = rows.slice(0, 8).map(function (r, i) {
-        var name = r.name || r.strategy_name || ('S' + (r.strategy_id || r.id || '-'));
-        var ret = r.total_return != null ? Number(r.total_return).toFixed(2) + '%' : (r.score || '-');
-        return '<div class="v3-row"><span>#' + (i + 1) + ' ' + esc(name) + '</span><span class="font-mono">' + esc(ret) + '</span></div>';
-      }).join('');
-      if (!html) html = '<div class="text-gray-400 text-sm">目前沒有排行榜資料</div>';
-      put(['v3_leaderboard_overview', 'v3_leaderboard'], html);
-    }).catch(function (e) {
-      console.error('[V3 rescue] leaderboard failed', e);
-      fail(['v3_leaderboard_overview', 'v3_leaderboard'], e);
-    });
-
-    getJson('/api/watchlist/alerts?limit=5').then(function (data) {
-      var rows = Array.isArray(data) ? data : (data.items || data.alerts || []);
-      var html = rows.slice(0, 5).map(function (r) {
-        return '<div class="v3-row"><span>' + esc((r.code || '') + ' ' + (r.name || '')) + '</span><span>' + esc(r.message || r.reason || r.alert_type || '-') + '</span></div>';
-      }).join('');
-      if (!html) html = '<div class="text-gray-400 text-sm">目前沒有提醒</div>';
-      put(['v3_alerts_overview', 'v3_alerts'], html);
-    }).catch(function (e) {
-      console.error('[V3 rescue] alerts failed', e);
-      fail(['v3_alerts_overview', 'v3_alerts'], e);
-    });
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', loadV3Rescue);
-  } else {
-    loadV3Rescue();
-  }
-})();
-</script>
