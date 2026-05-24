@@ -187,7 +187,7 @@ async function loadV4Tab() {
     const checks = d.checks || [];
     document.getElementById('v4_quality_detail').innerHTML =
       checks.map(c=>`<div class="v3-row">
-        <span>${{'PASS':'✅','WARN':'⚠️','FAIL':'❌','SKIPPED':'⏭'}[c.status]||'•'} ${c.check_type}</span>
+        <span>${({PASS:'✅',WARN:'⚠️',FAIL:'❌',SKIPPED:'⏭'})[c.status]||'•'} ${c.check_type}</span>
         <span class="text-gray-400 text-xs">${c.message||''}</span>
       </div>`).join('') || '<div class="text-gray-600">尚無資料</div>';
   } catch(e) {}
