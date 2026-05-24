@@ -304,6 +304,7 @@ def run_latest_update(trade_date: str | None = None) -> dict[str, Any]:
         steps.append(_step("overnight", update_overnight))
         steps.append(_step("daily_eod", lambda: update_daily_eod(target_date)))
         steps.append(_step("scores", lambda: recompute_scores_for_date(target_date)))
+        steps.append(_step("theme_trends", lambda: update_theme_trends(target_date)))
 
         ok = all(s["ok"] for s in steps)
 
