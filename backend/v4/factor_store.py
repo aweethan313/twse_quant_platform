@@ -48,6 +48,12 @@ def build_factor_store(target_date: date = None, codes: list[str] = None) -> int
     if target_date is None:
         target_date = date.today()
 
+    # 用 daily_scores 最新日期
+    from backend.models.database import SessionLocal as _SL
+    _db2 = _SL()
+    _latest = _db2.execute(text("SELECT MAX(score_date) FROM daily_scores")).scalar()
+    _db2.close()
+    if _latest: target_date = date.fromisoformat(str(_latest))
     available_at = f"{target_date} 18:00:00"
     db = SessionLocal()
     inserted = 0
@@ -63,7 +69,7 @@ def build_factor_store(target_date: date = None, codes: list[str] = None) -> int
                    ds.final_action
             FROM daily_scores ds
             LEFT JOIN stock_meta sm ON sm.code=ds.code
-            WHERE ds.score_date=:d
+            WHERE ds.score_date=(SELECT MAX(score_date) FROM daily_scores)
         """
         params = {"d": str(target_date)}
         if codes:
