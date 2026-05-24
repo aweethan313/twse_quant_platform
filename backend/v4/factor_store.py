@@ -126,7 +126,7 @@ def build_factor_store(target_date: date = None, codes: list[str] = None) -> int
         # 從 ohlcv_daily 補充技術指標
         ohlcv_rows = db.execute(text("""
             SELECT code, close, open, high, low, volume,
-                   change_pct, turnover_rate
+                   change_pct, turnover
             FROM ohlcv_daily WHERE trade_date=:d
         """), {"d": str(target_date)}).fetchall()
 
