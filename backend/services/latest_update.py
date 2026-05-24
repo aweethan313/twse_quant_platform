@@ -161,122 +161,80 @@ def recompute_scores_for_date(target_date: date) -> dict[str, Any]:
 
 
 def update_theme_trends(target_date) -> dict:
-    """更新主線題材熱度 theme_trend_daily"""
+    """更新主線題材熱度 theme_trend_daily（用股票名稱關鍵字匹配）"""
     from loguru import logger
     from backend.models.database import SessionLocal
     from sqlalchemy import text
     import json
+
+    THEME_KEYWORDS = {
+        "AI/伺服器":   ["伺服器","散熱","液冷","機殼","GB200","HBM","CoWoS","AI模組"],
+        "半導體":      ["晶圓","封測","導體","矽利","積體","摩爾"],
+        "PCB/載板":    ["PCB","電路板","載板","ABF","銅箔","基板"],
+        "金融":        ["金控","銀行","保險","壽險","證券","票券","投信"],
+        "航運":        ["航運","航空","貨櫃","散裝","船務","港口"],
+        "電動車":      ["電動","EV","充電","車用","電池","儲能"],
+        "生技醫療":    ["生技","醫療","製藥","疫苗","醫材","醫院","健康"],
+        "網通/雲端":   ["網通","雲端","資安","軟體","系統整合","網路"],
+        "電子零組件":  ["被動元件","連接器","電源","線材","鏡頭","感測器"],
+        "傳產":        ["鋼鐵","塑化","紡織","水泥","橡膠","石化","工業"],
+    }
+
     db = SessionLocal()
     try:
-        # 預定義主題清單 + 對應關鍵字/產業
-        THEMES = {
-            "AI":       ["AI", "人工智", "伺服器", "散熱", "CoWoS", "HBM", "GB200"],
-            "半導體":   ["半導體", "晶圓", "IC設計", "封測", "積體電路"],
-            "PCB":      ["PCB", "電路板", "載板", "ABF"],
-            "電動車":   ["電動車", "EV", "充電", "車用"],
-            "金融":     ["銀行", "金控", "保險", "壽險"],
-            "航運":     ["航運", "貨櫃", "散裝", "航空"],
-            "生技":     ["生技", "醫療", "製藥", "疫苗"],
-            "傳產":     ["鋼鐵", "塑化", "紡織", "水泥"],
-            "電子零組件": ["被動元件", "連接器", "電源", "鏡頭"],
-            "雲端":     ["雲端", "資安", "SaaS", "軟體"],
-        }
-
-        # 取今日漲跌幅資料
-        price_rows = db.execute(text("""
+        rows = db.execute(text("""
             SELECT o.code, o.change_pct, o.volume,
                    (SELECT AVG(v.volume) FROM ohlcv_daily v
                     WHERE v.code=o.code AND v.trade_date<:d
                     AND v.trade_date>date(:d,'-20 days')) as avg_vol,
-                   sm.industry
+                   COALESCE(sm.name, o.code) as name
             FROM ohlcv_daily o
             LEFT JOIN stock_meta sm ON sm.code=o.code
             WHERE o.trade_date=:d AND o.change_pct IS NOT NULL
         """), {"d": str(target_date)}).fetchall()
 
-        if not price_rows:
+        if not rows:
             return {"ok": False, "message": "無今日行情資料"}
 
-        # 也取 theme_score 欄位（若有）
-        news_themes = {}
-        try:
-            ns = db.execute(text("""
-                SELECT related_themes FROM candidate_news
-                WHERE news_time >= date(:d, '-3 days')
-            """), {"d": str(target_date)}).fetchall()
-            for row in ns:
-                if row[0]:
-                    for t in str(row[0]).split(","):
-                        t = t.strip()
-                        if t: news_themes[t] = news_themes.get(t, 0) + 1
-        except Exception:
-            pass
-
         updated = 0
-        now = str(target_date)
-
-        for theme_name, keywords in THEMES.items():
-            # 找屬於這個主題的股票
-            theme_stocks = []
-            for row in price_rows:
-                code, chg, vol, avg_vol, industry = row
-                industry = industry or ""
-                match = any(k in industry for k in keywords)
-                if match:
-                    theme_stocks.append({
+        for theme_name, keywords in THEME_KEYWORDS.items():
+            stocks = []
+            for code, chg, vol, avg_vol, name in rows:
+                if any(k in (name or "") for k in keywords):
+                    stocks.append({
                         "code": code,
                         "change_pct": float(chg or 0),
-                        "vol_ratio": float(vol or 0) / float(avg_vol or 1) if avg_vol else 1.0,
+                        "vol_ratio": float(vol or 1) / float(avg_vol or 1) if avg_vol else 1.0,
                     })
 
-            if not theme_stocks:
+            if not stocks:
                 continue
 
-            avg_chg    = sum(s["change_pct"] for s in theme_stocks) / len(theme_stocks)
-            avg_vr     = sum(s["vol_ratio"]  for s in theme_stocks) / len(theme_stocks)
-            up_count   = sum(1 for s in theme_stocks if s["change_pct"] > 0)
-            breadth    = up_count / len(theme_stocks) * 100
-            code_count = len(theme_stocks)
-
-            # 主題分數：漲幅 + 量能 + 廣度
-            score = min(100, max(0,
-                50 +
-                avg_chg * 3 +
-                (avg_vr - 1) * 10 +
-                (breadth - 50) * 0.4
-            ))
-
-            # 領漲股（漲幅前3）
-            leaders = sorted(theme_stocks, key=lambda x: x["change_pct"], reverse=True)[:3]
+            avg_chg  = sum(s["change_pct"] for s in stocks) / len(stocks)
+            avg_vr   = sum(s["vol_ratio"]  for s in stocks) / len(stocks)
+            up_count = sum(1 for s in stocks if s["change_pct"] > 0)
+            breadth  = up_count / len(stocks) * 100
+            score    = min(100, max(0, 50 + avg_chg * 3 + (avg_vr-1)*10 + (breadth-50)*0.4))
+            momentum = min(100, max(0, 50 + avg_chg * 5))
+            leaders  = sorted(stocks, key=lambda x: x["change_pct"], reverse=True)[:3]
             leader_codes = json.dumps([s["code"] for s in leaders], ensure_ascii=False)
 
-            # 新聞熱度加分
-            news_boost = sum(v for k, v in news_themes.items()
-                             if any(kw in k for kw in keywords)) * 2
-
-            score = min(100, score + news_boost)
-            momentum = min(100, max(0, 50 + avg_chg * 5))
-
-            # 寫入（upsert）
             db.execute(text("""
                 INSERT INTO theme_trend_daily
                     (context_date, theme, score, momentum_score, breadth_score,
                      volume_ratio, code_count, leader_codes, summary)
-                VALUES (:d, :theme, :score, :ms, :bs, :vr, :cc, :lc, :summary)
+                VALUES (:d,:theme,:score,:ms,:bs,:vr,:cc,:lc,:summary)
                 ON CONFLICT(context_date, theme) DO UPDATE SET
-                    score=excluded.score,
-                    momentum_score=excluded.momentum_score,
-                    breadth_score=excluded.breadth_score,
-                    volume_ratio=excluded.volume_ratio,
-                    code_count=excluded.code_count,
-                    leader_codes=excluded.leader_codes,
+                    score=excluded.score, momentum_score=excluded.momentum_score,
+                    breadth_score=excluded.breadth_score, volume_ratio=excluded.volume_ratio,
+                    code_count=excluded.code_count, leader_codes=excluded.leader_codes,
                     summary=excluded.summary
             """), {
                 "d": str(target_date), "theme": theme_name,
-                "score": round(score, 1), "ms": round(momentum, 1),
-                "bs": round(breadth, 1), "vr": round(avg_vr, 2),
-                "cc": code_count, "lc": leader_codes,
-                "summary": f"{theme_name} {len(theme_stocks)}檔 均漲{avg_chg:+.2f}% 廣度{breadth:.0f}%",
+                "score": round(score,1), "ms": round(momentum,1),
+                "bs": round(breadth,1), "vr": round(avg_vr,2),
+                "cc": len(stocks), "lc": leader_codes,
+                "summary": f"{theme_name} {len(stocks)}檔 均{avg_chg:+.2f}% 廣度{breadth:.0f}%",
             })
             updated += 1
 
@@ -284,11 +242,12 @@ def update_theme_trends(target_date) -> dict:
         logger.info(f"[THEME] {target_date} 更新 {updated} 個主題")
         return {"ok": True, "themes_updated": updated}
     except Exception as e:
-        logger.error(f"[THEME] 更新失敗: {e}")
+        logger.error(f"[THEME] 失敗: {e}")
         db.rollback()
         return {"ok": False, "error": str(e)}
     finally:
         db.close()
+
 
 def run_latest_update(trade_date: str | None = None) -> dict[str, Any]:
     if not _UPDATE_LOCK.acquire(blocking=False):
