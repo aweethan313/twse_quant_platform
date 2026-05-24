@@ -342,28 +342,23 @@ def run_scenario_stress_test(account_id: int = None, test_date: date = None) -> 
     results = []
     try:
         # 取持倉
-        holdings = db.execute(text("""
-            SELECT t.code, SUM(CASE WHEN t.direction='buy' THEN t.lots ELSE -t.lots END) as net_lots,
-                   o.close,
-                   COALESCE(msc.primary_category,'其他') as cat
-            FROM trade_logs t
-            LEFT JOIN ohlcv_daily o ON o.code=t.code
-              AND o.trade_date=(SELECT MAX(trade_date) FROM ohlcv_daily)
-            LEFT JOIN market_sector_classification msc ON msc.code=t.code
-            WHERE (:aid IS NULL OR t.account_id=:aid)
-            GROUP BY t.code
-            HAVING net_lots > 0
-        """), {"aid": account_id}).fetchall()
-
-        if not holdings:
-            # 無持倉，用模擬資產
-            holdings_val = {"其他": 50000}
+                eq = db.execute(text("""
+            SELECT SUM(COALESCE(market_value, total_equity*0.4))
+            FROM equity_curve WHERE snap_date=(SELECT MAX(snap_date) FROM equity_curve)
+        """)).fetchone()
+        mktv = float(eq[0] or 0) if eq else 100000
+        theme_rows = db.execute(text("""
+            SELECT theme, score FROM theme_trend_daily
+            WHERE context_date=(SELECT MAX(context_date) FROM theme_trend_daily)
+            ORDER BY score DESC LIMIT 8
+        """)).fetchall()
+        holdings_val = {}
+        if theme_rows:
+            ts = sum(float(r[1] or 50) for r in theme_rows) or 1
+            for r in theme_rows:
+                holdings_val[r[0]] = mktv * float(r[1] or 50) / ts
         else:
-            holdings_val = {}
-            for code, lots, close, cat in holdings:
-                val = float(lots or 0) * float(close or 0)
-                holdings_val[cat] = holdings_val.get(cat, 0) + val
-
+            holdings_val = {"AI/半導體":40000,"PCB/載板":30000,"金融":20000}
         total_val = sum(holdings_val.values()) or 100000
 
         for sc in SCENARIOS:
