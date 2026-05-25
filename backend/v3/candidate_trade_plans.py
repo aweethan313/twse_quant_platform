@@ -233,11 +233,19 @@ def generate_daily_plans(plan_date: date = None, limit: int = 30) -> list[dict]:
               AND o.trade_date=(SELECT MAX(trade_date) FROM ohlcv_daily)
             WHERE ds.score_date=(SELECT MAX(score_date) FROM daily_scores)
               AND ds.final_action IN ('BUY','WATCH')
-              AND ds.stock_class NOT IN ('ETF_INCOME','ILLIQUID_RISK')
+              AND ds.stock_class NOT IN ('ETF_INCOME','ILLIQUID_RISK','SPECULATIVE_HOT','NORMAL')
               AND o.close IS NOT NULL
-            ORDER BY ds.final_score DESC
+              AND o.close >= 10
+            ORDER BY
+                CASE ds.stock_class
+                    WHEN 'CORE_LARGE_CAP' THEN 1
+                    WHEN 'LARGE_LIQUID' THEN 2
+                    WHEN 'LIQUID_MOMENTUM' THEN 3
+                    ELSE 4
+                END,
+                ds.final_score DESC
             LIMIT :n
-        """), {"n": limit}).fetchall()
+        """), {"n": min(limit, 15)}).fetchall()
 
         # 取 risk_level
         ctx = db.execute(text("""
