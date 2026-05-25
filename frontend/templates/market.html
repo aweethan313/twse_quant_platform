@@ -26,29 +26,37 @@
   </div>
 
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-    
-<!-- V4 資料品質 + Kill Switch -->
-<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4" id="v4_summary_row">
-  <div class="bg-surface-2 border border-border rounded-lg p-3">
-    <div class="text-xs text-gray-500 mb-1">📊 資料品質</div>
-    <div class="text-xl font-bold" id="v4_dq_score">—</div>
-    <div class="text-xs text-gray-600" id="v4_dq_detail"></div>
-  </div>
-  <div class="bg-surface-2 border border-border rounded-lg p-3">
-    <div class="text-xs text-gray-500 mb-1">🚨 策略狀態</div>
-    <div class="text-xs" id="v4_ks_summary">—</div>
-  </div>
-  <div class="bg-surface-2 border border-border rounded-lg p-3">
-    <div class="text-xs text-gray-500 mb-1">🔥 主題熱度 TOP1</div>
-    <div class="text-sm font-bold" id="v4_top_theme">—</div>
-  </div>
-  <div class="bg-surface-2 border border-border rounded-lg p-3">
-    <div class="text-xs text-gray-500 mb-1">🏦 0050</div>
-    <div class="text-sm font-bold" id="v4_etf_status">—</div>
-  </div>
-</div>
 
-    <!-- 選股篩選器 -->
+    <!-- 左欄：資料卡片 + 漲幅排行 -->
+    <div class="flex flex-col gap-3">
+      <!-- V4 資料品質 + Kill Switch -->
+      <div class="grid grid-cols-2 gap-2" id="v4_summary_row">
+        <div class="bg-surface-2 border border-border rounded-lg p-3">
+          <div class="text-xs text-gray-500 mb-1">📊 資料品質</div>
+          <div class="text-xl font-bold" id="v4_dq_score">—</div>
+          <div class="text-xs text-gray-600" id="v4_dq_detail"></div>
+        </div>
+        <div class="bg-surface-2 border border-border rounded-lg p-3">
+          <div class="text-xs text-gray-500 mb-1">🚨 策略狀態</div>
+          <div class="text-xs" id="v4_ks_summary">—</div>
+        </div>
+        <div class="bg-surface-2 border border-border rounded-lg p-3">
+          <div class="text-xs text-gray-500 mb-1">🔥 主題熱度 TOP1</div>
+          <div class="text-sm font-bold" id="v4_top_theme">—</div>
+        </div>
+        <div class="bg-surface-2 border border-border rounded-lg p-3">
+          <div class="text-xs text-gray-500 mb-1">🏦 0050</div>
+          <div class="text-sm font-bold" id="v4_etf_status">—</div>
+        </div>
+      </div>
+      <!-- 今日漲幅排行 -->
+      <div class="bg-surface-2 border border-border rounded-lg flex-1">
+        <div class="px-4 py-3 border-b border-border text-sm font-medium">🔥 今日漲幅排行</div>
+        <div id="top_movers" class="divide-y divide-border"></div>
+      </div>
+    </div>
+
+    <!-- 右欄：選股篩選器（佔 2 欄）-->
     <div class="lg:col-span-2 bg-surface-2 border border-border rounded-lg">
       <div class="px-4 py-3 border-b border-border">
         <div class="flex items-center justify-between mb-2">
@@ -96,11 +104,7 @@
         </table>
       </div>
     </div>
-    <!-- 漲幅排行 -->
-    <div class="bg-surface-2 border border-border rounded-lg">
-      <div class="px-4 py-3 border-b border-border text-sm font-medium">🔥 今日漲幅排行</div>
-      <div id="top_movers" class="divide-y divide-border"></div>
-    </div>
+
   </div>
 
   <!-- 個股 K 線查詢 -->
