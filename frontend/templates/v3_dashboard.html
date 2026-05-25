@@ -161,7 +161,7 @@ async function loadKill() {
 // C. T+1 交易建議
 async function loadSignals() {
   try {
-    var data = await fetch('/api/candidates/trade-plans?limit=30').then(r=>r.json());
+    var data = await fetch('/api/candidates/trade-plans?limit=50').then(r=>r.json());
     _allSignals = Array.isArray(data) ? data : [];
     renderSignals('all');
   } catch(e) { document.getElementById('dc_signals').textContent='尚無建議（請先執行每日更新）'; }
@@ -173,13 +173,25 @@ function filterSignal(type, btn) {
 }
 
 function renderSignals(filter) {
-  var data = filter==='all' ? _allSignals :
+  var raw = filter==='all' ? _allSignals :
     _allSignals.filter(s => {
       if (filter==='BUY') return !s.invalid_buy_condition;
       if (filter==='WATCH') return s.candidate_pool_type==='WATCH';
       if (filter==='BLOCKED') return !!s.invalid_buy_condition;
       return true;
     });
+
+  // 資金限制：優先核心大型股（前5）+ 強勢候選（前5），共最多10檔
+  var coreTypes = ['CORE_LARGE_CAP','ETF_CORE'];
+  var core = raw.filter(s => coreTypes.includes(s.candidate_pool_type) && !s.invalid_buy_condition);
+  var active = raw.filter(s => !coreTypes.includes(s.candidate_pool_type) && !s.invalid_buy_condition);
+  var blocked = raw.filter(s => s.invalid_buy_condition);
+  var data;
+  if (filter === 'all') {
+    data = [...core.slice(0,5), ...active.slice(0,5), ...blocked.slice(0,3)];
+  } else {
+    data = raw.slice(0, 15);
+  }
 
   if (!data.length) {
     document.getElementById('dc_signals').innerHTML='<div class="text-gray-600 text-xs py-4 text-center">尚無資料</div>';

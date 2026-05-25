@@ -49,7 +49,14 @@ def generate_morning_alerts(alert_date: date = None) -> list[dict]:
             JOIN candidate_trade_plans ctp ON ctp.id=latest.max_id
             LEFT JOIN daily_scores ds ON ds.code=ctp.code
               AND ds.score_date=(SELECT MAX(score_date) FROM daily_scores)
-            ORDER BY ds.final_score DESC
+            ORDER BY
+                CASE ds.stock_class
+                    WHEN 'CORE_LARGE_CAP' THEN 1
+                    WHEN 'LARGE_LIQUID' THEN 2
+                    WHEN 'LIQUID_MOMENTUM' THEN 3
+                    ELSE 4
+                END,
+                ds.final_score DESC
         """), {"d": str(alert_date)}).fetchall()
 
         # 大盤狀態
