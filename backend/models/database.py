@@ -15,9 +15,19 @@ import os
 os.makedirs(os.path.dirname(settings.DB_PATH), exist_ok=True)
 engine = create_engine(
     settings.DB_URL,
-    connect_args={"check_same_thread": False},
+    connect_args={"check_same_thread": False, "timeout": 30},
     echo=False
 )
+
+# WAL mode：允許讀寫並發，解決 database is locked
+from sqlalchemy import event
+@event.listens_for(engine, "connect")
+def set_sqlite_pragma(dbapi_conn, connection_record):
+    cursor = dbapi_conn.cursor()
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.execute("PRAGMA busy_timeout=10000")
+    cursor.execute("PRAGMA synchronous=NORMAL")
+    cursor.close()
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
