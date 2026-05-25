@@ -1,712 +1,287 @@
 {% extends "base.html" %}
-{% block title %}V3 系統總覽 | TWSE QUANT{% endblock %}
+{% block title %}每日決策總覽 | TWSE QUANT{% endblock %}
 {% block nav_v3 %}bg-surface-3 text-white font-medium{% endblock %}
 
 {% block head %}
 <style>
-.v3-card { background:#161b22; border:1px solid #30363d; border-radius:10px; padding:16px; }
-.v3-row { display:flex; justify-content:space-between; align-items:center; padding:4px 0; font-size:12px; border-bottom:1px solid #21262d; }
-.v3-row:last-child { border-bottom:none; }
-.badge { display:inline-block; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:600; }
-.badge-buy   { background:rgba(68,255,136,.15); color:#44ff88; }
-.badge-watch { background:rgba(255,204,0,.15);  color:#ffcc00; }
-.badge-avoid { background:rgba(255,136,68,.15); color:#ff8844; }
-.badge-hold  { background:rgba(136,136,136,.15);color:#888; }
-.badge-ok    { background:rgba(68,255,136,.1);  color:#44ff88; }
-.badge-warn  { background:rgba(255,100,0,.15);  color:#ff6400; }
-.badge-fail  { background:rgba(255,68,68,.15);  color:#ff4444; }
-.score-bar-wrap { background:#21262d; border-radius:3px; height:5px; flex:1; margin:0 8px; }
-.score-bar-fill { height:5px; border-radius:3px; }
-.tab-btn { background:rgba(255,255,255,.07); color:#aaa; border:none; padding:5px 14px;
-           border-radius:6px; font-size:12px; cursor:pointer; transition:all .15s; }
-.tab-btn:hover { background:rgba(255,255,255,.15); color:#fff; }
-.tab-btn.active { background:rgba(99,179,237,.2); color:#63b3ed; font-weight:600; }
+.dc-card { background:#161b22; border:1px solid #30363d; border-radius:10px; padding:16px; margin-bottom:12px; }
+.dc-row { display:flex; justify-content:space-between; align-items:center;
+          padding:5px 0; font-size:12px; border-bottom:1px solid #21262d; }
+.dc-row:last-child { border-bottom:none; }
+.dc-label { color:#8b949e; min-width:120px; }
+.dc-val { font-weight:500; }
+.badge-ok   { background:rgba(68,255,136,.15); color:#44ff88; padding:2px 8px; border-radius:4px; font-size:11px; }
+.badge-warn { background:rgba(255,204,0,.15);  color:#ffcc00; padding:2px 8px; border-radius:4px; font-size:11px; }
+.badge-fail { background:rgba(255,68,68,.15);  color:#ff4444; padding:2px 8px; border-radius:4px; font-size:11px; }
+.badge-buy  { background:rgba(68,255,136,.15); color:#44ff88; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:700; }
+.badge-sell { background:rgba(255,68,68,.15);  color:#ff4444; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:700; }
+.badge-hold { background:rgba(100,100,100,.2); color:#888;    padding:2px 8px; border-radius:4px; font-size:11px; }
+.badge-blk  { background:rgba(255,130,0,.15);  color:#ff8200; padding:2px 8px; border-radius:4px; font-size:11px; }
+.t1-mode-banner {
+  background:rgba(99,179,237,.08); border:1px solid rgba(99,179,237,.3);
+  border-radius:8px; padding:8px 16px; font-size:11px; color:#63b3ed;
+  margin-bottom:16px;
+}
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="max-w-7xl mx-auto px-4 py-5">
 
-  <div class="flex items-center justify-between mb-5">
-    <h1 class="text-lg font-bold">🧠 V3 系統總覽</h1>
-    <div class="flex gap-2">
-      <button class="tab-btn active" onclick="showTab('overview',this)">總覽</button>
-      <button class="tab-btn" onclick="showTab('fills',this)">成交記錄</button>
-      <button class="tab-btn" onclick="showTab('walkforward',this)">Walk-forward</button>
-      <button class="tab-btn" onclick="showTab('decisions',this)">決策理由</button>
-      <button class="tab-btn" onclick="showTab('accuracy',this)">候選勝率</button>
-      <button class="tab-btn" onclick="showTab('v4',this)">🆕 V4</button>
+  <!-- T+1 模式橫幅 -->
+  <div class="t1-mode-banner flex items-center justify-between flex-wrap gap-2">
+    <span>📋 <b>T+1 Forward Paper Trading</b>｜使用資料：<span id="banner_data_date">—</span>｜決策產生：<span id="banner_decision_time">—</span>｜預計交易日：<span id="banner_exec_date">—</span></span>
+    <span>預設成交：T+1 09:10 零股 / open + slippage｜<span id="banner_lookahead" class="badge-ok">no-lookahead ✓</span></span>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+
+    <!-- A. 資料狀態 -->
+    <div class="dc-card">
+      <div class="text-xs text-gray-500 mb-3 font-semibold uppercase tracking-wide">📡 資料狀態</div>
+      <div id="dc_freshness">載入中...</div>
+    </div>
+
+    <!-- B. 大盤環境 -->
+    <div class="dc-card">
+      <div class="text-xs text-gray-500 mb-3 font-semibold uppercase tracking-wide">📈 大盤環境</div>
+      <div id="dc_market">載入中...</div>
+    </div>
+
+    <!-- Kill Switch 摘要 -->
+    <div class="dc-card">
+      <div class="text-xs text-gray-500 mb-3 font-semibold uppercase tracking-wide">🚨 策略狀態</div>
+      <div id="dc_kill">載入中...</div>
     </div>
   </div>
 
-  <!-- ── 總覽 Tab ── -->
-  <div id="tab_overview">
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
-
-      <!-- 策略路由器 -->
-      <div class="v3-card">
-        <div class="text-xs text-gray-500 mb-3 font-semibold uppercase tracking-wide">🔀 策略路由器</div>
-        <div id="v3_router">載入中...</div>
-      </div>
-
-      <!-- 資金設定 -->
-      <div class="v3-card">
-        <div class="text-xs text-gray-500 mb-3 font-semibold uppercase tracking-wide">💰 資金配置</div>
-        <div id="v3_capital">載入中...</div>
-      </div>
-
-      <!-- 市場狀態 -->
-      <div class="v3-card">
-        <div class="text-xs text-gray-500 mb-3 font-semibold uppercase tracking-wide">📊 今日市場</div>
-        <div id="v3_market">載入中...</div>
+  <!-- C. T+1 交易建議 -->
+  <div class="dc-card mb-4">
+    <div class="flex items-center justify-between mb-3">
+      <div class="text-xs text-gray-500 font-semibold uppercase tracking-wide">📋 T+1 交易建議</div>
+      <div class="flex gap-2">
+        <button onclick="filterSignal('all',this)" class="text-xs px-3 py-1 rounded bg-surface-3 text-gray-400 hover:text-white">全部</button>
+        <button onclick="filterSignal('BUY',this)" class="text-xs px-3 py-1 rounded bg-surface-3 text-gray-400 hover:text-white">BUY</button>
+        <button onclick="filterSignal('WATCH',this)" class="text-xs px-3 py-1 rounded bg-surface-3 text-gray-400 hover:text-white">WATCH</button>
+        <button onclick="filterSignal('BLOCKED',this)" class="text-xs px-3 py-1 rounded bg-surface-3 text-gray-400 hover:text-white">BLOCKED</button>
       </div>
     </div>
-
-    <!-- 策略排名 -->
-    <div class="v3-card mb-4">
-      <div class="text-xs text-gray-500 mb-3 font-semibold uppercase tracking-wide">🏆 策略排名 V3</div>
-      <div id="v3_leaderboard_overview" class="overflow-x-auto"></div>
-    </div>
-
-    <!-- 今日提醒 -->
-    <div class="v3-card">
-      <div class="flex items-center justify-between mb-3">
-        <div class="text-xs text-gray-500 font-semibold uppercase tracking-wide">📋 今日看盤提醒</div>
-        <span class="text-xs text-gray-600">⚠️ 僅供參考，需使用者確認後執行</span>
-      </div>
-      <div id="v3_alerts">載入中...</div>
+    <div class="overflow-x-auto">
+      <div id="dc_signals">載入中...</div>
     </div>
   </div>
 
-  <!-- ── 成交記錄 Tab ── -->
-  <div id="tab_fills" class="hidden">
-    <div class="v3-card">
-      <div class="text-xs text-gray-500 mb-3 font-semibold uppercase tracking-wide">📝 真實成交記錄（FIX-4）</div>
-      <div class="text-xs text-gray-600 mb-3">日K策略：收盤訊號 → 下一交易日 open 成交｜禁止當沖｜0050 受保護</div>
-      <div id="v3_fills_table">載入中...</div>
-    </div>
+  <!-- D. 策略帳戶今日狀況 -->
+  <div class="dc-card mb-4">
+    <div class="text-xs text-gray-500 mb-3 font-semibold uppercase tracking-wide">💼 策略帳戶今日狀況</div>
+    <div id="dc_accounts">載入中...</div>
   </div>
 
-  <!-- ── Walk-forward Tab ── -->
-  <div id="tab_walkforward" class="hidden">
-    <div class="v3-card mb-4">
-      <div class="flex items-center justify-between mb-3">
-        <div class="text-xs text-gray-500 font-semibold uppercase tracking-wide">🔄 Walk-forward 驗證（FIX-5）</div>
-        <button onclick="runWalkForward()" class="tab-btn text-xs px-3 py-1">▶ 執行驗證</button>
-      </div>
-      <div class="text-xs text-gray-600 mb-3">Train 6個月 → Test 1個月，滾動驗證，偵測過擬合</div>
-      <div id="v3_wf_table">載入中...</div>
-    </div>
-  </div>
-
-  <!-- ── 決策理由 Tab ── -->
-  <div id="tab_decisions" class="hidden">
-    <div class="v3-card">
-      <div class="text-xs text-gray-500 mb-3 font-semibold uppercase tracking-wide">🗂 決策理由（FIX-1）</div>
-      <div class="flex gap-2 mb-3">
-        <button class="tab-btn text-xs" onclick="filterDecisions('all',this)">全部</button>
-        <button class="tab-btn text-xs" onclick="filterDecisions('BUY',this)">BUY</button>
-        <button class="tab-btn text-xs" onclick="filterDecisions('HOLD',this)">HOLD</button>
-        <button class="tab-btn text-xs" onclick="filterDecisions('SELL',this)">SELL</button>
-        <button class="tab-btn text-xs" onclick="filterDecisions('AVOID_CHASE',this)">AVOID</button>
-      </div>
-      <div id="v3_decisions_table">載入中...</div>
-    </div>
-  </div>
-
-  <!-- ── 候選勝率 Tab ── -->
-  <div id="tab_accuracy" class="hidden">
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-      <div class="v3-card text-center">
-        <div class="text-2xl font-bold text-green-400" id="acc_hit">—</div>
-        <div class="text-xs text-gray-500 mt-1">達標率（5日內）</div>
-      </div>
-      <div class="v3-card text-center">
-        <div class="text-2xl font-bold text-red-400" id="acc_stop">—</div>
-        <div class="text-xs text-gray-500 mt-1">觸停損率（5日內）</div>
-      </div>
-      <div class="v3-card text-center">
-        <div class="text-2xl font-bold text-gray-400" id="acc_total">—</div>
-        <div class="text-xs text-gray-500 mt-1">追蹤中候選數</div>
-      </div>
-    </div>
-    <div class="v3-card">
-      <div class="text-xs text-gray-500 mb-3 font-semibold uppercase tracking-wide">📈 候選股後續表現（FIX-14）</div>
-      <div id="v3_accuracy_table">載入中...</div>
-    </div>
-  </div>
-
-
-  <!-- V4 Tab -->
-  <div id="tab_v4" class="hidden">
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-      <div class="v3-card">
-        <div class="text-xs text-gray-500 mb-3 font-semibold uppercase tracking-wide">📊 資料品質（V4-1）</div>
-        <div id="v4_quality_detail">載入中...</div>
-      </div>
-      <div class="v3-card">
-        <div class="text-xs text-gray-500 mb-3 font-semibold uppercase tracking-wide">🚨 策略 Kill Switch（V4-9）</div>
-        <div id="v4_kill_detail">載入中...</div>
-      </div>
-    </div>
-    <div class="v3-card mb-4">
-      <div class="text-xs text-gray-500 mb-3 font-semibold uppercase tracking-wide">🏭 股市分類 + 主題曝險（V4-13）</div>
-      <div id="v4_sector_detail">載入中...</div>
-    </div>
-    <div class="v3-card">
-      <div class="text-xs text-gray-500 mb-3 font-semibold uppercase tracking-wide">⚙️ 每日工作流程（V4-3）</div>
-      <div id="v4_workflow_detail">載入中...</div>
-    </div>
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div class="v3-card">
-        <div class="text-xs text-gray-500 mb-3 font-semibold uppercase tracking-wide">🔥 壓力測試（V4-10）</div>
-        <div id="v4_stress_detail">載入中...</div>
-      </div>
-      <div class="v3-card">
-        <div class="text-xs text-gray-500 mb-3 font-semibold uppercase tracking-wide">💼 投組配置（V4-7）</div>
-        <div id="v4_portfolio_detail">載入中...</div>
-      </div>
-    </div>
-    <div class="v3-card">
-      <div class="text-xs text-gray-500 mb-3 font-semibold uppercase tracking-wide">📈 策略獲利歸因（V4-6）</div>
-      <div id="v4_attribution_detail">載入中...</div>
-    </div>
+  <!-- E. 今天不能做什麼 -->
+  <div class="dc-card">
+    <div class="text-xs text-gray-500 mb-3 font-semibold uppercase tracking-wide">🚫 今天不能做的事</div>
+    <div id="dc_restrictions">載入中...</div>
   </div>
 
 </div>
 
 <script>
-function showTab(name, btn) {
-  ['overview','fills','walkforward','decisions','accuracy','v4'].forEach(function(t) {
-    var tab = document.getElementById('tab_' + t);
-    if (tab) tab.classList.add('hidden');
-  });
+var _allSignals = [];
 
-  var currentTab = document.getElementById('tab_' + name);
-  if (currentTab) currentTab.classList.remove('hidden');
-
-  document.querySelectorAll('.tab-btn').forEach(function(b) {
-    b.classList.remove('active');
-  });
-  if (btn) btn.classList.add('active');
-
-  if (name === 'fills' && !_fillsLoaded) loadFills();
-  if (name === 'walkforward' && !_wfLoaded) loadWalkforward();
-  if (name === 'decisions' && !_decisionsLoaded) loadDecisions();
-  if (name === 'accuracy' && !_accLoaded) loadAccuracy();
-  if (name === 'v4') loadV4Tab();
+function row(label, val) {
+  return `<div class="dc-row"><span class="dc-label">${label}</span><span class="dc-val">${val}</span></div>`;
+}
+function badge(status) {
+  var cls = {PASS:'badge-ok',WARN:'badge-warn',FAIL:'badge-fail',
+             BUY:'badge-buy',SELL:'badge-sell',HOLD:'badge-hold',
+             WATCH:'badge-warn',BLOCKED:'badge-blk',
+             ACTIVE:'badge-ok',REDUCED:'badge-warn',PAUSED:'badge-fail',WATCHLIST:'badge-warn'};
+  return `<span class="${cls[status]||'badge-hold'}">${status}</span>`;
 }
 
-
-var _v4Loaded = false;
-async function loadV4Tab() {
-  // 資料品質
+// A. 資料狀態
+async function loadFreshness() {
   try {
-    var d = await fetch('/api/quality/data').then(r=>r.json());
-    var checks = d.checks || [];
-    document.getElementById('v4_quality_detail').innerHTML =
-      checks.map(c=>`<div class="v3-row">
-        <span>${({PASS:'✅',WARN:'⚠️',FAIL:'❌',SKIPPED:'⏭'})[c.status]||'•'} ${c.check_type}</span>
-        <span class="text-gray-400 text-xs">${c.message||''}</span>
-      </div>`).join('') || '<div class="text-gray-600">尚無資料</div>';
-  } catch(e) {}
+    var d = await fetch('/api/freshness').then(r=>r.json());
+    var today = new Date().toISOString().slice(0,10);
+    document.getElementById('banner_data_date').textContent = d.ohlcv_daily || '—';
+    document.getElementById('banner_exec_date').textContent =
+      d.ohlcv_daily ? new Date(new Date(d.ohlcv_daily).getTime()+86400000).toISOString().slice(0,10) : '—';
+    document.getElementById('banner_decision_time').textContent = new Date().toLocaleString('zh-TW');
 
-  // Kill Switch
+    var items = [
+      ['日K (ohlcv_daily)', d.ohlcv_daily],
+      ['分數 (daily_scores)', d.daily_scores],
+      ['技術指標', d.technical_features],
+      ['股權 equity_curve', d.equity_curve],
+      ['籌碼 chip_daily', d.chip_daily],
+      ['主題熱度', d.theme_trend],
+      ['大盤環境', d.market_context],
+      ['分鐘資料', d.ohlcv_1min === '無資料' ? '⚠️ 未啟用（不影響日級策略）' : d.ohlcv_1min],
+    ];
+    document.getElementById('dc_freshness').innerHTML = items.map(([k,v]) => {
+      var isWarn = !v || v==='無資料' || v==='表不存在';
+      var isOld = v && v !== '無資料' && v < today && v !== '⚠️ 未啟用（不影響日級策略）';
+      var cls = isWarn ? 'text-orange-400' : isOld ? 'text-yellow-400' : 'text-green-400';
+      return row(k, `<span class="${cls}">${v||'無資料'}</span>`);
+    }).join('');
+  } catch(e) { document.getElementById('dc_freshness').textContent='載入失敗'; }
+}
+
+// B. 大盤環境
+async function loadMarket() {
+  try {
+    var d = await fetch('/api/market/overview').then(r=>r.json());
+    var ctx = await fetch('/api/v3/strategies/router').then(r=>r.json());
+    var ov = await fetch('/api/v2/overnight').then(r=>r.json());
+    var trendMap = {bullish:'🟢 多頭',neutral:'🟡 盤整',bearish:'🔴 空頭'};
+    var rl = ctx.risk_level || 'medium';
+    var rlColor = rl==='high'?'#ff4444':rl==='low'?'#44ff88':'#ffcc00';
+    document.getElementById('dc_market').innerHTML =
+      row('市場趨勢', trendMap[ctx.market_trend]||ctx.market_trend||'—') +
+      row('風險等級', `<span style="color:${rlColor}">${rl}</span>`) +
+      row('部位倍率', `<span class="text-accent">${((ctx.position_multiplier||0.65)*100).toFixed(0)}%</span>`) +
+      row('啟用策略', `<span class="text-green-400">${(ctx.enabled_strategies||[]).map(s=>'S'+s).join(' ')||'—'}</span>`) +
+      row('美股夜盤', `<span class="text-blue-400">${ov.summary||'—'}</span>`) +
+      row('上漲/下跌', `<span class="text-up">${d.up||0}</span> / <span class="text-dn">${d.down||0}</span>`);
+  } catch(e) { document.getElementById('dc_market').textContent='載入失敗'; }
+}
+
+// Kill Switch
+async function loadKill() {
   try {
     var data = await fetch('/api/v4/strategies/kill-switch').then(r=>r.json());
-    var STATUS_COLOR = {ACTIVE:'#44ff88',REDUCED:'#ffcc00',PAUSED:'#ff4444',WATCHLIST:'#888'};
-    document.getElementById('v4_kill_detail').innerHTML =
-      data.map(r=>`<div class="v3-row">
-        <span>S${r.strategy_id} ${r.strategy_name||''}</span>
-        <span style="color:${STATUS_COLOR[r.status]||'#888'}">${r.status}</span>
-        <span class="text-gray-500 text-xs">${(r.reason||'').slice(0,40)}</span>
-      </div>`).join('') || '<div class="text-gray-600">尚無資料</div>';
-  } catch(e) {}
-
-  // 主題熱度
-  try {
-    var data = await fetch('/api/market/sector-heat').then(r=>r.json());
-    document.getElementById('v4_sector_detail').innerHTML = `
-      <table class="w-full text-xs">
-        <thead><tr class="text-gray-500"><th class="text-left py-1">類別</th><th class="text-right">熱度</th><th class="text-right">股票數</th></tr></thead>
-        <tbody>
-        ${data.map(r=>`<tr class="border-t border-gray-800">
-          <td class="py-1">${r.category}</td>
-          <td class="text-right font-mono" style="color:${r.avg_heat>=70?'#ff6b6b':r.avg_heat>=50?'#ffcc00':'#9ca3af'}">${r.avg_heat.toFixed(1)}</td>
-          <td class="text-right text-gray-500">${r.count}</td>
-        </tr>`).join('')}
-        </tbody>
-      </table>`;
-  } catch(e) {}
-
-  // 壓力測試
-  try {
-    var stress = await fetch('/api/risk/scenario-stress').then(r=>r.json());
-    var sarr = Array.isArray(stress) ? stress : [];
-    document.getElementById('v4_stress_detail').innerHTML = sarr.length ?
-      sarr.slice(0,6).map(s=>`<div class="v3-row">
-        <span>${parseFloat(s.estimated_return||0)<-5?'🔴':parseFloat(s.estimated_return||0)<-2?'⚠️':'🟡'} ${s.scenario_name}</span>
-        <span class="font-mono" style="color:${parseFloat(s.estimated_return||0)<0?'#ff4444':'#44ff88'}">${parseFloat(s.estimated_return||0).toFixed(1)}%</span>
-      </div>`).join('') : '<div class="text-gray-600">尚無資料</div>';
-  } catch(e) { document.getElementById('v4_stress_detail').textContent='載入失敗'; }
-
-  // 投組配置
-  try {
-    var port = await fetch('/api/portfolio/optimizer').then(r=>r.json());
-    document.getElementById('v4_portfolio_detail').innerHTML = `
-      <div class="v3-row"><span>總資產</span><b>${Math.round(port.total_capital||0).toLocaleString()}</b></div>
-      <div class="v3-row"><span>現金</span><span>${Math.round(port.cash||0).toLocaleString()}（${port.cash_ratio||0}%）</span></div>
-      <div class="v3-row"><span>風險等級</span><span style="color:${port.risk_level==='high'?'#ff4444':port.risk_level==='low'?'#44ff88':'#ffcc00'}">${port.risk_level||'-'}</span></div>
-      <div class="mt-2 text-xs text-gray-400">${(port.suggestions||[]).join('<br>')}</div>
-    `;
-  } catch(e) { document.getElementById('v4_portfolio_detail').textContent='載入失敗'; }
-
-  // 策略歸因
-  try {
-    var attr = await fetch('/api/research/strategy-attribution?limit=10').then(r=>r.json());
-    var aarr = Array.isArray(attr) ? attr : [];
-    document.getElementById('v4_attribution_detail').innerHTML = aarr.length ?
-      `<table class="w-full text-xs"><thead><tr class="text-gray-500">
-        <th class="text-left py-1">策略</th><th class="text-left">類型</th>
-        <th class="text-left">標的</th><th class="text-right">損益</th><th class="text-right">貢獻</th>
-      </tr></thead><tbody>` +
-      aarr.map(r=>`<tr class="border-t border-gray-800">
-        <td class="py-1">S${r.strategy_id||'-'}</td>
-        <td>${r.attribution_type||'-'}</td>
-        <td class="text-blue-400">${r.attribution_key||'-'}</td>
-        <td class="text-right font-mono" style="color:${parseFloat(r.total_pnl||0)>=0?'#ff6b6b':'#51cf66'}">${parseFloat(r.total_pnl||0)>=0?'+':''}${Math.round(r.total_pnl||0).toLocaleString()}</td>
-        <td class="text-right">${parseFloat(r.pnl_contribution_pct||0).toFixed(1)}%${r.concentration_warning?'⚠️':''}</td>
-      </tr>`).join('') + '</tbody></table>' :
-      '<div class="text-gray-600">尚無歸因資料</div>';
-  } catch(e) { document.getElementById('v4_attribution_detail').textContent='載入失敗'; }
-
-  // 工作流程
-  try {
-    var data = await fetch('/api/workflow/daily-runs?limit=20').then(r=>r.json());
-    if (!data.length) { document.getElementById('v4_workflow_detail').textContent='尚無記錄'; return; }
-    var _wfIcon = {PASS:'✅',WARN:'⚠️',FAIL:'❌',SKIPPED:'⏭'};
-    document.getElementById('v4_workflow_detail').innerHTML =
-      data.map(r=>`<div class="v3-row">
-        <span>${_wfIcon[r.status]||'•'} ${r.step_name}</span>
-        <span class="text-gray-400 text-xs">${r.message||''}</span>
-        <span class="text-gray-600 text-xs">${r.run_date}</span>
-      </div>`).join('');
-  } catch(e) {}
+    document.getElementById('dc_kill').innerHTML = data.map(k=>
+      row(`S${k.strategy_id} ${k.strategy_name||''}`,
+          badge(k.status) + (k.action_required?` <span class="text-xs text-gray-500">${k.action_required.slice(0,25)}</span>`:''))
+    ).join('');
+  } catch(e) { document.getElementById('dc_kill').textContent='載入失敗'; }
 }
 
-
-
-var _fillsLoaded=false, _wfLoaded=false, _decisionsLoaded=false, _accLoaded=false;
-
-var AC = {BUY:'badge-buy',WATCH:'badge-watch',AVOID_CHASE:'badge-avoid',
-            HOLD:'badge-hold',SELL:'badge-fail'};
-var AZ = {BUY:'買入',WATCH:'觀察',AVOID_CHASE:'不可追',HOLD:'持有',SELL:'賣出'};
-
-// ── 總覽 ──
-
-async function safeJson(url) {
-  var r = await fetch(url, {cache: 'no-store'});
-  if (!r.ok) throw new Error(`${url} HTTP ${r.status}`);
-  return await r.json();
+// C. T+1 交易建議
+async function loadSignals() {
+  try {
+    var data = await fetch('/api/candidates/trade-plans?limit=30').then(r=>r.json());
+    _allSignals = Array.isArray(data) ? data : [];
+    renderSignals('all');
+  } catch(e) { document.getElementById('dc_signals').textContent='尚無建議（請先執行每日更新）'; }
 }
 
-function setBox(id, html) {
-  var el = document.getElementById(id);
-  if (!el) {
-    console.warn(`[V3] missing element #${id}`);
+function filterSignal(type, btn) {
+  document.querySelectorAll('#dc_signals').forEach(()=>{});
+  renderSignals(type);
+}
+
+function renderSignals(filter) {
+  var data = filter==='all' ? _allSignals :
+    _allSignals.filter(s => {
+      if (filter==='BUY') return !s.invalid_buy_condition;
+      if (filter==='WATCH') return s.candidate_pool_type==='WATCH';
+      if (filter==='BLOCKED') return !!s.invalid_buy_condition;
+      return true;
+    });
+
+  if (!data.length) {
+    document.getElementById('dc_signals').innerHTML='<div class="text-gray-600 text-xs py-4 text-center">尚無資料</div>';
     return;
   }
-  el.innerHTML = html;
-}
-
-function setBoxError(id, err) {
-  setBox(id, `<div class="text-red-400 text-sm">載入失敗：${err.message || err}</div>`);
-}
-
-function row(label, value) {
-  return `<div class="v3-row"><span>${label}</span><span>${value}</span></div>`;
-}
-
-// ── 總覽：穩定版，每張卡片獨立載入，不讓單一錯誤卡死整頁 ──
-async function loadOverview() {
-  console.log("[V3] loadOverview start");
-
-  // 1) 策略路由器
-  try {
-    var d = await safeJson('/api/v3/strategies/router');
-    var trend = {bullish:'🟢 多頭', neutral:'🟡 盤整', bearish:'🔴 空頭'}[d.market_trend] ?? (d.market_trend ?? '-');
-    var pm = ((d.position_multiplier ?? 0.65) * 100).toFixed(0);
-    setBox('v3_router', `
-      ${row('市場狀態', `<b>${trend}</b>`)}
-      ${row('風險等級', d.risk_level ?? 'medium')}
-      ${row('部位倍率', `<span class="text-accent font-mono">${pm}%</span>`)}
-      ${row('啟用策略', `<span class="text-green-400">${(d.enabled_strategies || []).map(s => 'S' + s).join(' ') || '-'}</span>`)}
-      ${row('停用策略', `<span class="text-red-400">${(d.disabled_strategies || []).map(s => 'S' + s).join(' ') || '-'}</span>`)}
-    `);
-  } catch(e) {
-    console.error("[V3] router failed", e);
-    setBoxError('v3_router', e);
-  }
-
-  // 2) 資金設定
-  try {
-    var d = await safeJson('/api/capital/config');
-    var mode = d.mode ?? d.trading_mode ?? '-';
-    var total = d.total_capital ?? d.initial_capital ?? d.capital ?? '-';
-    setBox('v3_capital', `
-      ${row('模式', mode)}
-      ${row('總資金', typeof total === 'number' ? total.toLocaleString() : total)}
-      ${row('核心比例', d.core_ratio != null ? Math.round(d.core_ratio * 100) + '%' : '-')}
-      ${row('主動交易比例', d.active_ratio != null ? Math.round(d.active_ratio * 100) + '%' : '-')}
-    `);
-  } catch(e) {
-    console.error("[V3] capital failed", e);
-    setBoxError('v3_capital', e);
-  }
-
-  // 3) 市場總覽
-  try {
-    var d = await safeJson('/api/market/overview');
-    setBox('v3_market', `
-      ${row('交易日', d.trade_date ?? d.latest_trade_date ?? '-')}
-      ${row('上漲家數', d.up ?? '-')}
-      ${row('下跌家數', d.down ?? '-')}
-      ${row('平盤家數', d.flat ?? '-')}
-    `);
-  } catch(e) {
-    console.error("[V3] market overview failed", e);
-    setBoxError('v3_market', e);
-  }
-
-  // 4) 策略排行榜
-  try {
-    var d = await safeJson('/api/v3/strategies/leaderboard');
-    var rows = Array.isArray(d) ? d : (d.items || d.strategies || []);
-    setBox('v3_leaderboard_overview', rows.slice(0, 8).map((r, i) => `
-      <div class="v3-row">
-        <span>#${i + 1} ${r.name || r.strategy_name || ('S' + (r.strategy_id ?? r.id ?? '-'))}</span>
-        <span class="font-mono">${r.total_return != null ? Number(r.total_return).toFixed(2) + '%' : (r.score ?? '-')}</span>
-      </div>
-    `).join('') || `<div class="text-gray-400 text-sm">目前沒有排行榜資料</div>`);
-  } catch(e) {
-    console.error("[V3] leaderboard failed", e);
-    setBoxError('v3_leaderboard_overview', e);
-  }
-
-  // 5) 自選提醒
-  try {
-    var d = await safeJson('/api/watchlist/alerts?limit=5');
-    var rows = Array.isArray(d) ? d : (d.items || d.alerts || []);
-    setBox('v3_alerts', rows.slice(0, 5).map(r => `
-      <div class="v3-row">
-        <span>${r.code || ''} ${r.name || ''}</span>
-        <span>${r.message || r.reason || r.alert_type || '-'}</span>
-      </div>
-    `).join('') || `<div class="text-gray-400 text-sm">目前沒有提醒</div>`);
-  } catch(e) {
-    console.error("[V3] alerts failed", e);
-    setBoxError('v3_alerts', e);
-  }
-
-  // 6) 防呆：如果總覽裡還有「載入中」，至少不要讓它永遠卡住
-  document.querySelectorAll('#tab_overview *').forEach(el => {
-    if (el.children.length === 0 && /載入中/.test(el.textContent || '')) {
-      el.textContent = '此區塊尚未接上資料，請看 Console 錯誤';
-      el.classList.add('text-yellow-400');
-    }
-  });
-
-  console.log("[V3] loadOverview done");
-}
-
-
-// ── 成交記錄 ──
-async function loadFills() {
-  try {
-    var data = await fetch('/api/backtest/realistic/results?limit=50').then(r=>r.json());
-    if (!data.length) {
-      document.getElementById('v3_fills_table').innerHTML = '<div class="text-gray-600 text-xs py-4 text-center">尚無成交記錄</div>';
-      return;
-    }
-    document.getElementById('v3_fills_table').innerHTML = `
-      <table class="w-full text-xs">
-        <thead><tr class="text-gray-500">
-          <th class="text-left py-1">訊號日</th><th>代號</th><th>動作</th>
-          <th class="text-right">請求股數</th><th class="text-right">成交股數</th>
-          <th class="text-right">成交價</th><th class="text-right">手續費</th>
-          <th class="text-right">狀態</th><th class="text-left">說明</th>
-        </tr></thead>
-        <tbody>
-        ${data.map(r=>`<tr class="border-t border-gray-800">
-          <td class="py-1 text-gray-500">${r.signal_time?.slice(0,10)||'—'}</td>
-          <td class="text-blue-400 font-mono">${r.code}</td>
-          <td class="${r.action==='buy'?'text-up':'text-dn'}">${r.action}</td>
-          <td class="text-right">${r.requested_shares}</td>
-          <td class="text-right">${r.filled_shares}</td>
-          <td class="text-right font-mono">${r.fill_price??'—'}</td>
-          <td class="text-right">${r.fee??0}</td>
-          <td class="text-right"><span class="badge ${r.execution_status==='FILLED'?'badge-ok':r.execution_status?.includes('BLOCKED')?'badge-fail':'badge-warn'}">${r.execution_status}</span></td>
-          <td class="text-gray-500 text-xs">${r.execution_reason?.slice(0,30)||''}</td>
-        </tr>`).join('')}
-        </tbody>
-      </table>`;
-  } catch(e) { document.getElementById('v3_fills_table').textContent='載入失敗'; }
-}
-
-// ── Walk-forward ──
-async function loadWalkForward() {
-  try {
-    var data = await fetch('/api/backtest/walk-forward').then(r=>r.json());
-    if (!data.length) {
-      document.getElementById('v3_wf_table').innerHTML = '<div class="text-gray-600 text-xs py-4 text-center">尚無 Walk-forward 結果（點「執行驗證」開始）</div>';
-      return;
-    }
-    renderWfTable(data);
-  } catch(e) {}
-}
-
-async function runWalkForward() {
-  document.getElementById('v3_wf_table').innerHTML = '<div class="text-gray-500 text-xs py-4 text-center">執行中...</div>';
-  try {
-    var data = await fetch('/api/backtest/walk-forward/run', {method:'POST'}).then(r=>r.json());
-    renderWfTable(Array.isArray(data) ? data : data.results || []);
-  } catch(e) {
-    document.getElementById('v3_wf_table').innerHTML = '<div class="text-red-400 text-xs">執行失敗</div>';
-  }
-}
-
-function renderWfTable(data) {
-  document.getElementById('v3_wf_table').innerHTML = `
+  document.getElementById('dc_signals').innerHTML = `
     <table class="w-full text-xs">
       <thead><tr class="text-gray-500">
-        <th class="text-left py-1">策略</th><th>Train</th><th>Test</th>
-        <th class="text-right">Train報酬</th><th class="text-right">Test報酬</th>
-        <th class="text-right">最大回撤</th><th class="text-right">勝率</th>
-        <th class="text-right">過擬合分</th><th class="text-left">警告</th>
+        <th class="text-left py-2">代號</th><th class="text-left">名稱</th>
+        <th class="text-right">參考價</th><th class="text-right">進場區間</th>
+        <th class="text-right">目標</th><th class="text-right">停損</th>
+        <th class="text-right">風報</th><th class="text-right">建議股數</th>
+        <th class="text-left">訊號/理由</th>
       </tr></thead>
       <tbody>
-      ${data.map(r=>`<tr class="border-t border-gray-800">
-        <td class="py-1">S${r.strategy_id}</td>
-        <td class="text-gray-500">${r.train_start?.slice(0,7)}～${r.train_end?.slice(0,7)}</td>
-        <td class="text-gray-500">${r.test_start?.slice(0,7)}～${r.test_end?.slice(0,7)}</td>
-        <td class="text-right font-mono" style="color:${(r.train_return??0)>=0?'#ff6b6b':'#51cf66'}">${(r.train_return??0)>=0?'+':''}${(r.train_return??0).toFixed(1)}%</td>
-        <td class="text-right font-mono" style="color:${(r.test_return??0)>=0?'#ff6b6b':'#51cf66'}">${(r.test_return??0)>=0?'+':''}${(r.test_return??0).toFixed(1)}%</td>
-        <td class="text-right text-red-400">${(r.test_max_drawdown??0).toFixed(1)}%</td>
-        <td class="text-right">${(r.test_win_rate??0).toFixed(0)}%</td>
-        <td class="text-right"><span class="badge ${(r.overfit_score??0)>30?'badge-fail':(r.overfit_score??0)>15?'badge-warn':'badge-ok'}">${(r.overfit_score??0).toFixed(0)}</span></td>
-        <td class="text-gray-500 text-xs">${r.overfit_warning?.slice(0,40)||'OK'}</td>
+      ${data.map(s=>`<tr class="border-t border-gray-800">
+        <td class="py-1 font-mono text-blue-400">${s.code}</td>
+        <td>${s.name||''}</td>
+        <td class="text-right font-mono">${s.reference_price||'—'}</td>
+        <td class="text-right font-mono text-xs">${s.entry_price_low||'—'}～${s.entry_price_high||'—'}</td>
+        <td class="text-right font-mono text-up">${s.target_price_1||'—'}</td>
+        <td class="text-right font-mono text-dn">${s.stop_loss_price||'—'}</td>
+        <td class="text-right">${s.risk_reward_ratio||'—'}</td>
+        <td class="text-right">${s.suggested_shares||'—'} 股</td>
+        <td class="text-xs ${s.invalid_buy_condition?'text-orange-400':'text-gray-400'}">${
+          s.invalid_buy_condition ? '⚠️'+s.invalid_buy_condition.slice(0,30) : (s.candidate_pool_type||'').slice(0,20)
+        }</td>
       </tr>`).join('')}
       </tbody>
     </table>`;
 }
 
-
-// ── 決策理由 ──
-var _decisionFilter = 'all';
-
-async function loadDecisions(action) {
-  _decisionFilter = action || 'all';
-
-  var url = '/api/decisions/explanations?limit=50';
-  if (_decisionFilter !== 'all') {
-    url = '/api/decisions/explanations?action=' + encodeURIComponent(_decisionFilter) + '&limit=50';
-  }
-
+// D. 策略帳戶
+async function loadAccounts() {
   try {
-    var data = await fetch(url, {cache: 'no-store'}).then(function(r) { return r.json(); });
-    var box = document.getElementById('v3_decisions_table');
-    if (!box) return;
-
-    if (!Array.isArray(data) || data.length === 0) {
-      box.innerHTML = '<div class="text-gray-600 text-xs py-4 text-center">無記錄</div>';
-      _decisionsLoaded = true;
-      return;
-    }
-
-    box.innerHTML =
-      '<table class="w-full text-sm">' +
-      '<thead><tr class="text-gray-500 border-b border-gray-800">' +
-      '<th class="py-2 text-left">日期</th>' +
-      '<th class="py-2 text-left">股票</th>' +
-      '<th class="py-2 text-left">動作</th>' +
-      '<th class="py-2 text-left">理由</th>' +
-      '</tr></thead><tbody>' +
-      data.map(function(r) {
-        return '<tr class="border-b border-gray-900">' +
-          '<td class="py-2 text-gray-500">' + (r.trade_date || r.created_at || '') + '</td>' +
-          '<td class="py-2 font-mono">' + (r.code || '') + '</td>' +
-          '<td class="py-2">' + (r.action || r.signal || '') + '</td>' +
-          '<td class="py-2 text-gray-400">' + (r.reason || r.explanation || r.message || '') + '</td>' +
-        '</tr>';
-      }).join('') +
-      '</tbody></table>';
-
-    _decisionsLoaded = true;
-  } catch(e) {
-    console.error('[V3] loadDecisions failed', e);
-    var box = document.getElementById('v3_decisions_table');
-    if (box) {
-      box.innerHTML = '<div class="text-red-400 text-xs py-4">決策理由載入失敗：' + (e.message || e) + '</div>';
-    }
-  }
-}
-
-// ── 候選勝率 ──
-async function loadAccuracy() {
-  try {
-    var d = await fetch('/api/candidates/accuracy').then(r=>r.json());
-    var s = d.stats;
-    document.getElementById('acc_hit').textContent   = (s.hit_rate??0).toFixed(1)+'%';
-    document.getElementById('acc_stop').textContent  = (s.stop_rate??0).toFixed(1)+'%';
-    document.getElementById('acc_total').textContent = s.total??0;
-
-    var recs = d.records||[];
-    if (!recs.length) {
-      document.getElementById('v3_accuracy_table').innerHTML = '<div class="text-gray-600 text-xs py-4 text-center">尚無追蹤記錄</div>';
-      return;
-    }
-    document.getElementById('v3_accuracy_table').innerHTML = `
+    var data = await fetch('/api/strategies').then(r=>r.json());
+    document.getElementById('dc_accounts').innerHTML = `
       <table class="w-full text-xs">
         <thead><tr class="text-gray-500">
-          <th class="text-left py-1">訊號日</th><th>代號</th>
-          <th class="text-right">參考價</th><th class="text-right">5日最高</th>
-          <th class="text-right">5日最低</th><th class="text-right">結果</th>
-          <th class="text-left">錯誤類型</th>
+          <th class="text-left py-2">帳戶</th><th class="text-right">總資產</th>
+          <th class="text-right">現金</th><th class="text-right">市值</th>
+          <th class="text-right">今日損益</th><th class="text-right">累積損益</th>
+          <th class="text-left">最近交易</th>
         </tr></thead>
         <tbody>
-        ${recs.map(r=>`<tr class="border-t border-gray-800">
-          <td class="py-1 text-gray-500">${r.signal_date}</td>
-          <td><span class="text-blue-400 font-mono">${r.code}</span> ${r.name||''}</td>
-          <td class="text-right font-mono">${r.reference_price??'—'}</td>
-          <td class="text-right font-mono text-up">${r.max_return_5d!=null?(r.max_return_5d>=0?'+':'')+r.max_return_5d.toFixed(1)+'%':'—'}</td>
-          <td class="text-right font-mono text-dn">${r.min_return_5d!=null?r.min_return_5d.toFixed(1)+'%':'—'}</td>
-          <td class="text-right"><span class="badge ${r.result_label==='HIT_TARGET'?'badge-ok':r.result_label==='HIT_STOP_LOSS'?'badge-fail':'badge-hold'}">${r.result_label||'追蹤中'}</span></td>
-          <td class="text-gray-500">${r.error_type||''}</td>
+        ${data.map(a=>`<tr class="border-t border-gray-800">
+          <td class="py-1"><b>S${a.account_id}</b> ${a.name}</td>
+          <td class="text-right font-mono">${Math.round(a.total_equity||0).toLocaleString()}</td>
+          <td class="text-right font-mono">${Math.round(a.cash||0).toLocaleString()}</td>
+          <td class="text-right font-mono">${Math.round(a.market_value||0).toLocaleString()}</td>
+          <td class="text-right font-mono ${(a.daily_return||0)>=0?'text-up':'text-dn'}">${(a.daily_return||0)>=0?'+':''}${(+(a.daily_return||0)).toFixed(2)}%</td>
+          <td class="text-right font-mono ${(a.total_return||0)>=0?'text-up':'text-dn'}">${(a.total_return||0)>=0?'+':''}${(+(a.total_return||0)).toFixed(2)}%</td>
+          <td class="text-gray-500">${a.last_trade_date||'—'}</td>
         </tr>`).join('')}
         </tbody>
       </table>`;
-  } catch(e) {}
+  } catch(e) { document.getElementById('dc_accounts').textContent='載入失敗'; }
 }
 
-document.addEventListener('DOMContentLoaded', function() { loadOverview(); });
+// E. 今天不能做的事
+async function loadRestrictions() {
+  var items = [];
+
+  try {
+    var ks = await fetch('/api/v4/strategies/kill-switch').then(r=>r.json());
+    ks.filter(k=>k.status==='PAUSED').forEach(k=>
+      items.push(`🛑 S${k.strategy_id} ${k.strategy_name} 已暫停，不得新買`)
+    );
+  } catch(e){}
+
+  try {
+    var dq = await fetch('/api/quality/data').then(r=>r.json());
+    (dq.checks||[]).filter(c=>c.status==='FAIL').forEach(c=>
+      items.push(`❌ 資料異常：${c.check_type} - ${c.message}`)
+    );
+  } catch(e){}
+
+  // 固定規則
+  items.push('🚫 0050 不得被短線策略強制賣出');
+  items.push('🚫 同日買進股票，不得同日賣出同批股票（禁止當沖）');
+  items.push('⚠️ 分鐘資料未啟用，盤中提醒不可用（不影響日級 T+1 策略）');
+  items.push('📋 所有 BUY 建議需使用者確認後才可執行，系統不自動下單');
+
+  try {
+    var signals = await fetch('/api/candidates/trade-plans?limit=30').then(r=>r.json());
+    var blocked = (Array.isArray(signals)?signals:[]).filter(s=>s.invalid_buy_condition);
+    if (blocked.length)
+      items.push(`⚠️ 今日 ${blocked.length} 檔候選股不可追高（RSI過熱/離均線過遠）`);
+  } catch(e){}
+
+  document.getElementById('dc_restrictions').innerHTML =
+    items.map(i=>`<div class="dc-row"><span class="text-gray-300 text-xs">${i}</span></div>`).join('') ||
+    '<div class="text-gray-600 text-xs">今日無特別限制</div>';
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadFreshness();
+  loadMarket();
+  loadKill();
+  loadSignals();
+  loadAccounts();
+  loadRestrictions();
+});
 </script>
 {% endblock %}
-
-
-<script id="v3-rescue-loader">
-(function () {
-  function put(ids, html) {
-    for (var i = 0; i < ids.length; i++) {
-      var el = document.getElementById(ids[i]);
-      if (el) {
-        el.innerHTML = html;
-        return true;
-      }
-    }
-    return false;
-  }
-
-  function esc(x) {
-    if (x === null || x === undefined) return '';
-    return String(x).replace(/[&<>"']/g, function (m) {
-      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];
-    });
-  }
-
-  function row(a, b) {
-    return '<div class="v3-row"><span>' + esc(a) + '</span><span>' + b + '</span></div>';
-  }
-
-  function getJson(url) {
-    return fetch(url, {cache: 'no-store'}).then(function (r) {
-      if (!r.ok) throw new Error(url + ' HTTP ' + r.status);
-      return r.json();
-    });
-  }
-
-  function fail(ids, err) {
-    put(ids, '<div class="text-red-400 text-xs">載入失敗：' + esc(err.message || err) + '</div>');
-  }
-
-  function loadV3Rescue() {
-    console.log('[V3 rescue] start');
-
-    getJson('/api/v3/strategies/router').then(function (d) {
-      var trendMap = {bullish:'🟢 多頭', neutral:'🟡 盤整', bearish:'🔴 空頭'};
-      var trend = trendMap[d.market_trend] || d.market_trend || '-';
-      var pm = Math.round((d.position_multiplier || 0.65) * 100) + '%';
-      var enabled = (d.enabled_strategies || []).map(function (s) { return 'S' + s; }).join(' ') || '-';
-      var disabled = (d.disabled_strategies || []).map(function (s) { return 'S' + s; }).join(' ') || '-';
-
-      put(['v3_router', 'v3_router_overview'], 
-        row('市場狀態', '<b>' + esc(trend) + '</b>') +
-        row('風險等級', esc(d.risk_level || 'medium')) +
-        row('部位倍率', '<span class="text-accent font-mono">' + esc(pm) + '</span>') +
-        row('啟用策略', '<span class="text-green-400">' + esc(enabled) + '</span>') +
-        row('停用策略', '<span class="text-red-400">' + esc(disabled) + '</span>')
-      );
-    }).catch(function (e) {
-      console.error('[V3 rescue] router failed', e);
-      fail(['v3_router', 'v3_router_overview'], e);
-    });
-
-    getJson('/api/capital/config').then(function (d) {
-      var total = d.total_capital || d.initial_capital || d.capital || '-';
-      if (typeof total === 'number') total = total.toLocaleString('zh-TW');
-      put(['v3_capital', 'v3_capital_overview'],
-        row('模式', esc(d.mode || d.trading_mode || '-')) +
-        row('總資金', esc(total)) +
-        row('核心比例', d.core_ratio != null ? Math.round(d.core_ratio * 100) + '%' : '-') +
-        row('主動比例', d.active_ratio != null ? Math.round(d.active_ratio * 100) + '%' : '-')
-      );
-    }).catch(function (e) {
-      console.error('[V3 rescue] capital failed', e);
-      fail(['v3_capital', 'v3_capital_overview'], e);
-    });
-
-    getJson('/api/market/overview').then(function (d) {
-      put(['v3_market', 'v3_market_overview'],
-        row('交易日', esc(d.trade_date || d.latest_trade_date || '-')) +
-        row('上漲家數', esc(d.up || '-')) +
-        row('下跌家數', esc(d.down || '-')) +
-        row('平盤家數', esc(d.flat || '-'))
-      );
-    }).catch(function (e) {
-      console.error('[V3 rescue] market failed', e);
-      fail(['v3_market', 'v3_market_overview'], e);
-    });
-
-    getJson('/api/v3/strategies/leaderboard').then(function (data) {
-      var rows = Array.isArray(data) ? data : (data.items || data.strategies || []);
-      var html = rows.slice(0, 8).map(function (r, i) {
-        var name = r.name || r.strategy_name || ('S' + (r.strategy_id || r.id || '-'));
-        var ret = r.total_return != null ? Number(r.total_return).toFixed(2) + '%' : (r.score || '-');
-        return '<div class="v3-row"><span>#' + (i + 1) + ' ' + esc(name) + '</span><span class="font-mono">' + esc(ret) + '</span></div>';
-      }).join('');
-      if (!html) html = '<div class="text-gray-400 text-sm">目前沒有排行榜資料</div>';
-      put(['v3_leaderboard_overview', 'v3_leaderboard'], html);
-    }).catch(function (e) {
-      console.error('[V3 rescue] leaderboard failed', e);
-      fail(['v3_leaderboard_overview', 'v3_leaderboard'], e);
-    });
-
-    getJson('/api/watchlist/alerts?limit=5').then(function (data) {
-      var rows = Array.isArray(data) ? data : (data.items || data.alerts || []);
-      var html = rows.slice(0, 5).map(function (r) {
-        return '<div class="v3-row"><span>' + esc((r.code || '') + ' ' + (r.name || '')) + '</span><span>' + esc(r.message || r.reason || r.alert_type || '-') + '</span></div>';
-      }).join('');
-      if (!html) html = '<div class="text-gray-400 text-sm">目前沒有提醒</div>';
-      put(['v3_alerts_overview', 'v3_alerts'], html);
-    }).catch(function (e) {
-      console.error('[V3 rescue] alerts failed', e);
-      fail(['v3_alerts_overview', 'v3_alerts'], e);
-    });
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', loadV3Rescue);
-  } else {
-    loadV3Rescue();
-  }
-})();
-</script>

@@ -250,6 +250,13 @@ def update_theme_trends(target_date) -> dict:
 
 
 
+
+def _build_tech(target_date) -> dict:
+    """計算技術指標"""
+    from backend.services.technical_features import build_technical_features
+    n = build_technical_features(target_date)
+    return {"ok": True, "updated": n}
+
 def _snapshot_equity(target_date) -> dict:
     """每日收盤後快照所有策略帳戶的估值"""
     from backend.models.database import SessionLocal
@@ -324,6 +331,7 @@ def run_latest_update(trade_date: str | None = None) -> dict[str, Any]:
         steps.append(_step("daily_eod", lambda: update_daily_eod(target_date)))
         steps.append(_step("scores", lambda: recompute_scores_for_date(target_date)))
         steps.append(_step("theme_trends", lambda: update_theme_trends(target_date)))
+        steps.append(_step("technical_features", lambda: _build_tech(target_date)))
         steps.append(_step("equity_snapshot", lambda: _snapshot_equity(target_date)))
 
         ok = all(s["ok"] for s in steps)
