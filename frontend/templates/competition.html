@@ -172,20 +172,25 @@ function drawRaceChart(accounts){
   const ctx = document.getElementById('race_chart').getContext('2d');
   if(raceChart) raceChart.destroy();
 
+  // P0-4 日期對齊
+  const _allDates = new Set();
+  accounts.forEach(a => (a.curve||[]).forEach(p => _allDates.add(p.date)));
+  const _labels = [..._allDates].sort();
+
   const datasets = accounts.map((acc,i)=>({
     label: acc.name,
-    data:  acc.curve.map(p=>({x:p.date, y:p.total})),
+    data: _labels.map(d => { const p = (acc.curve||[]).find(x=>x.date===d); return p ? +((p.total/(acc.curve[0]?.total||200000)-1)*100).toFixed(3) : null; }),
     borderColor:     COLORS[i % COLORS.length],
     backgroundColor: COLORS[i % COLORS.length]+'22',
     fill:  false,
     borderWidth: 2,
     pointRadius: 2,
-    tension: 0.3,
+    tension: 0.3, spanGaps: true,
   }));
 
   raceChart = new Chart(ctx, {
     type:'line',
-    data:{ datasets },
+    data:{ labels:_labels, datasets },
     options:{
       responsive:true, maintainAspectRatio:false,
       interaction:{ mode:'index', intersect:false },
@@ -195,7 +200,7 @@ function drawRaceChart(accounts){
           backgroundColor:'#1c2128', borderColor:'#30363d', borderWidth:1,
           titleColor:'#e6edf3', bodyColor:'#7d8590',
           callbacks:{
-            label: ctx => ` ${ctx.dataset.label}: ${fmt(ctx.parsed.y)}`
+            label: ctx => ctx.raw==null ? ctx.dataset.label+': 無資料' : ` ${ctx.dataset.label}: ${ctx.raw>=0?'+':''}${ctx.raw.toFixed(2)}%`
           }
         }
       },
