@@ -249,6 +249,65 @@ def update_theme_trends(target_date) -> dict:
         db.close()
 
 
+
+def _snapshot_equity(target_date) -> dict:
+    """每日收盤後快照所有策略帳戶的估值"""
+    from backend.models.database import SessionLocal
+    from sqlalchemy import text
+    from loguru import logger
+    db = SessionLocal()
+    try:
+        accounts = db.execute(text("SELECT id FROM strategy_accounts")).fetchall()
+        updated = 0
+        for (aid,) in accounts:
+            # 取最新持倉市值
+            mkt = db.execute(text("""
+                SELECT SUM(p.shares * o.close)
+                FROM positions p
+                LEFT JOIN ohlcv_daily o ON o.code=p.code
+                  AND o.trade_date=(SELECT MAX(trade_date) FROM ohlcv_daily)
+                WHERE p.account_id=:aid
+            """), {"aid": aid}).scalar() or 0
+
+            # 取現金（最新 equity_curve 的 cash，或估算）
+            last_eq = db.execute(text("""
+                SELECT cash, total_equity FROM equity_curve
+                WHERE account_id=:aid ORDER BY snap_date DESC LIMIT 1
+            """), {"aid": aid}).fetchone()
+
+            cash = float(last_eq[0] or 0) if last_eq else 200000
+            total = cash + float(mkt or 0)
+            if total <= 0: total = float(last_eq[1] or 200000) if last_eq else 200000
+
+            # 計算日報酬
+            prev = db.execute(text("""
+                SELECT total_equity FROM equity_curve
+                WHERE account_id=:aid AND snap_date < :d
+                ORDER BY snap_date DESC LIMIT 1
+            """), {"aid": aid, "d": str(target_date)}).scalar()
+            daily_ret = (total / float(prev) - 1) * 100 if prev and float(prev) > 0 else 0
+
+            db.execute(text("""
+                INSERT INTO equity_curve (account_id, snap_date, cash, market_value, total_equity, daily_return)
+                VALUES (:aid, :d, :cash, :mkt, :total, :ret)
+                ON CONFLICT(account_id, snap_date) DO UPDATE SET
+                    cash=excluded.cash, market_value=excluded.market_value,
+                    total_equity=excluded.total_equity, daily_return=excluded.daily_return
+            """), {"aid": aid, "d": str(target_date), "cash": cash,
+                   "mkt": float(mkt or 0), "total": total, "ret": daily_ret})
+            updated += 1
+
+        db.commit()
+        logger.info(f"[EQUITY] {target_date} 快照 {updated} 個帳戶")
+        return {"ok": True, "updated": updated}
+    except Exception as e:
+        db.rollback()
+        logger.error(f"[EQUITY] 快照失敗: {e}")
+        return {"ok": False, "error": str(e)}
+    finally:
+        db.close()
+
+
 def run_latest_update(trade_date: str | None = None) -> dict[str, Any]:
     if not _UPDATE_LOCK.acquire(blocking=False):
         return {
@@ -265,6 +324,7 @@ def run_latest_update(trade_date: str | None = None) -> dict[str, Any]:
         steps.append(_step("daily_eod", lambda: update_daily_eod(target_date)))
         steps.append(_step("scores", lambda: recompute_scores_for_date(target_date)))
         steps.append(_step("theme_trends", lambda: update_theme_trends(target_date)))
+        steps.append(_step("equity_snapshot", lambda: _snapshot_equity(target_date)))
 
         ok = all(s["ok"] for s in steps)
 

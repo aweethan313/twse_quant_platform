@@ -1197,11 +1197,6 @@ def api_paper_research_log(
     return {"logs": logs, "summary": summary}
 
 
-@app.get("/candidates", response_class=HTMLResponse)
-def page_candidates(request: Request):
-    return templates.TemplateResponse("candidates.html", {"request": request})
-
-
 # ═══════════════════════════════════
 # V3b APIs (FIX-10~15)
 # ═══════════════════════════════════
@@ -1436,74 +1431,6 @@ def api_sector_heat():
     ]
 
 
-@app.get("/api/research/backtest-paper-gap")
-def api_backtest_paper_gap(strategy_id: int = None, limit: int = 100):
-    """V4-5 回測vs實測差距（骨架）"""
-    from backend.models.database import SessionLocal
-    from sqlalchemy import text as _text
-    db = SessionLocal()
-    try:
-        q = "SELECT * FROM backtest_paper_gap_analysis WHERE 1=1"
-        params = {}
-        if strategy_id: q += " AND strategy_id=:sid"; params["sid"] = strategy_id
-        q += " ORDER BY id DESC LIMIT :limit"; params["limit"] = limit
-        rows = db.execute(_text(q), params).fetchall()
-        return [dict(zip(
-            ["id","analysis_date","strategy_id","account_id","code","signal_date",
-             "backtest_expected_return_1d","backtest_expected_return_3d","backtest_expected_return_5d",
-             "paper_actual_return_1d","paper_actual_return_3d","paper_actual_return_5d",
-             "expected_fill_price","actual_fill_price","fill_price_gap","slippage_gap",
-             "missed_trade","risk_blocked","gap_reason","severity","created_at"], r
-        )) for r in rows]
-    finally:
-        db.close()
-
-
-@app.get("/api/research/strategy-attribution")
-def api_strategy_attribution(strategy_id: int = None, limit: int = 100):
-    """V4-6 策略獲利歸因（骨架）"""
-    from backend.models.database import SessionLocal
-    from sqlalchemy import text as _text
-    db = SessionLocal()
-    try:
-        q = "SELECT * FROM strategy_attribution WHERE 1=1"
-        params = {}
-        if strategy_id: q += " AND strategy_id=:sid"; params["sid"] = strategy_id
-        q += " ORDER BY total_pnl DESC LIMIT :limit"; params["limit"] = limit
-        rows = db.execute(_text(q), params).fetchall()
-        return rows
-    finally:
-        db.close()
-
-
-@app.get("/api/portfolio/optimizer")
-def api_portfolio_optimizer(account_id: int = None):
-    """V4-7 投組配置器（骨架）"""
-    from backend.models.database import SessionLocal
-    from sqlalchemy import text as _text
-    from backend.v4.market_sector import get_theme_exposure
-    db = SessionLocal()
-    try:
-        exposure = get_theme_exposure(account_id)
-        equity = db.execute(_text("""
-            SELECT total_equity, cash FROM equity_curve
-            WHERE (:aid IS NULL OR account_id=:aid)
-            ORDER BY snap_date DESC LIMIT 1
-        """), {"aid": account_id}).fetchone()
-        total = float(equity[0] or 200000) if equity else 200000
-        cash = float(equity[1] or 0) if equity else 0
-        return {
-            "total_capital": total,
-            "cash": cash,
-            "cash_ratio": round(cash/total*100, 1) if total else 0,
-            "theme_exposure": exposure,
-            "recommendation": "⚠️ 需確認主題曝險是否過度集中" if exposure else "正常",
-            "note": "系統模式：輔助建議，非自動下單",
-        }
-    finally:
-        db.close()
-
-
 @app.get("/api/intraday/watch")
 def api_intraday_watch():
     """V4-8 盤中觀察（無分鐘資料時SKIPPED）"""
@@ -1519,21 +1446,6 @@ def api_intraday_watch():
         return {"status": "OK", "events": rows}
     except:
         return {"status": "SKIPPED", "reason": "ohlcv_1min 資料表不存在", "events": []}
-    finally:
-        db.close()
-
-
-@app.get("/api/risk/scenario-stress")
-def api_scenario_stress(account_id: int = None):
-    """V4-10 情境壓力測試（骨架）"""
-    from backend.models.database import SessionLocal
-    from sqlalchemy import text as _text
-    db = SessionLocal()
-    try:
-        rows = db.execute(_text("SELECT * FROM scenario_stress_results ORDER BY id DESC LIMIT 20")).fetchall()
-        if not rows:
-            return {"note": "尚無壓力測試結果，請執行 v4_10_run_scenario_stress_test"}
-        return rows
     finally:
         db.close()
 
