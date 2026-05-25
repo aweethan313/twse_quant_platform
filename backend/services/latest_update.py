@@ -262,7 +262,7 @@ def _snapshot_equity(target_date) -> dict:
         for (aid,) in accounts:
             # 取最新持倉市值
             mkt = db.execute(text("""
-                SELECT SUM(p.shares * o.close)
+                SELECT SUM(p.lots * o.close)
                 FROM positions p
                 LEFT JOIN ohlcv_daily o ON o.code=p.code
                   AND o.trade_date=(SELECT MAX(trade_date) FROM ohlcv_daily)
