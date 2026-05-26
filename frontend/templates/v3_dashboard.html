@@ -283,45 +283,51 @@ async function loadAccounts() {
 // E. 今天不能做的事
 async function loadReview() {
   try {
-    var d = await fetch('/api/daily-review-latest').then(r=>r.json());
-    document.getElementById('review_date').textContent = d.signal_date || '';
-    var content = d.content || '';
-    // 抽取整體成績
-    var lines = content.split('\n');
-    var stats = {};
-    lines.forEach(l => {
-      if (l.includes('建議股數')) stats.total = l.match(/\d+/)?.[0];
-      if (l.includes('正報酬')) stats.win = l.match(/(\d+)\/\d+（(\d+)%）/);
-      if (l.includes('平均漲跌')) stats.avg = l.match(/[+-]?[\d.]+%/)?.[0];
-    });
-    // 前3強
-    var top3 = [];
-    var inTop = false;
-    lines.forEach(l => {
-      if (l.includes('## 🏆')) { inTop = true; return; }
-      if (inTop && l.startsWith('- **')) {
-        top3.push(l.replace('- **','').replace('**',''));
-        if (top3.length >= 3) inTop = false;
-      }
-    });
-    var winRate = stats.win ? stats.win[2] : '—';
-    var winColor = parseInt(winRate) >= 60 ? '#44ff88' : parseInt(winRate) >= 40 ? '#ffcc00' : '#ff4444';
+    // 用 history API 直接拿結構化資料
+    var hist = await fetch('/api/daily-review-history?limit=1').then(r=>r.json());
+    if (!hist.length) {
+      document.getElementById('review_summary').textContent = '尚無檢討資料';
+      return;
+    }
+    var r = hist[0];
+    document.getElementById('review_date').textContent = r.signal_date + ' → ' + r.review_date;
+    var winColor = r.win_rate >= 60 ? '#44ff88' : r.win_rate >= 40 ? '#ffcc00' : '#ff4444';
+    var retColor = r.avg_return >= 0 ? '#ff6b6b' : '#51cf66';
+
+    // 前3強（從詳細 API 取）
+    var top3txt = '';
+    try {
+      var detail = await fetch('/api/daily-review?signal_date='+r.signal_date+'&review_date='+r.review_date).then(x=>x.json());
+      var lines = (detail.content||'').split('\n');
+      var top3 = [], inTop = false;
+      lines.forEach(l => {
+        if (l.includes('## 🏆')) { inTop = true; return; }
+        if (inTop && l.startsWith('- **')) {
+          top3.push(l.replace(/- \*\*(.+?)\*\*.*/,'$1'));
+          if (top3.length >= 3) inTop = false;
+        }
+      });
+      top3txt = top3.join(' / ');
+    } catch(e) {}
+
     document.getElementById('review_summary').innerHTML = `
       <div class="grid grid-cols-3 gap-2 mb-2">
         <div class="text-center">
-          <div class="text-lg font-bold" style="color:${winColor}">${winRate}%</div>
+          <div class="text-xl font-bold" style="color:${winColor}">${r.win_rate}%</div>
           <div class="text-xs text-gray-500">勝率</div>
         </div>
         <div class="text-center">
-          <div class="text-lg font-bold text-accent">${stats.avg||'—'}</div>
-          <div class="text-xs text-gray-500">平均漲幅</div>
+          <div class="text-xl font-bold" style="color:${retColor}">${r.avg_return>=0?'+':''}${r.avg_return.toFixed(2)}%</div>
+          <div class="text-xs text-gray-500">平均報酬</div>
         </div>
         <div class="text-center">
-          <div class="text-lg font-bold">${stats.total||'—'}</div>
+          <div class="text-xl font-bold">${r.total}</div>
           <div class="text-xs text-gray-500">建議股數</div>
         </div>
       </div>
-      <div class="text-xs text-gray-400">🏆 前3強：${top3.join(' / ') || '—'}</div>
+      <div class="text-xs text-gray-400 mb-1">🏆 前3強：${top3txt || '—'}</div>
+      <button onclick="loadReviewDetail('${r.signal_date}','${r.review_date}');document.getElementById('review_history_card').classList.remove('hidden')"
+        class="text-xs text-blue-400 hover:underline">查看完整檢討書 →</button>
     `;
   } catch(e) {
     document.getElementById('review_summary').textContent = '尚無檢討資料';
