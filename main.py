@@ -1676,3 +1676,47 @@ def api_daily_review_latest():
         return {"signal_date": None, "content": "尚無可供檢討的資料"}
     finally:
         db.close()
+
+@app.get("/api/daily-review-history")
+def api_daily_review_history(limit: int = 30):
+    """歷史檢討書清單"""
+    from backend.models.database import SessionLocal
+    from sqlalchemy import text as _t
+    from pathlib import Path
+    db = SessionLocal()
+    try:
+        dates = db.execute(_t("""
+            SELECT DISTINCT plan_date FROM candidate_trade_plans
+            ORDER BY plan_date DESC LIMIT :n
+        """), {"n": limit}).fetchall()
+        results = []
+        for (plan_date,) in dates:
+            next_day = db.execute(_t("""
+                SELECT MIN(trade_date) FROM ohlcv_daily WHERE trade_date > :d
+            """), {"d": plan_date}).scalar()
+            if not next_day: continue
+            # 統計績效
+            rows = db.execute(_t("""
+                SELECT COUNT(DISTINCT ctp.code),
+                       AVG(o.change_pct),
+                       SUM(CASE WHEN o.change_pct > 0 THEN 1 ELSE 0 END)
+                FROM candidate_trade_plans ctp
+                LEFT JOIN ohlcv_daily o ON o.code=ctp.code AND o.trade_date=:rev
+                WHERE ctp.plan_date=:sig AND o.close IS NOT NULL
+            """), {"sig": plan_date, "rev": next_day}).fetchone()
+            total = int(rows[0] or 0)
+            avg_ret = round(float(rows[1] or 0), 2)
+            win = int(rows[2] or 0)
+            path = Path(f"data/reports/daily_review_{plan_date}.md")
+            results.append({
+                "signal_date": str(plan_date),
+                "review_date": str(next_day),
+                "total": total,
+                "win": win,
+                "win_rate": round(win/total*100, 1) if total else 0,
+                "avg_return": avg_ret,
+                "has_report": path.exists(),
+            })
+        return results
+    finally:
+        db.close()
