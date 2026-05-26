@@ -1690,7 +1690,18 @@ def api_daily_review_history(limit: int = 30):
             ORDER BY plan_date DESC LIMIT :n
         """), {"n": limit}).fetchall()
         results = []
-        for (plan_date,) in dates:
+        # 也掃描已產生的報告檔案
+        from pathlib import Path
+        import re as _re
+        report_dates = set()
+        for f in Path("data/reports").glob("daily_review_*.md"):
+            m = _re.search(r'daily_review_(\d{4}-\d{2}-\d{2})\.md', f.name)
+            if m: report_dates.add(m.group(1))
+
+        # 合併 DB 日期 + 已有報告日期
+        all_signal_dates = set(str(d[0]) for d in dates) | report_dates
+
+        for plan_date in sorted(all_signal_dates, reverse=True)[:limit]:
             next_day = db.execute(_t("""
                 SELECT MIN(trade_date) FROM ohlcv_daily WHERE trade_date > :d
             """), {"d": plan_date}).scalar()
