@@ -269,7 +269,7 @@ async function loadCandidates() {
 
   try {
     // T+1 交易建議（RSI<85 過濾、核心大型股優先）
-    const plans = await fetch('/api/candidates/trade-plans?limit=50').then(r=>r.json());
+    const plans = await fetch('/api/candidates/trade-plans?limit=10').then(r=>r.json());
     const avoid = await fetch('/api/stocks/rankings?rank_mode=avoid_chase&limit=10').then(r=>r.json());
 
     const seen = new Set();

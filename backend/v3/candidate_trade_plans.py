@@ -261,7 +261,7 @@ def generate_daily_plans(plan_date: date = None, limit: int = 30) -> list[dict]:
                 END,
                 ds.final_score DESC
             LIMIT :n
-        """), {"n": min(limit, 15)}).fetchall()
+        """), {"n": min(limit, 10)}).fetchall()
 
         # 取 risk_level
         ctx = db.execute(text("""
