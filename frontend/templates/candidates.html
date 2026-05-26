@@ -268,20 +268,35 @@ async function loadCandidates() {
   } catch(e) {}
 
   try {
-    // 載入所有候選（BUY + WATCH + AVOID_CHASE）
-    const [buy, watch, avoid] = await Promise.all([
-      fetch('/api/stocks/rankings?rank_mode=final&limit=30&max_risk_score=60').then(r=>r.json()),
-      fetch('/api/stocks/rankings?rank_mode=candidate&limit=15&max_risk_score=100').then(r=>r.json()),
-      fetch('/api/stocks/rankings?rank_mode=avoid_chase&limit=10').then(r=>r.json()),
-    ]);
+    // T+1 交易建議（RSI<85 過濾、核心大型股優先）
+    const plans = await fetch('/api/candidates/trade-plans?limit=50').then(r=>r.json());
+    const avoid = await fetch('/api/stocks/rankings?rank_mode=avoid_chase&limit=10').then(r=>r.json());
 
-    // 合併去重
     const seen = new Set();
     _allData = [];
-    for (const r of [...buy, ...watch, ...avoid]) {
+    for (const p of plans) {
+      if (!seen.has(p.code)) {
+        seen.add(p.code);
+        _allData.push({
+          code: p.code, name: p.name,
+          close: p.reference_price, change_pct: null,
+          final_score: p.candidate_score || 0,
+          risk_score: p.risk_score || 20,
+          final_action: p.invalid_buy_condition ? 'AVOID_CHASE' : 'BUY',
+          stock_class: p.candidate_pool_type || 'LARGE_LIQUID',
+          entry_low: p.entry_price_low, entry_high: p.entry_price_high,
+          target: p.target_price_1, stop_loss: p.stop_loss_price,
+          suggested_shares: p.suggested_shares,
+          suggested_amount: p.suggested_amount,
+          risk_reward: p.risk_reward_ratio,
+          blocked: p.invalid_buy_condition, _is_plan: true,
+        });
+      }
+    }
+    for (const r of avoid) {
       if (!seen.has(r.code)) {
         seen.add(r.code);
-        _allData.push(r);
+        _allData.push({...r, final_action: 'AVOID_CHASE'});
       }
     }
 
