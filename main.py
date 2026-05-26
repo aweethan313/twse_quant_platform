@@ -1697,12 +1697,14 @@ def api_daily_review_history(limit: int = 30):
             if not next_day: continue
             # 統計績效
             rows = db.execute(_t("""
-                SELECT COUNT(DISTINCT ctp.code),
-                       AVG(o.change_pct),
-                       SUM(CASE WHEN o.change_pct > 0 THEN 1 ELSE 0 END)
-                FROM candidate_trade_plans ctp
-                LEFT JOIN ohlcv_daily o ON o.code=ctp.code AND o.trade_date=:rev
-                WHERE ctp.plan_date=:sig AND o.close IS NOT NULL
+                SELECT COUNT(*), AVG(change_pct),
+                       SUM(CASE WHEN change_pct > 0 THEN 1 ELSE 0 END)
+                FROM (
+                    SELECT DISTINCT ctp.code, o.change_pct
+                    FROM candidate_trade_plans ctp
+                    LEFT JOIN ohlcv_daily o ON o.code=ctp.code AND o.trade_date=:rev
+                    WHERE ctp.plan_date=:sig AND o.close IS NOT NULL
+                )
             """), {"sig": plan_date, "rev": next_day}).fetchone()
             total = int(rows[0] or 0)
             avg_ret = round(float(rows[1] or 0), 2)
