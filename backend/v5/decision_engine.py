@@ -268,11 +268,21 @@ def _get_candidates(db, cfg: dict, signal_date: date) -> list[dict]:
     if theme_filter:
         themes = [t.strip() for t in theme_filter.split(",")]
         theme_placeholders = ",".join(f"'{t}'" for t in themes)
+        # theme_trend_daily 用 leader_codes 欄位
+        theme_likes = " OR ".join(
+            f"ttd.leader_codes LIKE '%'||ds.code||'%'"
+            for _ in themes
+        )
         conditions.append(f"""
             ds.code IN (
-                SELECT ttd.code FROM theme_trend_daily ttd
-                WHERE ttd.theme IN ({theme_placeholders})
-                AND ttd.context_date=:sd
+                SELECT DISTINCT ds2.code FROM daily_scores ds2
+                WHERE ds2.score_date=:sd
+                AND EXISTS (
+                    SELECT 1 FROM theme_trend_daily ttd
+                    WHERE ttd.theme IN ({theme_placeholders})
+                    AND ttd.context_date=:sd
+                    AND ttd.leader_codes LIKE '%' || ds2.code || '%'
+                )
             )
         """)
 
