@@ -30,6 +30,9 @@
   <div class="flex items-center justify-between mb-6">
     <div>
       <h1 class="text-xl font-bold text-white">📋 今日候選清單</h1>
+      <div class="mt-1 text-xs text-blue-400 bg-blue-900/20 border border-blue-800 rounded px-3 py-1 inline-block">
+        📋 T+1 模式｜使用 <span id="cand_data_date">—</span> 收盤資料｜預計 <span id="cand_exec_date">—</span> 交易｜RSI&lt;85 已過濾｜核心大型股優先
+      </div>
       <p class="text-sm text-gray-500 mt-1" id="update_time">載入中...</p>
     </div>
     <div class="flex items-center gap-3">
@@ -253,6 +256,16 @@ async function load0050() {
 async function loadCandidates() {
   document.getElementById('candidates_list').innerHTML =
     '<div class="text-center py-16 text-gray-500">🔍 分析中...</div>';
+  // 顯示資料日期
+  try {
+    const fr = await fetch('/api/freshness').then(r=>r.json());
+    const dataDate = fr.daily_scores || fr.ohlcv_daily || '—';
+    document.getElementById('cand_data_date').textContent = dataDate;
+    if (dataDate && dataDate !== '—') {
+      const next = new Date(new Date(dataDate).getTime()+86400000).toISOString().slice(0,10);
+      document.getElementById('cand_exec_date').textContent = next;
+    }
+  } catch(e) {}
 
   try {
     // 載入所有候選（BUY + WATCH + AVOID_CHASE）
