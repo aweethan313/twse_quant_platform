@@ -59,9 +59,29 @@
   <div class="dc-card mb-4" id="review_card">
     <div class="flex items-center justify-between mb-2">
       <div class="text-xs text-gray-500 font-semibold uppercase tracking-wide">📋 昨日選股檢討</div>
-      <span class="text-xs text-gray-600" id="review_date"></span>
+      <div class="flex items-center gap-2">
+        <span class="text-xs text-gray-600" id="review_date"></span>
+        <button onclick="showReviewHistory()" class="text-xs px-2 py-0.5 rounded bg-surface-3 text-blue-400 hover:text-white">📚 歷史記錄</button>
+      </div>
     </div>
     <div id="review_summary">載入中...</div>
+  </div>
+
+  <!-- 歷史檢討記錄（預設隱藏）-->
+  <div class="dc-card mb-4 hidden" id="review_history_card">
+    <div class="flex items-center justify-between mb-3">
+      <div class="text-xs text-gray-500 font-semibold uppercase tracking-wide">📚 歷史選股檢討</div>
+      <button onclick="hideReviewHistory()" class="text-xs text-gray-500 hover:text-white">✕ 關閉</button>
+    </div>
+    <div id="review_history_list">載入中...</div>
+    <!-- 詳細檢討書 -->
+    <div id="review_detail" class="hidden mt-4 pt-4 border-t border-gray-700">
+      <div class="flex items-center justify-between mb-2">
+        <div class="text-xs font-semibold" id="review_detail_title"></div>
+        <button onclick="closeReviewDetail()" class="text-xs text-gray-500">✕</button>
+      </div>
+      <div id="review_detail_content" class="text-xs text-gray-300 overflow-y-auto" style="max-height:400px; white-space:pre-wrap"></div>
+    </div>
   </div>
 
   <!-- C. T+1 交易建議 -->
