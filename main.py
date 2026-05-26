@@ -1643,3 +1643,36 @@ def api_daily_review(signal_date: str = None, review_date: str = None):
             return {"signal_date": str(sig), "error": str(e)}
     return {"signal_date": str(sig), "content": "尚無檢討書，請先執行每日工作流程"}
 
+
+@app.get("/api/daily-review-latest")
+def api_daily_review_latest():
+    """自動找最新有資料的每日檢討書"""
+    from backend.services.daily_review import generate_daily_review
+    from backend.models.database import SessionLocal
+    from sqlalchemy import text as _t
+    from datetime import date as ddate
+    db = SessionLocal()
+    try:
+        # 找最新 plan_date + 其下一個交易日
+        dates = db.execute(_t("""
+            SELECT DISTINCT plan_date FROM candidate_trade_plans
+            ORDER BY plan_date DESC LIMIT 5
+        """)).fetchall()
+        for (plan_date,) in dates:
+            # 找 plan_date 之後有 ohlcv 的最近日期
+            next_day = db.execute(_t("""
+                SELECT MIN(trade_date) FROM ohlcv_daily
+                WHERE trade_date > :d
+            """), {"d": plan_date}).scalar()
+            if next_day:
+                from datetime import date as dd
+                sig = dd.fromisoformat(str(plan_date))
+                rev = dd.fromisoformat(str(next_day))
+                path = generate_daily_review(sig, rev)
+                if path:
+                    with open(path, encoding="utf-8") as f:
+                        return {"signal_date": str(sig), "review_date": str(rev),
+                                "path": path, "content": f.read()}
+        return {"signal_date": None, "content": "尚無可供檢討的資料"}
+    finally:
+        db.close()

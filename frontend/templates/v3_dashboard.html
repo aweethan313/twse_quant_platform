@@ -263,7 +263,7 @@ async function loadAccounts() {
 // E. 今天不能做的事
 async function loadReview() {
   try {
-    var d = await fetch('/api/daily-review').then(r=>r.json());
+    var d = await fetch('/api/daily-review-latest').then(r=>r.json());
     document.getElementById('review_date').textContent = d.signal_date || '';
     var content = d.content || '';
     // 抽取整體成績
