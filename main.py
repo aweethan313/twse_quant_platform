@@ -2211,3 +2211,122 @@ def api_manual_fill(body: dict):
         return {"ok": False, "error": str(e)}
     finally:
         db.close()
+
+# ── strategy_registry ──
+@app.get("/api/strategies/registry")
+def api_strategy_registry():
+    """策略帳戶設定清單"""
+    from backend.models.database import SessionLocal
+    from sqlalchemy import text as _t
+    db = SessionLocal()
+    try:
+        rows = db.execute(_t("""
+            SELECT a.id, a.name, a.mode, a.initial_cash,
+                   cfg.strategy_name, cfg.min_score, cfg.max_positions,
+                   cfg.stop_loss_pct, cfg.take_profit_pct,
+                   cfg.large_cap_only, cfg.no_chase_enabled,
+                   cfg.max_rsi14, cfg.min_rsi14, cfg.theme_filter,
+                   cfg.target_0050_pct, cfg.description, cfg.is_active
+            FROM strategy_accounts a
+            LEFT JOIN strategy_account_configs cfg ON cfg.account_id=a.id
+            WHERE a.id >= 11 ORDER BY a.id
+        """)).fetchall()
+        cols = ["account_id","name","mode","initial_cash","strategy_name",
+                "min_score","max_positions","stop_loss_pct","take_profit_pct",
+                "large_cap_only","no_chase_enabled","max_rsi14","min_rsi14",
+                "theme_filter","target_0050_pct","description","is_active"]
+        return [dict(zip(cols, r)) for r in rows]
+    finally:
+        db.close()
+
+
+# ── fundamental 覆蓋率 ──
+@app.get("/api/data-quality/fundamental")
+def api_fundamental_coverage():
+    """基本面資料覆蓋率"""
+    from backend.models.database import SessionLocal
+    from sqlalchemy import text as _t
+    db = SessionLocal()
+    try:
+        total_stocks = db.execute(_t("SELECT COUNT(DISTINCT code) FROM stock_meta")).scalar() or 0
+        fund_count = db.execute(_t("SELECT COUNT(DISTINCT code) FROM fundamental")).scalar() or 0
+        return {
+            "total_stocks": total_stocks,
+            "fundamental_count": fund_count,
+            "coverage_pct": round(fund_count/total_stocks*100, 1) if total_stocks else 0,
+            "note": "fundamental 表目前覆蓋率低，基本面分數以預設值填充",
+        }
+    finally:
+        db.close()
+
+
+# ── RSI 計算驗證 ──
+@app.get("/api/data-quality/rsi-check")
+def api_rsi_check(code: str = "2330"):
+    """驗證 RSI14 計算是否正確（用最近14期）"""
+    from backend.models.database import SessionLocal
+    from sqlalchemy import text as _t
+    import math
+    db = SessionLocal()
+    try:
+        closes = db.execute(_t("""
+            SELECT close FROM ohlcv_daily
+            WHERE code=:c ORDER BY trade_date DESC LIMIT 20
+        """), {"c": code}).fetchall()
+        if len(closes) < 15:
+            return {"ok": False, "message": "資料不足15筆"}
+        c_list = [float(r[0]) for r in reversed(closes)]
+        gains = [max(c_list[i]-c_list[i-1], 0) for i in range(1, 15)]
+        losses = [max(c_list[i-1]-c_list[i], 0) for i in range(1, 15)]
+        ag, al = sum(gains)/14, sum(losses)/14
+        rsi_manual = 100 - 100/(1 + ag/al) if al else 100.0
+        stored = db.execute(_t("""
+            SELECT rsi14 FROM technical_daily_features
+            WHERE code=:c ORDER BY trade_date DESC LIMIT 1
+        """), {"c": code}).scalar()
+        diff = abs(float(stored or 0) - rsi_manual)
+        return {
+            "code": code,
+            "rsi_manual_calc": round(rsi_manual, 2),
+            "rsi_stored": float(stored or 0),
+            "diff": round(diff, 2),
+            "ok": diff < 5,
+            "message": "✅ RSI 計算正確" if diff < 5 else f"⚠️ 差異 {diff:.1f}，可能需要重算",
+        }
+    finally:
+        db.close()
+
+
+# ── 月度競賽 drawdown ──
+@app.get("/api/monthly/drawdown")
+def api_monthly_drawdown(start_date: str = None):
+    """各帳戶回撤曲線"""
+    from backend.models.database import SessionLocal
+    from sqlalchemy import text as _t
+    from datetime import date as ddate
+    if not start_date:
+        today = ddate.today()
+        start_date = f"{today.year}-{today.month:02d}-01"
+    db = SessionLocal()
+    try:
+        accounts = db.execute(_t(
+            "SELECT id, name FROM strategy_accounts WHERE id >= 11"
+        )).fetchall()
+        result = []
+        for aid, aname in accounts:
+            rows = db.execute(_t("""
+                SELECT snap_date, total_equity FROM equity_curve
+                WHERE account_id=:id AND snap_date>=:sd ORDER BY snap_date
+            """), {"id": aid, "sd": start_date}).fetchall()
+            if not rows: continue
+            peak = float(rows[0][1] or 200000)
+            curve = []
+            for d, eq in rows:
+                eq_f = float(eq or peak)
+                if eq_f > peak: peak = eq_f
+                dd = round((eq_f/peak - 1)*100, 3)
+                curve.append({"date": d, "drawdown": dd})
+            result.append({"account_id": aid, "name": aname, "curve": curve})
+        return result
+    finally:
+        db.close()
