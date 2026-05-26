@@ -1721,14 +1721,30 @@ def api_daily_review_history(limit: int = 30):
             avg_ret = round(float(rows[1] or 0), 2)
             win = int(rows[2] or 0)
             path = Path(f"data/reports/daily_review_{plan_date}.md")
+            has_report = path.exists()
+
+            # 若 DB 無資料但有報告檔，從報告解析
+            if total == 0 and has_report:
+                import re as _re2
+                txt = path.read_text(encoding="utf-8")
+                m_total = _re2.search(r'建議股數.*?(\d+)', txt)
+                m_win   = _re2.search(r'正報酬.*?(\d+)/(\d+).*?(\d+)%', txt)
+                m_avg   = _re2.search(r'平均漲跌幅.*?([+-]?[\d.]+)%', txt)
+                total   = int(m_total.group(1)) if m_total else 0
+                win_rate = float(m_win.group(3)) if m_win else 0
+                avg_ret  = float(m_avg.group(1)) if m_avg else 0
+                win     = int(total * win_rate / 100) if total else 0
+            else:
+                win_rate = round(win/total*100, 1) if total else 0
+
             results.append({
                 "signal_date": str(plan_date),
                 "review_date": str(next_day),
                 "total": total,
                 "win": win,
-                "win_rate": round(win/total*100, 1) if total else 0,
+                "win_rate": win_rate,
                 "avg_return": avg_ret,
-                "has_report": path.exists(),
+                "has_report": has_report,
             })
         return results
     finally:
