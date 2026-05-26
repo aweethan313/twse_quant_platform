@@ -23,7 +23,6 @@ try:
         db.execute(text("DELETE FROM strategy_decision_logs WHERE account_id=:id"), {"id": aid})
         db.execute(text("DELETE FROM strategy_leaderboard WHERE account_id=:id"), {"id": aid})
         db.execute(text("DELETE FROM strategy_kill_switch_status WHERE strategy_id=:id"), {"id": aid})
-        db.execute(text("DELETE FROM strategy_router_decisions WHERE strategy_id=:id"), {"id": aid})
         db.execute(text("DELETE FROM strategy_accounts WHERE id=:id"), {"id": aid})
         print(f"  ✓ 刪除 S{aid} {aname}")
 
