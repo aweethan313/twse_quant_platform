@@ -2251,3 +2251,74 @@ def api_v5_strategy_registry():
     finally:
         db.close()
 
+
+@app.get("/api/monthly/drawdown")
+def api_monthly_drawdown(start_date: str = None):
+    from backend.models.database import SessionLocal
+    from sqlalchemy import text as _t
+    from datetime import date as ddate
+    if not start_date:
+        today = ddate.today()
+        start_date = f"{today.year}-{today.month:02d}-01"
+    db = SessionLocal()
+    try:
+        accounts = db.execute(_t("SELECT id, name FROM strategy_accounts WHERE id >= 11")).fetchall()
+        result = []
+        for aid, aname in accounts:
+            rows = db.execute(_t("""
+                SELECT snap_date, total_equity FROM equity_curve
+                WHERE account_id=:id AND snap_date>=:sd ORDER BY snap_date
+            """), {"id": aid, "sd": start_date}).fetchall()
+            if not rows: continue
+            peak = float(rows[0][1] or 200000)
+            curve = []
+            for d, eq in rows:
+                eq_f = float(eq or peak)
+                if eq_f > peak: peak = eq_f
+                curve.append({"date": d, "drawdown": round((eq_f/peak-1)*100, 3)})
+            result.append({"account_id": aid, "name": aname, "curve": curve})
+        return result
+    finally:
+        db.close()
+
+
+@app.get("/api/data-quality/rsi-check")
+def api_rsi_check(code: str = "2330"):
+    from backend.models.database import SessionLocal
+    from sqlalchemy import text as _t
+    db = SessionLocal()
+    try:
+        closes = [float(r[0]) for r in db.execute(_t(
+            "SELECT close FROM ohlcv_daily WHERE code=:c ORDER BY trade_date DESC LIMIT 20"
+        ), {"c": code}).fetchall()]
+        if len(closes) < 15:
+            return {"ok": False, "message": "資料不足"}
+        closes = list(reversed(closes))
+        gains = [max(closes[i]-closes[i-1], 0) for i in range(1, 15)]
+        losses = [max(closes[i-1]-closes[i], 0) for i in range(1, 15)]
+        ag, al = sum(gains)/14, sum(losses)/14
+        rsi_manual = round(100 - 100/(1+ag/al) if al else 100.0, 2)
+        stored = db.execute(_t(
+            "SELECT rsi14 FROM technical_daily_features WHERE code=:c ORDER BY trade_date DESC LIMIT 1"
+        ), {"c": code}).scalar()
+        diff = abs(float(stored or 0) - rsi_manual)
+        return {"code": code, "rsi_manual_calc": rsi_manual, "rsi_stored": float(stored or 0),
+                "diff": round(diff, 2), "ok": diff < 5,
+                "message": "✅ RSI 計算正確" if diff < 5 else f"⚠️ 差異 {diff:.1f}"}
+    finally:
+        db.close()
+
+
+@app.get("/api/data-quality/fundamental")
+def api_fundamental_coverage():
+    from backend.models.database import SessionLocal
+    from sqlalchemy import text as _t
+    db = SessionLocal()
+    try:
+        total = db.execute(_t("SELECT COUNT(DISTINCT code) FROM stock_meta")).scalar() or 0
+        fund = db.execute(_t("SELECT COUNT(DISTINCT code) FROM fundamental")).scalar() or 0
+        return {"total_stocks": total, "fundamental_count": fund,
+                "coverage_pct": round(fund/total*100, 1) if total else 0,
+                "note": "fundamental 表目前覆蓋率低，基本面分數以預設值填充"}
+    finally:
+        db.close()
