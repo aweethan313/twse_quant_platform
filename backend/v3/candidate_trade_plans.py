@@ -46,7 +46,7 @@ def _get_rsi14(code: str, plan_date: date, db) -> float | None:
         WHERE code=:c AND trade_date<=:d AND close IS NOT NULL
         ORDER BY trade_date DESC LIMIT 15
     """), {"c": code, "d": plan_date}).fetchall()
-    if len(rows) < 15: return None
+    if len(rows) < 12: return None
     closes = [float(r[0]) for r in reversed(rows)]
     gains = [max(closes[i]-closes[i-1], 0) for i in range(1, 15)]
     losses = [max(closes[i-1]-closes[i], 0) for i in range(1, 15)]
@@ -239,15 +239,19 @@ def generate_daily_plans(plan_date: date = None, limit: int = 30) -> list[dict]:
               AND (
                   SELECT rsi14 FROM technical_daily_features
                   WHERE code=ds.code AND trade_date=ds.score_date LIMIT 1
-              ) < 85
+              ) < 80
+              AND (
+                  SELECT rsi14 FROM technical_daily_features
+                  WHERE code=ds.code AND trade_date=ds.score_date LIMIT 1
+              ) > 30
               AND (
                   SELECT ABS(distance_ma20) FROM technical_daily_features
                   WHERE code=ds.code AND trade_date=ds.score_date LIMIT 1
-              ) < 15
+              ) < 12
               AND (
                   SELECT return_5d FROM technical_daily_features
                   WHERE code=ds.code AND trade_date=ds.score_date LIMIT 1
-              ) < 15
+              ) < 12
             ORDER BY
                 CASE ds.stock_class
                     WHEN 'CORE_LARGE_CAP' THEN 1
