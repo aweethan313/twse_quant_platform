@@ -305,21 +305,31 @@ def get_trade_plans(
 ) -> list[dict]:
     db = SessionLocal()
     try:
-        q = "SELECT * FROM candidate_trade_plans WHERE 1=1"
+        base_q = """
+            SELECT ctp.*, ds.final_score, ds.candidate_score, ds.risk_score,
+                   ds.momentum_score, ds.chip_score, o.change_pct
+            FROM candidate_trade_plans ctp
+            LEFT JOIN daily_scores ds ON ds.code=ctp.code
+                AND ds.score_date=(SELECT MAX(score_date) FROM daily_scores)
+            LEFT JOIN ohlcv_daily o ON o.code=ctp.code
+                AND o.trade_date=(SELECT MAX(trade_date) FROM ohlcv_daily)
+            WHERE 1=1
+        """
         params = {}
-        if plan_date: q += " AND plan_date=:pd"; params["pd"] = plan_date
-        if code:      q += " AND code=:code";    params["code"] = code
-        q += " ORDER BY created_at DESC LIMIT :limit"
+        if plan_date: base_q += " AND ctp.plan_date=:pd"; params["pd"] = plan_date
+        if code:      base_q += " AND ctp.code=:code";    params["code"] = code
+        base_q += " ORDER BY ds.final_score DESC LIMIT :limit"
         params["limit"] = limit
-
-        rows = db.execute(text(q), params).fetchall()
+        rows = db.execute(text(base_q), params).fetchall()
         cols = ["id","plan_date","code","name","candidate_pool_type",
                 "entry_price_low","entry_price_high","reference_price",
                 "target_price_1","target_price_2","stop_loss_price",
                 "expected_return_1","expected_return_2","downside_risk",
                 "risk_reward_ratio","suggested_shares","suggested_amount",
                 "max_loss_amount","position_size_reason",
-                "invalid_buy_condition","final_plan_summary","created_at"]
+                "invalid_buy_condition","final_plan_summary","created_at",
+                "final_score","candidate_score","risk_score",
+                "momentum_score","chip_score","change_pct"]
         return [dict(zip(cols, r)) for r in rows]
     finally:
         db.close()
