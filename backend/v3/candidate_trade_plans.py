@@ -240,6 +240,14 @@ def generate_daily_plans(plan_date: date = None, limit: int = 30) -> list[dict]:
                   SELECT rsi14 FROM technical_daily_features
                   WHERE code=ds.code AND trade_date=ds.score_date LIMIT 1
               ) < 85
+              AND (
+                  SELECT ABS(distance_ma20) FROM technical_daily_features
+                  WHERE code=ds.code AND trade_date=ds.score_date LIMIT 1
+              ) < 15
+              AND (
+                  SELECT return_5d FROM technical_daily_features
+                  WHERE code=ds.code AND trade_date=ds.score_date LIMIT 1
+              ) < 15
             ORDER BY
                 CASE ds.stock_class
                     WHEN 'CORE_LARGE_CAP' THEN 1
