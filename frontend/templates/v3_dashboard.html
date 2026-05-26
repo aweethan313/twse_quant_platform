@@ -377,7 +377,27 @@ async function loadReviewDetail(sigDate, revDate) {
   content.textContent = '載入中...';
   try {
     const d = await fetch(`/api/daily-review?signal_date=${sigDate}&review_date=${revDate}`).then(r=>r.json());
-    content.textContent = d.content || '無內容';
+    // 簡單 markdown 轉 HTML
+    var md = d.content || '無內容';
+    var html = md
+      .replace(/^# (.+)$/mg, '<h2 class="text-base font-bold text-white mb-2">$1</h2>')
+      .replace(/^## (.+)$/mg, '<h3 class="text-sm font-semibold text-accent mt-4 mb-1 border-b border-gray-700 pb-1">$1</h3>')
+      .replace(/^### (✅.+)$/mg, '<div class="mt-2 mb-1 text-green-400 font-semibold text-xs">$1</div>')
+      .replace(/^### (🛑.+)$/mg, '<div class="mt-2 mb-1 text-red-400 font-semibold text-xs">$1</div>')
+      .replace(/^### (.+)$/mg, '<div class="mt-2 mb-1 font-semibold text-xs text-yellow-400">$1</div>')
+      .replace(/\*\*(.+?)\*\*/g, '<b class="text-white">$1</b>')
+      .replace(/^> (.+)$/mg, '<div class="text-xs text-blue-400 border-l-2 border-blue-500 pl-2 my-1">$1</div>')
+      .replace(/^---$/mg, '<hr class="border-gray-700 my-2">')
+      .replace(/^\| (.+) \|$/mg, (m, row) => {
+        if (row.includes('---')) return '';
+        var cells = row.split(' | ');
+        return '<div class="flex gap-2 text-xs border-b border-gray-800 py-0.5">' +
+          cells.map(c => '<span class="flex-1">' + c + '</span>').join('') + '</div>';
+      })
+      .replace(/^- (.+)$/mg, '<div class="text-xs text-gray-300 pl-2 my-0.5">• $1</div>')
+      .replace(/^\*(.+)\*$/mg, '<div class="text-xs text-gray-500 italic">$1</div>')
+      .split('\n').map(l => l.startsWith('<') ? l : `<span class="text-xs text-gray-400">${l}</span><br>`).join('');
+    content.innerHTML = html;
   } catch(e) { content.textContent = '載入失敗'; }
 }
 
