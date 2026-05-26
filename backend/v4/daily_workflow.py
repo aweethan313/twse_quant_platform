@@ -141,6 +141,15 @@ def run_daily_workflow(target_date: date = None) -> dict:
         return {"status": "PASS", "message": f"更新{n}筆後續表現"}
     step("10_candidate_accuracy", accuracy_update)
 
+    # Step 10.5: 每日檢討書
+    def review():
+        from backend.services.daily_review import generate_daily_review
+        from datetime import timedelta
+        path = generate_daily_review(target_date - timedelta(days=1), target_date)
+        return {"status": "PASS" if path else "WARN",
+                "message": f"檢討書: {path or '無前日資料'}"}
+    step("10b_daily_review", review)
+
     # Step 11: 輸出日報告
     def export_report():
         path = export_daily_report(target_date, step_results)

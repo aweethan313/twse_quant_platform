@@ -236,6 +236,10 @@ def generate_daily_plans(plan_date: date = None, limit: int = 30) -> list[dict]:
               AND ds.stock_class NOT IN ('ETF_INCOME','ILLIQUID_RISK','SPECULATIVE_HOT','NORMAL')
               AND o.close IS NOT NULL
               AND o.close >= 10
+              AND (
+                  SELECT rsi14 FROM technical_daily_features
+                  WHERE code=ds.code AND trade_date=ds.score_date LIMIT 1
+              ) < 85
             ORDER BY
                 CASE ds.stock_class
                     WHEN 'CORE_LARGE_CAP' THEN 1
