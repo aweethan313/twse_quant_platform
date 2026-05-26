@@ -1631,14 +1631,23 @@ def api_daily_review(signal_date: str = None, review_date: str = None):
     """每日選股檢討書"""
     from backend.services.daily_review import generate_daily_review
     from datetime import date as ddate, timedelta
+    from pathlib import Path
     today = ddate.today()
     sig = ddate.fromisoformat(signal_date) if signal_date else today - timedelta(days=1)
     rev = ddate.fromisoformat(review_date) if review_date else today
-    path = generate_daily_review(sig, rev)
-    if path:
+
+    # 先看檔案是否已存在
+    path = Path(f"data/reports/daily_review_{sig}.md")
+    if path.exists():
+        return {"signal_date": str(sig), "review_date": str(rev),
+                "path": str(path), "content": path.read_text(encoding="utf-8")}
+
+    # 嘗試重新生成
+    p = generate_daily_review(sig, rev)
+    if p:
         try:
-            with open(path, encoding="utf-8") as f:
-                return {"signal_date": str(sig), "review_date": str(rev), "path": path, "content": f.read()}
+            with open(p, encoding="utf-8") as f:
+                return {"signal_date": str(sig), "review_date": str(rev), "path": p, "content": f.read()}
         except Exception as e:
             return {"signal_date": str(sig), "error": str(e)}
     return {"signal_date": str(sig), "content": "尚無檢討書，請先執行每日工作流程"}
