@@ -583,7 +583,20 @@ def api_all_equity_curves(db: Session = Depends(get_db)):
 
 @app.get("/api/strategy_registry")
 def api_strategy_registry():
-    return [{"name": s.__name__} for s in []]
+    from backend.models.database import SessionLocal
+    from sqlalchemy import text as _t
+    db = SessionLocal()
+    try:
+        rows = db.execute(_t(
+            "SELECT a.id, a.name, cfg.strategy_name, cfg.description"
+            " FROM strategy_accounts a"
+            " LEFT JOIN strategy_account_configs cfg ON cfg.account_id=a.id"
+            " WHERE a.id >= 11 ORDER BY a.id"
+        )).fetchall()
+        return [{"account_id": r[0], "name": r[1],
+                 "strategy_name": r[2], "description": r[3]} for r in rows]
+    finally:
+        db.close()
 
 
 # ── V2 P4: 美股夜盤 API ──────────────────────────────
