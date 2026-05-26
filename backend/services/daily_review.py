@@ -42,6 +42,30 @@ def generate_daily_review(signal_date: date = None, today: date = None) -> str |
     finally:
         db.close()
 
+        # Fallback：無 candidate_trade_plans 時，從 daily_scores 重建
+        if not rows:
+            rows = db.execute(text("""
+                SELECT DISTINCT ds.code, sm.name,
+                       o_sig.close, o_sig.close*1.10, o_sig.close*0.92, ds.stock_class,
+                       o_rev.close, o_rev.change_pct,
+                       ds.final_score, ds.risk_score, ds.momentum_score,
+                       tdf.rsi14, tdf.distance_ma20, tdf.return_5d, tdf.volatility_20d
+                FROM daily_scores ds
+                LEFT JOIN stock_meta sm ON sm.code=ds.code
+                LEFT JOIN ohlcv_daily o_sig ON o_sig.code=ds.code AND o_sig.trade_date=:signal
+                LEFT JOIN ohlcv_daily o_rev ON o_rev.code=ds.code AND o_rev.trade_date=:today
+                LEFT JOIN technical_daily_features tdf ON tdf.code=ds.code AND tdf.trade_date=:signal
+                WHERE ds.score_date=:signal
+                  AND ds.final_action IN ('BUY','WATCH')
+                  AND ds.stock_class NOT IN ('ETF_INCOME','ILLIQUID_RISK','SPECULATIVE_HOT','NORMAL')
+                  AND o_sig.close IS NOT NULL AND o_rev.close IS NOT NULL
+                  AND o_sig.close >= 10
+                  AND (tdf.rsi14 IS NULL OR tdf.rsi14 < 85)
+                ORDER BY CASE ds.stock_class WHEN 'CORE_LARGE_CAP' THEN 1
+                         WHEN 'LARGE_LIQUID' THEN 2 ELSE 3 END,
+                         ds.final_score DESC LIMIT 15
+            """), {"today": str(today), "signal": str(signal_date)}).fetchall()
+
     if not rows:
         logger.warning(f"[REVIEW] {signal_date}→{today} 無資料")
         return None
