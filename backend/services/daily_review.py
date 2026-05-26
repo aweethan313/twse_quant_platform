@@ -187,6 +187,61 @@ def generate_daily_review(signal_date: date = None, today: date = None) -> str |
             lines.append(f"| {icon} {r[1]}({r[0]}) | {pct:+.2f}% | {diagnose(r)} |")
         lines.append("")
 
+    # ── 深度分析 ──
+    # 1. vs 0050
+    etf_pct_val = float(etf[1] or 0) if etf else 0
+    alpha = avg - etf_pct_val
+
+    # 2. 類型勝率
+    type_stats = {}
+    for r in rows:
+        t = r[5] or "OTHER"
+        pct_r = float(r[7] or 0)
+        if t not in type_stats:
+            type_stats[t] = {"total":0,"win":0,"sum":0}
+        type_stats[t]["total"] += 1
+        type_stats[t]["sum"] += pct_r
+        if pct_r > 0:
+            type_stats[t]["win"] += 1
+
+    # 3. RSI 區間分析
+    rsi_buckets = {"30-50":[],"50-65":[],"65-80":[]}
+    for r in rows:
+        rsi_v = float(r[11] or 50)
+        pct_r = float(r[7] or 0)
+        if rsi_v < 50: rsi_buckets["30-50"].append(pct_r)
+        elif rsi_v < 65: rsi_buckets["50-65"].append(pct_r)
+        else: rsi_buckets["65-80"].append(pct_r)
+
+    # 4. 如果只選 RSI<70 的結果
+    filtered = [r for r in rows if float(r[11] or 50) < 70]
+    filt_avg = sum(float(r[7] or 0) for r in filtered)/len(filtered) if filtered else 0
+    filt_win = sum(1 for r in filtered if float(r[7] or 0) > 0)
+
+    # 5. 資金管理建議
+    deploy_pct = 0
+    if etf_pct_val > 1 and mkt_breadth > 60:
+        deploy_pct = 70
+        deploy_msg = "大盤強勢日，可投入可用資金的 70%"
+    elif etf_pct_val > 0:
+        deploy_pct = 50
+        deploy_msg = "大盤小漲，建議投入可用資金的 50%，保留彈藥"
+    elif etf_pct_val > -1:
+        deploy_pct = 30
+        deploy_msg = "大盤持平偏弱，建議僅投入 30%，等更好時機"
+    else:
+        deploy_pct = 0
+        deploy_msg = "大盤下跌日，建議觀望，保留彈藥等核心股回檔加碼"
+
+    TYPE_ZH = {
+        "CORE_LARGE_CAP": "核心大型",
+        "LARGE_LIQUID": "中大型",
+        "LIQUID_MOMENTUM": "強勢動能",
+        "SPECULATIVE_HOT": "題材投機",
+        "ETF_CORE": "ETF",
+        "OTHER": "其他",
+    }
+
     lines += [
         "---",
         "",
@@ -198,6 +253,58 @@ def generate_daily_review(signal_date: date = None, today: date = None) -> str |
         lines.append("")
 
     lines += [
+        "---",
+        "",
+        "## 📊 深度分析",
+        "",
+        "### vs 大盤比較",
+        "",
+        f"| 指標 | 數值 |",
+        f"|------|------|",
+        f"| 0050 當日漲跌 | {etf_pct_val:+.2f}%（{mkt_day}）|",
+        f"| 本次選股平均 | {avg:+.2f}% |",
+        f"| 超額報酬（Alpha）| **{alpha:+.2f}%** {'✅ 跑贏大盤' if alpha > 0 else '❌ 跑輸大盤'} |",
+        "",
+        "### 類型勝率分析",
+        "",
+        "| 類型 | 股數 | 勝率 | 平均報酬 | 建議 |",
+        "|------|------|------|---------|------|",
+    ]
+    for t, s in sorted(type_stats.items(), key=lambda x: x[1]["sum"]/x[1]["total"] if x[1]["total"] else 0, reverse=True):
+        if s["total"] == 0: continue
+        t_avg = s["sum"]/s["total"]
+        t_win = s["win"]/s["total"]*100
+        suggest = "✅ 優先" if t_avg > 1 and t_win >= 60 else "⚠️ 謹慎" if t_avg < 0 else "🟡 普通"
+        lines.append(f"| {TYPE_ZH.get(t,t)} | {s['total']} | {t_win:.0f}% | {t_avg:+.2f}% | {suggest} |")
+
+    lines += [
+        "",
+        "### RSI 區間績效",
+        "",
+        "| RSI 區間 | 股數 | 平均報酬 | 建議 |",
+        "|---------|------|---------|------|",
+    ]
+    for bucket, vals in rsi_buckets.items():
+        if not vals: continue
+        b_avg = sum(vals)/len(vals)
+        lines.append(f"| RSI {bucket} | {len(vals)} | {b_avg:+.2f}% | {'✅' if b_avg > 0.5 else '⚠️'} |")
+
+    lines += [
+        "",
+        "### 如果只選 RSI < 70",
+        "",
+        f"| 指標 | 全部選股 | RSI<70 篩選後 |",
+        f"|------|---------|-------------|",
+        f"| 股數 | {total} | {len(filtered)} |",
+        f"| 勝率 | {pos/total*100:.0f}% | {filt_win/len(filtered)*100:.0f}% |",
+        f"| 平均報酬 | {avg:+.2f}% | {filt_avg:+.2f}% |",
+        "",
+        "### 💰 資金管理建議",
+        "",
+        f"> **今日建議：{deploy_msg}**",
+        f"> 可用資金 10 萬 × {deploy_pct}% = **{100000*deploy_pct//100:,} 元** 可動用",
+        f"> 剩餘 **{100000*(100-deploy_pct)//100:,} 元** 保留，等核心股（0050/國泰金）回檔時加碼",
+        "",
         "---",
         f"*生成時間：{date.today()} | 僅供輔助看盤，所有交易須自行確認*",
     ]
