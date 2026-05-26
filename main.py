@@ -245,13 +245,13 @@ def api_kline(code: str, days: int = 60, db: Session = Depends(get_db)):
     """個股日K"""
     rows = db.execute(
         text("""
-            SELECT trade_date, open, high, low, close, volume, value
+            SELECT trade_date, open, high, low, close, volume, value, change_pct
             FROM ohlcv_daily WHERE code=:code
             ORDER BY trade_date DESC LIMIT :n
         """), {"code": code, "n": days}
     ).fetchall()
     data = [{"date":str(r[0]),"open":r[1],"high":r[2],"low":r[3],
-             "close":r[4],"volume":r[5],"value":r[6]} for r in reversed(rows)]
+             "close":r[4],"volume":r[5],"value":r[6],"change_pct":r[7]} for r in reversed(rows)]
     meta = db.execute(
         text("SELECT name FROM stock_meta WHERE code=:code LIMIT 1"),
         {"code": code}
