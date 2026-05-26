@@ -1625,3 +1625,21 @@ def api_strategy_decisions(
         return [dict(zip(cols, r)) for r in rows]
     finally:
         db.close()
+
+@app.get("/api/daily-review")
+def api_daily_review(signal_date: str = None, review_date: str = None):
+    """每日選股檢討書"""
+    from backend.services.daily_review import generate_daily_review
+    from datetime import date as ddate, timedelta
+    today = ddate.today()
+    sig = ddate.fromisoformat(signal_date) if signal_date else today - timedelta(days=1)
+    rev = ddate.fromisoformat(review_date) if review_date else today
+    path = generate_daily_review(sig, rev)
+    if path:
+        try:
+            with open(path, encoding="utf-8") as f:
+                return {"signal_date": str(sig), "review_date": str(rev), "path": path, "content": f.read()}
+        except Exception as e:
+            return {"signal_date": str(sig), "error": str(e)}
+    return {"signal_date": str(sig), "content": "尚無檢討書，請先執行每日工作流程"}
+
