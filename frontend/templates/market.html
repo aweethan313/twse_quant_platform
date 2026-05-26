@@ -362,14 +362,17 @@ async function loadV4Summary() {
   // 0050
   try {
     const d = await fetch('/api/stock/0050/latest_score').then(r=>r.json());
-    const p = await fetch('/api/stock/0050/kline?days=2').then(r=>r.json());
-    if (p.data && p.data.length >= 2) {
-      const last = p.data[p.data.length-1];
-      const prev = p.data[p.data.length-2];
-      const pct = ((last.close-prev.close)/prev.close*100).toFixed(2);
+    const p = await fetch('/api/stock/0050/kline?days=3').then(r=>r.json());
+    const pArr = Array.isArray(p) ? p : (p.data || p.candles || []);
+    if (pArr.length >= 2) {
+      const last = pArr[pArr.length-1];
+      const prev = pArr[pArr.length-2];
+      const lastClose = last.close || last[4] || 0;
+      const prevClose = prev.close || prev[4] || lastClose;
+      const pct = prevClose ? ((lastClose-prevClose)/prevClose*100).toFixed(2) : '0.00';
       const color = pct>=0?'#ff6b6b':'#51cf66';
       document.getElementById('v4_etf_status').innerHTML =
-        `${last.close} <span style="color:${color}">${pct>=0?'+':''}${pct}%</span>`;
+        `${lastClose} <span style="color:${color}">${pct>=0?'+':''}${pct}%</span>`;
     }
   } catch(e) {}
 }
@@ -744,8 +747,9 @@ function showStockDetailLink(){
           <span style="color:#444;margin:0 6px">|</span>
           <span style="color:#555">廣度：</span><span style="color:#bbb">${rg.up_count}↑ ${rg.down_count}↓</span>`;
       }).catch(()=>{});
-      const wrap = document.querySelector('.container-fluid, main, body');
-      if (wrap) wrap.appendChild(card);
+      // 附加到頁面主要區域（選股篩選器所在的 div 下方）
+      const mainContent = document.querySelector('.max-w-7xl, .container-fluid, main') || document.body;
+      mainContent.appendChild(card);
     } catch(e) { console.warn('overnight:', e); }
   }
   async function loadThemes(){

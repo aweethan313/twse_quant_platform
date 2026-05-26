@@ -61,9 +61,18 @@ def fetch_overnight() -> dict:
             if len(hist) < 1:
                 continue
             last_close = float(hist["Close"].iloc[-1])
-            prev_close = float(hist["Close"].iloc[-2]) if len(hist) >= 2 else last_close
-            ret = (last_close - prev_close) / prev_close if prev_close else 0
-            point_change = last_close - prev_close
+            # 確保只比較連續交易日（≤5天）
+            prev_close = last_close
+            point_change = 0.0
+            ret = 0.0
+            if len(hist) >= 2:
+                last_date = hist.index[-1]
+                prev_date = hist.index[-2]
+                day_diff = abs((last_date - prev_date).days)
+                if day_diff <= 5:
+                    prev_close = float(hist["Close"].iloc[-2])
+                    point_change = round(last_close - prev_close, 2)
+                    ret = (last_close - prev_close) / prev_close if prev_close else 0
             result[sym] = {
                 "name":         info["name"],
                 "close":        round(last_close, 2),
