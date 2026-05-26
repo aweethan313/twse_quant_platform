@@ -1923,6 +1923,22 @@ def api_monthly_race(start_date: str = None):
             monthly_ret = round((end_eq/start_eq-1)*100, 2) if start_eq else 0
             alpha = round(monthly_ret - bench_ret, 2)
 
+            # 勝率
+            win_days = db.execute(_t(
+                "SELECT COUNT(*) FROM equity_curve WHERE account_id=:id AND snap_date>=:sd AND daily_return>0"
+            ), {"id": r[0], "sd": start_date}).scalar() or 0
+            total_days = int(r[5] or 1)
+            win_rate = round(win_days/total_days*100, 1) if total_days else 0
+            # 最大回撤
+            min_eq = db.execute(_t(
+                "SELECT MIN(total_equity) FROM equity_curve WHERE account_id=:id AND snap_date>=:sd"
+            ), {"id": r[0], "sd": start_date}).scalar() or end_eq
+            max_dd = round((float(min_eq)/start_eq-1)*100, 2) if start_eq else 0
+            # 交易次數
+            trade_cnt = db.execute(_t(
+                "SELECT COUNT(*) FROM paper_fills WHERE account_id=:id AND execution_date>=:sd"
+            ), {"id": r[0], "sd": start_date}).scalar() or 0
+
             results.append({
                 "rank": i+1,
                 "account_id": r[0],
@@ -1932,7 +1948,10 @@ def api_monthly_race(start_date: str = None):
                 "alpha_vs_0050": alpha,
                 "outperform": alpha > 0,
                 "total_equity": end_eq,
-                "trading_days": r[5],
+                "trading_days": total_days,
+                "win_rate": win_rate,
+                "max_drawdown": max_dd,
+                "trade_count": trade_cnt,
                 "latest_date": r[7],
             })
 
