@@ -55,6 +55,15 @@
     </div>
   </div>
 
+  <!-- 昨日檢討摘要 -->
+  <div class="dc-card mb-4" id="review_card">
+    <div class="flex items-center justify-between mb-2">
+      <div class="text-xs text-gray-500 font-semibold uppercase tracking-wide">📋 昨日選股檢討</div>
+      <span class="text-xs text-gray-600" id="review_date"></span>
+    </div>
+    <div id="review_summary">載入中...</div>
+  </div>
+
   <!-- C. T+1 交易建議 -->
   <div class="dc-card mb-4">
     <div class="flex items-center justify-between mb-3">
@@ -252,6 +261,53 @@ async function loadAccounts() {
 }
 
 // E. 今天不能做的事
+async function loadReview() {
+  try {
+    var d = await fetch('/api/daily-review').then(r=>r.json());
+    document.getElementById('review_date').textContent = d.signal_date || '';
+    var content = d.content || '';
+    // 抽取整體成績
+    var lines = content.split('\n');
+    var stats = {};
+    lines.forEach(l => {
+      if (l.includes('建議股數')) stats.total = l.match(/\d+/)?.[0];
+      if (l.includes('正報酬')) stats.win = l.match(/(\d+)\/\d+（(\d+)%）/);
+      if (l.includes('平均漲跌')) stats.avg = l.match(/[+-]?[\d.]+%/)?.[0];
+    });
+    // 前3強
+    var top3 = [];
+    var inTop = false;
+    lines.forEach(l => {
+      if (l.includes('## 🏆')) { inTop = true; return; }
+      if (inTop && l.startsWith('- **')) {
+        top3.push(l.replace('- **','').replace('**',''));
+        if (top3.length >= 3) inTop = false;
+      }
+    });
+    var winRate = stats.win ? stats.win[2] : '—';
+    var winColor = parseInt(winRate) >= 60 ? '#44ff88' : parseInt(winRate) >= 40 ? '#ffcc00' : '#ff4444';
+    document.getElementById('review_summary').innerHTML = `
+      <div class="grid grid-cols-3 gap-2 mb-2">
+        <div class="text-center">
+          <div class="text-lg font-bold" style="color:${winColor}">${winRate}%</div>
+          <div class="text-xs text-gray-500">勝率</div>
+        </div>
+        <div class="text-center">
+          <div class="text-lg font-bold text-accent">${stats.avg||'—'}</div>
+          <div class="text-xs text-gray-500">平均漲幅</div>
+        </div>
+        <div class="text-center">
+          <div class="text-lg font-bold">${stats.total||'—'}</div>
+          <div class="text-xs text-gray-500">建議股數</div>
+        </div>
+      </div>
+      <div class="text-xs text-gray-400">🏆 前3強：${top3.join(' / ') || '—'}</div>
+    `;
+  } catch(e) {
+    document.getElementById('review_summary').textContent = '尚無檢討資料';
+  }
+}
+
 async function loadRestrictions() {
   var items = [];
 
@@ -291,6 +347,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadFreshness();
   loadMarket();
   loadKill();
+  loadReview();
   loadSignals();
   loadAccounts();
   loadRestrictions();
