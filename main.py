@@ -1347,9 +1347,26 @@ def api_data_quality(query_date: str = None, limit: int = 50):
     td = ddate.fromisoformat(query_date) if query_date else ddate.today()
     existing = get_quality_report(str(td), limit)
     if not existing:
-        result = run_data_quality_checks(td)
+        run_data_quality_checks(td)
         existing = get_quality_report(str(td), limit)
-    return {"checks": existing, "count": len(existing)}
+    # 去重（只保留每個 check_type 最新一筆）
+    seen = {}
+    for c in existing:
+        ct = c.get("check_type","")
+        if ct not in seen:
+            seen[ct] = c
+    deduped = list(seen.values())
+    # 計算整體健康分
+    scores = [float(c.get("health_score") or 100) for c in deduped if c.get("health_score") is not None]
+    overall = round(sum(scores)/len(scores), 1) if scores else 100
+    pass_count  = sum(1 for c in deduped if c.get("status")=="PASS")
+    warn_count  = sum(1 for c in deduped if c.get("status")=="WARN")
+    fail_count  = sum(1 for c in deduped if c.get("status") in ("FAIL","SKIPPED"))
+    return {
+        "health_score": overall,
+        "pass": pass_count, "warn": warn_count, "fail": fail_count,
+        "checks": deduped, "count": len(deduped)
+    }
 
 
 @app.get("/api/workflow/daily-runs")
