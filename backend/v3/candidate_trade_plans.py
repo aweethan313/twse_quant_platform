@@ -306,9 +306,16 @@ def get_trade_plans(
     db = SessionLocal()
     try:
         base_q = """
-            SELECT ctp.*, ds.final_score, ds.candidate_score, ds.risk_score,
+            SELECT ctp.id, ctp.plan_date, ctp.code, ctp.name, ctp.candidate_pool_type,
+                   ctp.entry_price_low, ctp.entry_price_high, ctp.reference_price,
+                   ctp.target_price_1, ctp.target_price_2, ctp.stop_loss_price,
+                   ctp.expected_return_1, ctp.expected_return_2, ctp.downside_risk,
+                   ctp.risk_reward_ratio, ctp.suggested_shares, ctp.suggested_amount,
+                   ctp.max_loss_amount, ctp.position_size_reason,
+                   ctp.invalid_buy_condition, ctp.final_plan_summary, ctp.created_at,
+                   ds.final_score, ds.candidate_score, ds.risk_score,
                    ds.momentum_score, ds.chip_score, o.change_pct
-            FROM candidate_trade_plans ctp
+            FROM (SELECT * FROM candidate_trade_plans WHERE 1=1 GROUP BY code) ctp
             LEFT JOIN daily_scores ds ON ds.code=ctp.code
                 AND ds.score_date=(SELECT MAX(score_date) FROM daily_scores)
             LEFT JOIN ohlcv_daily o ON o.code=ctp.code
