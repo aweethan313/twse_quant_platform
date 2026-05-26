@@ -318,7 +318,16 @@ def get_trade_plans(
         params = {}
         if plan_date: base_q += " AND ctp.plan_date=:pd"; params["pd"] = plan_date
         if code:      base_q += " AND ctp.code=:code";    params["code"] = code
-        base_q += " ORDER BY ds.final_score DESC LIMIT :limit"
+        base_q += """
+            ORDER BY
+                CASE ds.stock_class
+                    WHEN 'CORE_LARGE_CAP' THEN 1
+                    WHEN 'LARGE_LIQUID' THEN 2
+                    WHEN 'LIQUID_MOMENTUM' THEN 3
+                    ELSE 4
+                END,
+                ds.final_score DESC
+            LIMIT :limit"""
         params["limit"] = limit
         rows = db.execute(text(base_q), params).fetchall()
         cols = ["id","plan_date","code","name","candidate_pool_type",
