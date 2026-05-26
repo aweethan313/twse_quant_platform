@@ -161,7 +161,6 @@
 <script>
 (function(){
   var P=['#ff4444','#44aaff','#44ff88','#ffcc00','#ff8844','#cc44ff'];
-  var ec=null;
   async function drawEc(){
     try{
       var accs=await fetch('/api/strategies').then(function(r){return r.json()});
@@ -178,7 +177,7 @@
       if(!series.length)return;
       var labels=[...allD].sort();
       var ctx=document.getElementById('v2ec').getContext('2d');
-      ec=new Chart(ctx,{type:'line',data:{labels:labels,datasets:series.map(function(s,i){return{label:s.name,data:s.vals,borderColor:P[i%P.length],backgroundColor:'transparent',borderWidth:2,pointRadius:0,tension:0.3}})},options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{labels:{color:'#aaa',font:{size:10}}}},scales:{x:{ticks:{color:'#555',font:{size:9},maxTicksLimit:10},grid:{color:'rgba(255,255,255,0.04)'}},y:{ticks:{color:'#888',font:{size:9},callback:function(v){return(v>=0?'+':'')+v+'%'}},grid:{color:'rgba(255,255,255,0.06)'},position:'right'}}}});
+      /* equity chart removed */
     }catch(e){console.warn(e)}
   }
   document.addEventListener('DOMContentLoaded',drawEc);
