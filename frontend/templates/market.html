@@ -364,12 +364,16 @@ async function loadV4Summary() {
     const d = await fetch('/api/stock/0050/latest_score').then(r=>r.json());
     const p = await fetch('/api/stock/0050/kline?days=3').then(r=>r.json());
     const pArr = Array.isArray(p) ? p : (p.data || p.candles || []);
-    if (pArr.length >= 2) {
+    if (pArr.length >= 1) {
       const last = pArr[pArr.length-1];
-      const prev = pArr[pArr.length-2];
       const lastClose = last.close || last[4] || 0;
-      const prevClose = prev.close || prev[4] || lastClose;
-      const pct = prevClose ? ((lastClose-prevClose)/prevClose*100).toFixed(2) : '0.00';
+      // 優先用 change_pct 欄位，避免同收盤價算出 0%
+      const rawPct = last.change_pct || last.changePct;
+      const pct = rawPct !== undefined && rawPct !== null
+        ? parseFloat(rawPct).toFixed(2)
+        : pArr.length >= 2
+          ? (((lastClose-(pArr[pArr.length-2].close||lastClose))/(pArr[pArr.length-2].close||1))*100).toFixed(2)
+          : '0.00';
       const color = pct>=0?'#ff6b6b':'#51cf66';
       document.getElementById('v4_etf_status').innerHTML =
         `${lastClose} <span style="color:${color}">${pct>=0?'+':''}${pct}%</span>`;
