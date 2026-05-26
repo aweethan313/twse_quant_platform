@@ -178,25 +178,33 @@ function renderCard(r) {
       </div>
 
       <!-- 右側：分數和價格 -->
-      <div class="text-right flex-shrink-0" style="min-width:100px">
-        <div class="text-xl font-mono font-bold text-white mb-1">${r.close ?? '—'}</div>
-        <div class="text-sm font-bold mb-3" style="color:${pctColor}">${pctStr}</div>
-
-        <div class="space-y-1.5 text-xs">
-          <div class="flex items-center justify-between gap-4">
-            <span class="text-gray-500">最終</span>
-            <span class="font-mono font-bold" style="color:${barColor}">${fs.toFixed(1)}</span>
+      <div class="text-right flex-shrink-0" style="min-width:110px">
+        <div class="text-lg font-mono font-bold text-white mb-0.5">${r.close ?? r.reference_price ?? '—'}</div>
+        ${r._is_plan ? `
+          <div class="text-xs space-y-1 mt-1">
+            <div class="text-gray-500 text-xs">進場區間</div>
+            <div class="font-mono text-blue-300 text-xs">${r.entry_low??'—'} ~ ${r.entry_high??'—'}</div>
+            <div class="flex justify-between gap-1 mt-1">
+              <div class="text-center">
+                <div class="text-gray-500" style="font-size:10px">目標</div>
+                <div class="text-green-400 font-mono" style="font-size:10px">${r.target??'—'}</div>
+              </div>
+              <div class="text-center">
+                <div class="text-gray-500" style="font-size:10px">停損</div>
+                <div class="text-red-400 font-mono" style="font-size:10px">${r.stop_loss??'—'}</div>
+              </div>
+            </div>
+            <div class="text-gray-500 text-xs">風報 <span class="text-white">${r.risk_reward??'—'}</span> | <span class="text-accent">${r.suggested_shares??'—'}股</span></div>
+            <div class="font-mono font-bold text-xs mt-1" style="color:${barColor}">分數 ${fs.toFixed(1)}</div>
           </div>
-          <div class="score-bar bg-gray-800 w-full">
-            <div class="score-bar" style="width:${fs}%;background:${barColor}"></div>
+        ` : `
+          <div class="text-sm font-bold mb-2" style="color:${pctColor}">${pctStr}</div>
+          <div class="text-xs space-y-1">
+            <div class="flex justify-between"><span class="text-gray-500">最終</span><span class="font-mono font-bold" style="color:${barColor}">${fs.toFixed(1)}</span></div>
+            <div class="flex justify-between text-gray-500"><span>風險 ${(r.risk_score??30).toFixed(0)}</span></div>
           </div>
-          <div class="flex justify-between text-gray-500">
-            <span>進場 ${(r.entry_score??50).toFixed(0)}</span>
-            <span style="color:${(r.risk_score??30)>=60?'#ff4444':(r.risk_score??30)>=45?'#ffcc00':'#44ff88'}">
-              風險 ${(r.risk_score??30).toFixed(0)}
-            </span>
-          </div>
-        </div>
+        `}
+      </div>
       </div>
 
     </div>
