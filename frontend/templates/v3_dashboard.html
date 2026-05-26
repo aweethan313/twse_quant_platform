@@ -334,6 +334,58 @@ async function loadReview() {
   }
 }
 
+
+async function showReviewHistory() {
+  document.getElementById('review_history_card').classList.remove('hidden');
+  const el = document.getElementById('review_history_list');
+  el.innerHTML = '載入中...';
+  try {
+    const data = await fetch('/api/daily-review-history?limit=30').then(r=>r.json());
+    if (!data.length) { el.innerHTML='<div class="text-gray-600 text-xs py-2">尚無歷史記錄</div>'; return; }
+    el.innerHTML = `<table class="w-full text-xs">
+      <thead><tr class="text-gray-500 border-b border-gray-700">
+        <th class="text-left py-1">資料日</th>
+        <th class="text-right">股數</th>
+        <th class="text-right">勝率</th>
+        <th class="text-right">平均報酬</th>
+        <th class="text-center">詳情</th>
+      </tr></thead><tbody>
+      ${data.map(r=>`<tr class="border-b border-gray-800 hover:bg-surface-3">
+        <td class="py-1">${r.signal_date}<br><span class="text-gray-600">→${r.review_date}</span></td>
+        <td class="text-right">${r.total}</td>
+        <td class="text-right font-mono" style="color:${r.win_rate>=60?'#44ff88':r.win_rate>=40?'#ffcc00':'#ff4444'}">${r.win_rate}%</td>
+        <td class="text-right font-mono" style="color:${r.avg_return>=0?'#ff6b6b':'#51cf66'}">${r.avg_return>=0?'+':''}${r.avg_return.toFixed(2)}%</td>
+        <td class="text-center">
+          ${r.has_report?`<button onclick="loadReviewDetail('${r.signal_date}','${r.review_date}')" class="text-blue-400 hover:underline">查看</button>`:'—'}
+        </td>
+      </tr>`).join('')}
+      </tbody></table>`;
+  } catch(e) { el.innerHTML='載入失敗'; }
+}
+
+function hideReviewHistory() {
+  document.getElementById('review_history_card').classList.add('hidden');
+  closeReviewDetail();
+}
+
+async function loadReviewDetail(sigDate, revDate) {
+  const el = document.getElementById('review_detail');
+  const title = document.getElementById('review_detail_title');
+  const content = document.getElementById('review_detail_content');
+  el.classList.remove('hidden');
+  title.textContent = `📋 ${sigDate} → ${revDate} 檢討書`;
+  content.textContent = '載入中...';
+  try {
+    const d = await fetch(`/api/daily-review?signal_date=${sigDate}&review_date=${revDate}`).then(r=>r.json());
+    content.textContent = d.content || '無內容';
+  } catch(e) { content.textContent = '載入失敗'; }
+}
+
+function closeReviewDetail() {
+  const el = document.getElementById('review_detail');
+  if (el) el.classList.add('hidden');
+}
+
 async function loadRestrictions() {
   var items = [];
 
