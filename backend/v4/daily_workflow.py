@@ -150,6 +150,24 @@ def run_daily_workflow(target_date: date = None) -> dict:
                 "message": f"檢討書: {path or '無前日資料'}"}
     step("10b_daily_review", review)
 
+    # Step 10c: V5 Paper Pipeline
+    def _v5_pipeline():
+        try:
+            from backend.v5.paper_engine import (
+                check_stop_loss_take_profit, simulate_paper_fills, update_v5_equity)
+            from backend.v5.decision_engine import generate_strategy_decisions
+            from backend.v5.benchmark import rebuild_0050_benchmark
+            r1 = check_stop_loss_take_profit(target_date)
+            r2 = generate_strategy_decisions(target_date)
+            r3 = simulate_paper_fills(target_date)
+            r4 = update_v5_equity(target_date)
+            rebuild_0050_benchmark()
+            return {"status": "PASS",
+                    "message": f"V5: {r2.get('decisions',0)}筆決策 {r3.get('filled',0)}筆成交"}
+        except Exception as e:
+            return {"status": "WARN", "message": f"V5 pipeline 失敗: {e}"}
+    step("10c_v5_pipeline", _v5_pipeline)
+
     # Step 11: 輸出日報告
     def export_report():
         path = export_daily_report(target_date, step_results)

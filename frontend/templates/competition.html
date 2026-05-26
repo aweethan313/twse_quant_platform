@@ -1,321 +1,255 @@
 {% extends "base.html" %}
-{% block title %}月度競賽 | TWSE Quant{% endblock %}
-{% block nav_comp %}bg-surface-4 text-white{% endblock %}
+{% block title %}月度競賽 | TWSE QUANT{% endblock %}
+{% block nav_competition %}bg-surface-3 text-white font-medium{% endblock %}
 
-{% block content %}
-<div class="p-4 space-y-4">
-
-  <!-- ── 競賽期間設定 ── -->
-  <div class="bg-surface-2 border border-border rounded-lg px-4 py-3 flex flex-wrap items-center gap-4">
-    <span class="text-sm font-medium">🏁 競賽設定</span>
-    <div class="flex items-center gap-2">
-      <label class="text-xs text-gray-500">開始日</label>
-      <input id="start_date" type="date" class="bg-surface-3 border border-border rounded px-2 py-1 text-sm font-mono outline-none focus:border-blue">
-    </div>
-    <div class="flex items-center gap-2">
-      <label class="text-xs text-gray-500">結束日</label>
-      <input id="end_date" type="date" class="bg-surface-3 border border-border rounded px-2 py-1 text-sm font-mono outline-none focus:border-blue">
-    </div>
-    <button onclick="loadAll()" class="bg-accent text-black font-bold px-4 py-1.5 rounded text-sm hover:opacity-90 transition">更新</button>
-    <span id="comp_status" class="ml-auto text-xs text-gray-500"></span>
-  </div>
-
-  <!-- ── 排行榜 ── -->
-  <div class="bg-surface-2 border border-border rounded-lg">
-    <div class="px-4 py-3 border-b border-border text-sm font-medium">🏆 策略排行榜</div>
-    <div class="overflow-x-auto">
-      <table class="w-full text-sm">
-        <thead>
-          <tr class="text-xs text-gray-500 border-b border-border">
-            <th class="px-4 py-3 text-center w-10">排名</th>
-            <th class="px-4 py-3 text-left">策略名稱</th>
-            <th class="px-4 py-3 text-left">策略類型</th>
-            <th class="px-4 py-3 text-right">期初資產</th>
-            <th class="px-4 py-3 text-right">期末資產</th>
-            <th class="px-4 py-3 text-right">報酬率</th>
-            <th class="px-4 py-3 text-right">最大回撤</th>
-          </tr>
-        </thead>
-        <tbody id="rank_body" class="divide-y divide-border">
-          <tr><td colspan="7" class="text-center py-8 text-gray-500 text-xs">載入中…</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- ── 權益曲線競賽圖 ── -->
-  <div class="bg-surface-2 border border-border rounded-lg p-4">
-    <div class="flex items-center justify-between mb-4">
-      <div class="text-sm font-medium">📈 策略資產競賽圖</div>
-      <div id="curve_legend" class="flex flex-wrap gap-3"></div>
-    </div>
-    <div class="h-80">
-      <canvas id="race_chart"></canvas>
-    </div>
-  </div>
-
-  <!-- ── 指標對比雷達 ── -->
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-    <div class="bg-surface-2 border border-border rounded-lg p-4">
-      <div class="text-sm font-medium mb-4">📊 報酬率對比（柱狀圖）</div>
-      <div class="h-56"><canvas id="bar_chart"></canvas></div>
-    </div>
-    <div class="bg-surface-2 border border-border rounded-lg p-4">
-      <div class="text-sm font-medium mb-4">📐 風險收益散佈</div>
-      <div class="h-56"><canvas id="scatter_chart"></canvas></div>
-    </div>
-  </div>
-
-</div>
-
-<div class="mt-4 bg-surface-2 border border-border rounded-lg p-4">
-  <div class="text-sm font-bold mb-3">📊 策略 vs 0050 累計報酬對比</div>
-  <div style="height:240px"><canvas id="compare_chart"></canvas></div>
-  <div id="compare_summary" class="mt-3 flex flex-wrap gap-2 text-xs"></div>
-</div>
+{% block head %}
+<style>
+.race-card { background:#161b22; border:1px solid #30363d; border-radius:10px; padding:14px; margin-bottom:10px; }
+.rank-badge { width:28px; height:28px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-weight:700; font-size:12px; }
+.rank-1 { background:linear-gradient(135deg,#f6d365,#fda085); color:#000; }
+.rank-2 { background:linear-gradient(135deg,#a8c0ff,#3f2b96); color:#fff; }
+.rank-3 { background:linear-gradient(135deg,#d4fc79,#96e6a1); color:#000; }
+.rank-n { background:#21262d; color:#8b949e; }
+.tab-btn { padding:8px 16px; border-radius:6px; font-size:12px; cursor:pointer; color:#8b949e; }
+.tab-btn.active { background:#30363d; color:#fff; }
+.alpha-pos { color:#44ff88; }
+.alpha-neg { color:#ff4444; }
+</style>
 {% endblock %}
 
-{% block scripts %}
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 py-5">
+  <div class="flex items-center justify-between mb-4">
+    <h1 class="text-xl font-bold">🏆 月度策略競賽</h1>
+    <div class="text-xs text-gray-500" id="last_updated">—</div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="flex gap-2 mb-4">
+    <button class="tab-btn active" onclick="switchTab('race',this)">📊 Forward Paper Race</button>
+    <button class="tab-btn" onclick="switchTab('chart',this)">📈 淨值曲線</button>
+    <button class="tab-btn" onclick="switchTab('alpha',this)">🎯 Alpha vs 0050</button>
+  </div>
+
+  <!-- Tab: Race -->
+  <div id="tab_race">
+    <div class="race-card mb-4">
+      <div class="flex items-center gap-4 flex-wrap text-xs">
+        <div>📅 本月起始：<span id="race_start_date" class="text-accent">—</span></div>
+        <div>📊 0050 同期：<span id="bench_ret" class="font-mono font-bold">—</span></div>
+        <div class="text-gray-500">跑贏 0050 = 正 Alpha ✅</div>
+      </div>
+    </div>
+    <div id="race_list">載入中...</div>
+  </div>
+
+  <!-- Tab: 淨值曲線 -->
+  <div id="tab_chart" class="hidden">
+    <div class="race-card">
+      <canvas id="equity_chart" style="max-height:400px"></canvas>
+    </div>
+  </div>
+
+  <!-- Tab: Alpha -->
+  <div id="tab_alpha" class="hidden">
+    <div class="race-card">
+      <canvas id="alpha_chart" style="max-height:350px"></canvas>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script>
+var _equityChart = null, _alphaChart = null;
+var COLORS = ['#63b3ed','#48bb78','#f6ad55','#fc8181','#b794f4','#4fd1c7','#f687b3','#ffd700'];
 
-// 月度競賽圖表日期對齊工具函式
-function alignEquityData(accounts) {
-  // 1. 收集所有日期
-  var allDates = new Set();
-  accounts.forEach(a => {
-    (a.equity_history || []).forEach(e => allDates.add(e.date || e.snap_date));
+function switchTab(tab, btn) {
+  ['race','chart','alpha'].forEach(t => {
+    document.getElementById('tab_'+t).classList.add('hidden');
   });
-  var labels = Array.from(allDates).sort();
-
-  // 2. 每個帳戶建 date->equity map，缺值補 null
-  var datasets = accounts.map((a, i) => {
-    var map = {};
-    (a.equity_history || []).forEach(e => {
-      map[e.date || e.snap_date] = e.total_equity || e.equity;
-    });
-    var COLORS = ['#63b3ed','#48bb78','#f6ad55','#fc8181','#b794f4','#4fd1c7','#f687b3'];
-    return {
-      label: a.name || ('S' + a.account_id),
-      data: labels.map(d => map[d] != null ? +map[d] : null),
-      borderColor: COLORS[i % COLORS.length],
-      backgroundColor: COLORS[i % COLORS.length] + '20',
-      tension: 0.3,
-      pointRadius: 2,
-      spanGaps: true,
-    };
-  });
-  return { labels, datasets };
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab_'+tab).classList.remove('hidden');
+  btn.classList.add('active');
+  if (tab === 'chart') loadEquityChart();
+  if (tab === 'alpha') loadAlphaChart();
 }
 
-const COLORS = ['#58a6ff','#39d353','#f0b429','#f85149','#a371f7','#79c0ff','#56d364'];
-let raceChart = null, barChart = null, scatterChart = null;
-
-// ── 日期初始化 ────────────────────────────────
-(function(){
-  const today = new Date();
-  const start = new Date(today); start.setDate(today.getDate()-30);
-  const fmt = d => d.toISOString().slice(0,10);
-  document.getElementById('start_date').value = fmt(start);
-  document.getElementById('end_date').value   = fmt(today);
-})();
-
-async function loadAll(){
-  const s = document.getElementById('start_date').value;
-  const e = document.getElementById('end_date').value;
-  const days = Math.round((new Date(e)-new Date(s))/(86400000));
-  document.getElementById('comp_status').textContent = `競賽期 ${days} 天`;
-  await Promise.all([loadRanking(s,e), loadCurves()]);
-}
-
-// ── 排行榜 ───────────────────────────────────
-async function loadRanking(s, e){
+// ── Race Tab ──
+async function loadRace() {
   try {
-    const data = await api(`/competition/ranking?start_date=${s}&end_date=${e}`);
-    const el = document.getElementById('rank_body');
-    if(!data.length){
-      el.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-gray-500 text-xs">尚無資料（需先執行策略）</td></tr>';
+    const today = new Date();
+    const startDate = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-01`;
+    const d = await fetch(`/api/monthly/race?start_date=${startDate}`).then(r=>r.json());
+
+    document.getElementById('race_start_date').textContent = d.start_date || startDate;
+    const benchRet = d.benchmark_return || 0;
+    document.getElementById('bench_ret').innerHTML =
+      `<span class="${benchRet>=0?'text-up':'text-dn'}">${benchRet>=0?'+':''}${benchRet.toFixed(2)}%</span>`;
+    document.getElementById('last_updated').textContent =
+      '更新時間：' + new Date().toLocaleString('zh-TW');
+
+    const accounts = d.accounts || [];
+    if (!accounts.length) {
+      document.getElementById('race_list').innerHTML = '<div class="text-gray-600 text-sm py-8 text-center">尚無資料，請先執行每日更新</div>';
       return;
     }
-    const medals = ['🥇','🥈','🥉'];
-    el.innerHTML = data.map((r,i)=>`
-      <tr class="hover:bg-surface-3 ${i===0?'bg-surface-3/50':''}">
-        <td class="px-4 py-3 text-center font-bold text-lg">${medals[i]||r.rank}</td>
-        <td class="px-4 py-3">
-          <div class="font-medium">${r.name}</div>
-          <div class="text-xs text-gray-500">${r.latest_date}</div>
-        </td>
-        <td class="px-4 py-3 text-xs text-gray-400">${r.strategy_class}</td>
-        <td class="px-4 py-3 text-right font-mono text-sm">${fmt(r.start_equity)}</td>
-        <td class="px-4 py-3 text-right font-mono text-sm font-bold">${fmt(r.end_equity)}</td>
-        <td class="px-4 py-3 text-right font-mono font-bold text-base ${clsPN(r.return_pct)}">
-          ${fmtPct(r.return_pct)}
-        </td>
-        <td class="px-4 py-3 text-right font-mono text-dn text-sm">${fmtP(r.max_drawdown,2)}%</td>
-      </tr>
-    `).join('');
-    drawBarChart(data);
-    drawScatterChart(data);
-  } catch(e){ console.warn(e); }
-}
 
-// ── 權益曲線 ─────────────────────────────────
-async function loadCurves(){
-  try {
-    const data = await api('/competition/equity_curves');
-    if(!data.length) return;
-    drawRaceChart(data);
-    renderLegend(data);
-  } catch(e){ console.warn(e); }
-}
-
-function drawRaceChart(accounts){
-  const ctx = document.getElementById('race_chart').getContext('2d');
-  if(raceChart) raceChart.destroy();
-
-  // P0-4 日期對齊
-  const _allDates = new Set();
-  accounts.forEach(a => (a.curve||[]).forEach(p => _allDates.add(p.date)));
-  const _labels = [..._allDates].sort();
-
-  const datasets = accounts.map((acc,i)=>({
-    label: acc.name,
-    data: _labels.map(d => { const p = (acc.curve||[]).find(x=>x.date===d); return p ? +((p.total/(acc.curve[0]?.total||200000)-1)*100).toFixed(3) : null; }),
-    borderColor:     COLORS[i % COLORS.length],
-    backgroundColor: COLORS[i % COLORS.length]+'22',
-    fill:  false,
-    borderWidth: 2,
-    pointRadius: 2,
-    tension: 0.3, spanGaps: true,
-  }));
-
-  raceChart = new Chart(ctx, {
-    type:'line',
-    data:{ labels:_labels, datasets },
-    options:{
-      responsive:true, maintainAspectRatio:false,
-      interaction:{ mode:'index', intersect:false },
-      plugins:{
-        legend:{ display:false },
-        tooltip:{
-          backgroundColor:'#1c2128', borderColor:'#30363d', borderWidth:1,
-          titleColor:'#e6edf3', bodyColor:'#7d8590',
-          callbacks:{
-            label: ctx => ctx.raw==null ? ctx.dataset.label+': 無資料' : ` ${ctx.dataset.label}: ${ctx.raw>=0?'+':''}${ctx.raw.toFixed(2)}%`
-          }
-        }
-      },
-      scales:{
-        x:{
-          type:'category',
-          grid:{ color:'rgba(48,54,61,.4)' },
-          ticks:{ color:'#7d8590', font:{size:9}, maxTicksLimit:10 }
-        },
-        y:{
-          grid:{ color:'rgba(48,54,61,.4)' },
-          ticks:{
-            color:'#7d8590', font:{size:9},
-            callback: v => fmt(v)
-          },
-          position:'right'
-        }
-      }
-    }
-  });
-}
-
-function renderLegend(accounts){
-  const el = document.getElementById('curve_legend');
-  el.innerHTML = accounts.map((a,i)=>`
-    <div class="flex items-center gap-1.5">
-      <div class="w-3 h-3 rounded-sm" style="background:${COLORS[i%COLORS.length]}"></div>
-      <span class="text-xs text-gray-300">${a.name}</span>
-    </div>
-  `).join('');
-}
-
-function drawBarChart(data){
-  const ctx = document.getElementById('bar_chart').getContext('2d');
-  if(barChart) barChart.destroy();
-  barChart = new Chart(ctx,{
-    type:'bar',
-    data:{
-      labels: data.map(r=>r.name),
-      datasets:[{
-        label:'報酬率%',
-        data: data.map(r=>r.return_pct),
-        backgroundColor: data.map(r=>r.return_pct>=0?'rgba(57,211,83,.7)':'rgba(248,81,73,.7)'),
-        borderColor:     data.map(r=>r.return_pct>=0?'#39d353':'#f85149'),
-        borderWidth:1, borderRadius:4,
-      }]
-    },
-    options:{
-      responsive:true, maintainAspectRatio:false,
-      plugins:{legend:{display:false}, tooltip:{backgroundColor:'#1c2128',borderColor:'#30363d',borderWidth:1,titleColor:'#e6edf3',bodyColor:'#7d8590'}},
-      scales:{
-        x:{grid:{color:'rgba(48,54,61,.4)'},ticks:{color:'#7d8590',font:{size:10}}},
-        y:{grid:{color:'rgba(48,54,61,.4)'},ticks:{color:'#7d8590',font:{size:9},callback:v=>v+'%'},position:'right'}
-      }
-    }
-  });
-}
-
-function drawScatterChart(data){
-  const ctx = document.getElementById('scatter_chart').getContext('2d');
-  if(scatterChart) scatterChart.destroy();
-  scatterChart = new Chart(ctx,{
-    type:'scatter',
-    data:{
-      datasets:[{
-        label:'風險/報酬',
-        data: data.map((r,i)=>({x: Math.abs(r.max_drawdown), y: r.return_pct, name: r.name})),
-        backgroundColor: data.map((_,i)=>COLORS[i%COLORS.length]+'cc'),
-        borderColor: data.map((_,i)=>COLORS[i%COLORS.length]),
-        pointRadius: 8, pointHoverRadius:10,
-      }]
-    },
-    options:{
-      responsive:true, maintainAspectRatio:false,
-      plugins:{
-        legend:{display:false},
-        tooltip:{
-          backgroundColor:'#1c2128',borderColor:'#30363d',borderWidth:1,
-          titleColor:'#e6edf3',bodyColor:'#7d8590',
-          callbacks:{
-            label: ctx => ` ${ctx.raw.name}  回撤:${fmtP(ctx.raw.x,2)}%  報酬:${fmtPct(ctx.raw.y)}`
-          }
-        }
-      },
-      scales:{
-        x:{title:{display:true,text:'最大回撤 (%)',color:'#7d8590',font:{size:10}},grid:{color:'rgba(48,54,61,.4)'},ticks:{color:'#7d8590',font:{size:9}}},
-        y:{title:{display:true,text:'報酬率 (%)',color:'#7d8590',font:{size:10}},grid:{color:'rgba(48,54,61,.4)'},ticks:{color:'#7d8590',font:{size:9}},position:'right'}
-      }
-    }
-  });
-}
-
-loadAll();
-setInterval(loadAll, 60000);
-</script>
-<script>
-let compareChart = null;
-async function loadCompare(){
-  try{
-    const d = await api('/backtest/compare');
-    const colors = ['#ff4444','#44aaff','#44ff88','#ffcc00','#ff8844','#cc44ff','#ffffff','#888888'];
-    const datasets = d.series.map((s,i)=>({
-      label:s.name, data:s.data.map(p=>({x:p.date,y:p.ret})),
-      borderColor:colors[i%colors.length], borderWidth:s.name==='0050'?2.5:1.5,
-      pointRadius:0, tension:0.2, fill:false
-    }));
-    const ctx=document.getElementById('compare_chart').getContext('2d');
-    if(compareChart)compareChart.destroy();
-    compareChart=new Chart(ctx,{type:'line',data:{datasets},options:{responsive:true,maintainAspectRatio:false,animation:false,parsing:{xAxisKey:'x',yAxisKey:'y'},plugins:{legend:{labels:{color:'#aaa',font:{size:9}}}},scales:{x:{type:'category',ticks:{color:'#555',font:{size:9},maxTicksLimit:8},grid:{color:'rgba(255,255,255,0.04)'}},y:{ticks:{color:'#888',font:{size:9},callback:v=>(v>=0?'+':'')+v+'%'},grid:{color:'rgba(255,255,255,0.06)'},position:'right'}}}});
-    document.getElementById('compare_summary').innerHTML=d.summary.map(s=>{
-      const c=s.final_ret>=0?'#ff4444':'#22cc66';
-      return '<span style="background:rgba(255,255,255,0.05);border-radius:4px;padding:3px 8px">'+s.name+' <span style="color:'+c+';font-weight:700">'+(s.final_ret>=0?'+':'')+s.final_ret+'%</span></span>';
+    document.getElementById('race_list').innerHTML = accounts.map((a, i) => {
+      const rankCls = i===0?'rank-1':i===1?'rank-2':i===2?'rank-3':'rank-n';
+      const alpha = a.alpha_vs_0050 || 0;
+      const ret = a.monthly_return || 0;
+      const beat = alpha > 0;
+      return `
+      <div class="race-card">
+        <div class="flex items-center gap-3">
+          <div class="rank-badge ${rankCls}">${i+1}</div>
+          <div class="flex-1">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="font-medium text-sm">${a.account_name}</span>
+              ${beat ? '<span class="text-xs bg-green-900/40 text-green-400 px-2 py-0.5 rounded border border-green-800">✅ 跑贏0050</span>'
+                     : '<span class="text-xs bg-red-900/30 text-red-400 px-2 py-0.5 rounded border border-red-800">❌ 跑輸0050</span>'}
+            </div>
+            <div class="text-xs text-gray-500 mt-0.5">交易 ${a.trading_days||0} 天</div>
+          </div>
+          <div class="text-right">
+            <div class="text-lg font-bold font-mono ${ret>=0?'text-up':'text-dn'}">${ret>=0?'+':''}${ret.toFixed(2)}%</div>
+            <div class="text-xs ${alpha>=0?'alpha-pos':'alpha-neg'}">α ${alpha>=0?'+':''}${alpha.toFixed(2)}%</div>
+          </div>
+        </div>
+      </div>`;
     }).join('');
-  }catch(e){console.warn(e);}
+  } catch(e) {
+    document.getElementById('race_list').innerHTML = '<div class="text-red-400 text-sm">載入失敗：'+e.message+'</div>';
+  }
 }
-document.addEventListener('DOMContentLoaded',loadCompare);
+
+// ── 淨值曲線 ──
+async function loadEquityChart() {
+  if (_equityChart) { _equityChart.destroy(); _equityChart = null; }
+  try {
+    const today = new Date();
+    const startDate = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-01`;
+    const curves = await fetch(`/api/monthly/equity-curves?start_date=${startDate}`).then(r=>r.json());
+
+    // 全域日期對齊
+    const allDates = new Set();
+    curves.forEach(a => (a.curve||[]).forEach(p => allDates.add(p.date)));
+    const labels = [...allDates].sort();
+
+    const datasets = curves.map((a, i) => {
+      const map = {};
+      (a.curve||[]).forEach(p => map[p.date] = p.return_pct);
+      const isBench = !!a.is_benchmark;
+      return {
+        label: a.name,
+        data: labels.map(d => map[d] != null ? +map[d] : null),
+        borderColor: isBench ? '#ffd700' : COLORS[i % COLORS.length],
+        borderWidth: isBench ? 2.5 : 1.5,
+        borderDash: isBench ? [5,3] : [],
+        borderDashOffset: 0,
+        backgroundColor: 'transparent',
+        tension: 0.3, pointRadius: 1, spanGaps: true,
+      };
+    });
+
+    const ctx = document.getElementById('equity_chart');
+    _equityChart = new Chart(ctx, {
+      type: 'line',
+      data: { labels, datasets },
+      options: {
+        responsive: true,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { labels: { color: '#bbb', font: { size: 10 } } },
+          title: { display: true, text: '策略報酬率比較（黃色虛線 = 0050）', color: '#888' },
+          tooltip: {
+            callbacks: {
+              label: item => item.raw == null ? item.dataset.label+': 無資料' :
+                `${item.dataset.label}: ${item.raw>=0?'+':''}${item.raw.toFixed(2)}%`
+            }
+          }
+        },
+        scales: {
+          x: { ticks: { color: '#555', maxTicksLimit: 8 } },
+          y: { ticks: { color: '#bbb', callback: v => (v>=0?'+':'')+v.toFixed(1)+'%' },
+               grid: { color: '#21262d' } }
+        }
+      }
+    });
+  } catch(e) { console.error('equity chart', e); }
+}
+
+// ── Alpha 曲線 ──
+async function loadAlphaChart() {
+  if (_alphaChart) { _alphaChart.destroy(); _alphaChart = null; }
+  try {
+    const today = new Date();
+    const startDate = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-01`;
+    const curves = await fetch(`/api/monthly/equity-curves?start_date=${startDate}`).then(r=>r.json());
+
+    const benchmark = curves.find(c => c.is_benchmark);
+    if (!benchmark) { return; }
+    const benchMap = {};
+    (benchmark.curve||[]).forEach(p => benchMap[p.date] = p.return_pct);
+
+    const allDates = new Set();
+    curves.forEach(a => (a.curve||[]).forEach(p => allDates.add(p.date)));
+    const labels = [...allDates].sort();
+
+    const datasets = curves.filter(a => !a.is_benchmark).map((a, i) => {
+      const map = {};
+      (a.curve||[]).forEach(p => map[p.date] = p.return_pct);
+      return {
+        label: a.name + ' Alpha',
+        data: labels.map(d => {
+          const sr = map[d]; const br = benchMap[d];
+          if (sr == null || br == null) return null;
+          return +(sr - br).toFixed(3);
+        }),
+        borderColor: COLORS[i % COLORS.length],
+        backgroundColor: COLORS[i % COLORS.length] + '20',
+        fill: true,
+        tension: 0.3, pointRadius: 1, spanGaps: true,
+      };
+    });
+
+    // 零線
+    datasets.push({
+      label: '0050 基準', data: labels.map(() => 0),
+      borderColor: '#ffd700', borderWidth: 1,
+      borderDash: [4,3], backgroundColor: 'transparent',
+      pointRadius: 0,
+    });
+
+    const ctx = document.getElementById('alpha_chart');
+    _alphaChart = new Chart(ctx, {
+      type: 'line',
+      data: { labels, datasets },
+      options: {
+        responsive: true,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { labels: { color: '#bbb', font: { size: 10 } } },
+          title: { display: true, text: 'Alpha vs 0050（正值=跑贏）', color: '#888' },
+          tooltip: {
+            callbacks: {
+              label: item => item.raw == null ? item.dataset.label+': 無資料' :
+                `${item.dataset.label}: ${item.raw>=0?'+':''}${item.raw.toFixed(2)}%`
+            }
+          }
+        },
+        scales: {
+          x: { ticks: { color: '#555', maxTicksLimit: 8 } },
+          y: {
+            ticks: { color: '#bbb', callback: v => (v>=0?'+':'')+v.toFixed(1)+'%' },
+            grid: { color: '#21262d' }
+          }
+        }
+      }
+    });
+  } catch(e) { console.error('alpha chart', e); }
+}
+
+document.addEventListener('DOMContentLoaded', loadRace);
 </script>
 {% endblock %}
