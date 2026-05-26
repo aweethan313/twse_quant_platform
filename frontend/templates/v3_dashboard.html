@@ -84,20 +84,15 @@
     </div>
   </div>
 
-  <!-- C. T+1 交易建議 -->
+  <!-- C. T+1 交易建議 → 導向今日候選頁 -->
   <div class="dc-card mb-4">
-    <div class="flex items-center justify-between mb-3">
+    <div class="flex items-center justify-between">
       <div class="text-xs text-gray-500 font-semibold uppercase tracking-wide">📋 T+1 交易建議</div>
-      <div class="flex gap-2">
-        <button onclick="filterSignal('all',this)" class="text-xs px-3 py-1 rounded bg-surface-3 text-gray-400 hover:text-white">全部</button>
-        <button onclick="filterSignal('BUY',this)" class="text-xs px-3 py-1 rounded bg-surface-3 text-gray-400 hover:text-white">BUY</button>
-        <button onclick="filterSignal('WATCH',this)" class="text-xs px-3 py-1 rounded bg-surface-3 text-gray-400 hover:text-white">WATCH</button>
-        <button onclick="filterSignal('BLOCKED',this)" class="text-xs px-3 py-1 rounded bg-surface-3 text-gray-400 hover:text-white">BLOCKED</button>
-      </div>
+      <a href="/candidates" class="text-xs px-3 py-1 rounded bg-blue-900/40 text-blue-400 hover:text-white border border-blue-800">
+        查看今日候選 →
+      </a>
     </div>
-    <div class="overflow-x-auto">
-      <div id="dc_signals">載入中...</div>
-    </div>
+    <div id="dc_signals_summary" class="mt-2 text-xs text-gray-400">載入中...</div>
   </div>
 
   <!-- D. 策略帳戶今日狀況 -->
@@ -190,10 +185,18 @@ async function loadKill() {
 // C. T+1 交易建議
 async function loadSignals() {
   try {
-    var data = await fetch('/api/candidates/trade-plans?limit=50').then(r=>r.json());
+    var data = await fetch('/api/candidates/trade-plans?limit=10').then(r=>r.json());
     _allSignals = Array.isArray(data) ? data : [];
-    renderSignals('all');
-  } catch(e) { document.getElementById('dc_signals').textContent='尚無建議（請先執行每日更新）'; }
+    var el = document.getElementById('dc_signals_summary');
+    if (!el) return;
+    var buys = _allSignals.filter(s=>!s.invalid_buy_condition);
+    el.innerHTML = buys.slice(0,3).map(s=>
+      `<span class="inline-block mr-3">✅ <b class="text-white">${s.name}</b> ${s.entry_price_low??'—'}~${s.entry_price_high??'—'}</span>`
+    ).join('') + (buys.length > 3 ? `<span class="text-blue-400">...共${buys.length}檔</span>` : '');
+  } catch(e) {
+    var el = document.getElementById('dc_signals_summary');
+    if (el) el.textContent='尚無建議';
+  }
 }
 
 function filterSignal(type, btn) {
