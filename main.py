@@ -2416,11 +2416,32 @@ def api_overnight_enhanced():
             ORDER BY context_date DESC LIMIT 1
         """)).fetchone()
 
+        # 嘗試從 cache 取台股指數
+        import json as _json
+        from pathlib import Path as _Path
+        taiex_close = taiex_change = tw_fut_close = tw_fut_change = mu_ret = None
+        cache_f = _Path("data/overnight_cache.json")
+        if cache_f.exists():
+            try:
+                cache = _json.loads(cache_f.read_text())
+                bias = cache.get("bias", {})
+                taiex_close = bias.get("taiex_close")
+                taiex_change = bias.get("taiex_change")
+                tw_fut_close = bias.get("tw_futures_close")
+                tw_fut_change = bias.get("tw_futures_change")
+                mu_ret = bias.get("mu_ret", 0)
+            except: pass
+
         return {
             "date": str(row[0]) if row else None,
             "overnight_score": float(row[2] or 50) if row else 50,
             "summary": us_summary,
             "market_regime": row[5] if row else "—",
+            "taiex_close": taiex_close,
+            "taiex_change": taiex_change,
+            "tw_futures_close": tw_fut_close,
+            "tw_futures_change": tw_fut_change,
+            "mu_ret": mu_ret,
             "twse_proxy": {
                 "code": "0050",
                 "date": str(idx_row[0]) if idx_row else None,

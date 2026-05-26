@@ -191,8 +191,11 @@ async function loadMarket() {
       row('風險等級', `<span style="color:${rlColor}">${rl}</span>`) +
       row('部位倍率', `<span class="text-accent">${((ctx.position_multiplier||0.65)*100).toFixed(0)}%</span>`) +
       row('0050', `<span class="font-mono font-bold">${twse.close||'—'}</span> <span style="color:${twseColor}">${(twse.change_pct||0)>=0?'+':''}${(twse.change_pct||0).toFixed(2)}%</span>`) +
+      (enh.taiex_close ? row('加權指數', `<span class="font-mono font-bold text-accent">${Math.round(enh.taiex_close).toLocaleString()}</span> <span style="color:${(enh.taiex_change||0)>=0?'#ff6b6b':'#51cf66'}">${(enh.taiex_change||0)>=0?'+':''}${Math.round(enh.taiex_change||0)}</span>`) : '') +
+      (enh.tw_futures_close ? row('台指期', `<span class="font-mono font-bold">${Math.round(enh.tw_futures_close).toLocaleString()}</span> <span style="color:${(enh.tw_futures_change||0)>=0?'#ff6b6b':'#51cf66'}">${(enh.tw_futures_change||0)>=0?'+':''}${Math.round(enh.tw_futures_change||0)}</span>`) : '') +
       row('台股廣度', `<span class="text-up">↑${breadth.up||0}</span> <span class="text-dn">↓${breadth.down||0}</span> 均${(breadth.avg_change||0)>=0?'+':''}${(breadth.avg_change||0).toFixed(2)}%`) +
-      row('夜盤情緒', `<span>${ovIcon}</span> <span style="color:${ovColor}">${enh.summary||ov.summary||'—'}</span>`) +
+      row('夜盤情緒', `<span>${ovIcon}</span> <span style="color:${ovColor}" class="text-xs">${enh.summary||ov.summary||'—'}</span>`) +
+      (enh.mu_ret ? row('美光 MU', `<span class="font-mono" style="color:${(enh.mu_ret||0)>=0?'#ff6b6b':'#51cf66'}">${(enh.mu_ret||0)>=0?'+':''}${(enh.mu_ret||0).toFixed(2)}%</span> <span class="text-xs text-gray-500">→ 影響記憶體/DRAM 族群</span>`) : '') +
       row('成交金額', `<span class="text-gray-400">${breadth.total_value_b||0} 億</span>`);
   } catch(e) { document.getElementById('dc_market').textContent='載入失敗'; }
 }
