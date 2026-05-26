@@ -319,7 +319,32 @@ async function loadV4Summary() {
     const paused  = data.filter(s=>s.status==='PAUSED').length;
     const reduced = data.filter(s=>s.status==='REDUCED').length;
     const active  = data.filter(s=>s.status==='ACTIVE').length;
-    document.getElementById('v4_ks_summary').innerHTML =
+
+    // 台股指數卡片
+    try {
+      const ov = await fetch('/api/v2/overnight-enhanced').then(r=>r.json());
+      const taiex = ov.taiex_close;
+      const taiexChg = ov.taiex_change;
+      const fut = ov.tw_futures_close;
+      const futChg = ov.tw_futures_change;
+      if (taiex) {
+        const chgColor = (taiexChg||0)>=0?'#ff6b6b':'#51cf66';
+        document.getElementById('tw_taiex').innerHTML =
+          `<span>${Math.round(taiex).toLocaleString()}</span> <span style="color:${chgColor};font-size:11px">${(taiexChg||0)>=0?'+':''}${Math.round(taiexChg||0)}</span>`;
+      } else {
+        document.getElementById('tw_taiex').textContent = '更新後顯示';
+      }
+      if (fut) {
+        const fc = (futChg||0)>=0?'#ff6b6b':'#51cf66';
+        document.getElementById('tw_futures').innerHTML =
+          `台指期 <b>${Math.round(fut).toLocaleString()}</b> <span style="color:${fc}">${(futChg||0)>=0?'+':''}${Math.round(futChg||0)}</span>`;
+      } else {
+        document.getElementById('tw_futures').textContent = '台指期：更新後顯示';
+      }
+    } catch(e) {}
+    
+    // 策略狀態已移至 V3
+    if(document.getElementById('v4_ks_summary')) document.getElementById('v4_ks_summary').innerHTML =
       `✅${active}啟用 ⚠️${reduced}降權 🛑${paused}暫停`;
   } catch(e) {}
 
@@ -680,12 +705,16 @@ function showStockDetailLink(){
       const syms = d.symbols || {};
       function biasColor(l) { return l.includes('多')?'#ff4444':l.includes('空')?'#22cc66':'#aaa'; }
       function retColor(v) { return v>0?'#ff4444':v<0?'#22cc66':'#aaa'; }
-      const symRows = Object.entries(syms).map(([s,d])=>
-        `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.05)">
-          <span style="color:#888;font-size:0.78rem">${s} <span style="color:#666">${d.name}</span></span>
-          <span style="color:${retColor(d.ret)};font-size:0.78rem;font-weight:600">${d.ret>0?'+':''}${d.ret}%</span>
-        </div>`
-      ).join('');
+      const symRows = Object.entries(syms).map(([s,d])=>{
+        const isMU = s==='MU';
+        const isTW = d.sector==='tw_index'||d.sector==='tw_futures';
+        const ptChg = d.point_change ? ` (${d.point_change>=0?'+':''}${Math.round(d.point_change)})` : '';
+        const extra = isMU && Math.abs(d.ret||0)>=5 ? ' ⚡記憶體族群注意' : '';
+        return `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.05);${isMU?'background:rgba(255,200,0,0.05);border-radius:3px;':''}">
+          <span style="color:#888;font-size:0.78rem">${s} <span style="color:#666">${d.name}</span><span style="color:#f6ad55;font-size:0.7rem">${extra}</span></span>
+          <span style="color:${retColor(d.ret)};font-size:0.78rem;font-weight:600">${isTW?(Math.round(d.close||0).toLocaleString()+ptChg):((d.ret>0?'+':'')+d.ret+'%')}</span>
+        </div>`;
+      }).join('');
       const existing = document.getElementById('v2-overnight-card');
       if (existing) existing.remove();
       const card = document.createElement('div');
