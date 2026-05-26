@@ -1,0 +1,246 @@
+{% extends "base.html" %}
+{% block title %}Paper Trading | TWSE QUANT{% endblock %}
+
+{% block head %}
+<style>
+.p-card { background:#161b22; border:1px solid #30363d; border-radius:10px; padding:16px; margin-bottom:12px; }
+.p-row { display:flex; justify-content:space-between; align-items:center; padding:6px 0; font-size:12px; border-bottom:1px solid #21262d; }
+.p-row:last-child { border-bottom:none; }
+.badge-buy  { background:rgba(68,255,136,.15); color:#44ff88; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:700; }
+.badge-sell { background:rgba(255,68,68,.15);  color:#ff4444; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:700; }
+.badge-pending { background:rgba(255,204,0,.15); color:#ffcc00; padding:2px 8px; border-radius:4px; font-size:11px; }
+.input-sm { background:#0d1117; border:1px solid #30363d; border-radius:6px; padding:4px 8px; color:#e6edf3; font-size:12px; width:100px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto px-4 py-5">
+  <div class="flex items-center justify-between mb-4">
+    <h1 class="text-xl font-bold">📋 Paper Trading</h1>
+    <button onclick="runV5Pipeline()" class="text-xs px-4 py-2 rounded bg-blue-900/40 text-blue-400 border border-blue-800 hover:text-white">
+      ▶ 執行今日 V5 Pipeline
+    </button>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+    <!-- 今日決策 Pending -->
+    <div class="p-card">
+      <div class="text-xs text-gray-500 mb-3 font-semibold uppercase tracking-wide">📋 今日決策（待 T+1 成交）</div>
+      <div id="pending_list">載入中...</div>
+    </div>
+
+    <!-- Manual Fill -->
+    <div class="p-card">
+      <div class="text-xs text-gray-500 mb-3 font-semibold uppercase tracking-wide">✏️ 手動輸入成交</div>
+      <div class="space-y-3">
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <div class="text-xs text-gray-500 mb-1">帳戶</div>
+            <select id="mf_account" class="input-sm w-full">
+              <option value="">選擇帳戶</option>
+            </select>
+          </div>
+          <div>
+            <div class="text-xs text-gray-500 mb-1">動作</div>
+            <select id="mf_action" class="input-sm w-full">
+              <option value="BUY">BUY 買入</option>
+              <option value="SELL">SELL 賣出</option>
+            </select>
+          </div>
+          <div>
+            <div class="text-xs text-gray-500 mb-1">股票代號</div>
+            <input id="mf_code" class="input-sm w-full" placeholder="e.g. 2882">
+          </div>
+          <div>
+            <div class="text-xs text-gray-500 mb-1">股數</div>
+            <input id="mf_shares" class="input-sm w-full" type="number" placeholder="e.g. 100">
+          </div>
+          <div>
+            <div class="text-xs text-gray-500 mb-1">成交價</div>
+            <input id="mf_price" class="input-sm w-full" type="number" step="0.01" placeholder="e.g. 82.5">
+          </div>
+          <div>
+            <div class="text-xs text-gray-500 mb-1">備註</div>
+            <input id="mf_note" class="input-sm w-full" placeholder="選填">
+          </div>
+        </div>
+        <button onclick="submitManualFill()" class="w-full text-xs py-2 rounded bg-green-900/40 text-green-400 border border-green-800 hover:text-white">
+          確認手動成交
+        </button>
+        <div id="mf_result" class="text-xs text-gray-500"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 最近成交記錄 -->
+  <div class="p-card mt-4">
+    <div class="flex items-center justify-between mb-3">
+      <div class="text-xs text-gray-500 font-semibold uppercase tracking-wide">📜 最近成交記錄</div>
+      <select id="fills_account" onchange="loadFills()" class="input-sm">
+        <option value="">所有帳戶</option>
+      </select>
+    </div>
+    <div id="fills_list">載入中...</div>
+  </div>
+
+  <!-- V5 帳戶持倉 -->
+  <div class="p-card mt-4">
+    <div class="flex items-center justify-between mb-3">
+      <div class="text-xs text-gray-500 font-semibold uppercase tracking-wide">💼 帳戶持倉</div>
+      <select id="pos_account" onchange="loadPositions()" class="input-sm">
+        <option value="">選擇帳戶</option>
+      </select>
+    </div>
+    <div id="positions_list">請選擇帳戶</div>
+  </div>
+</div>
+
+<script>
+// 載入帳戶列表
+async function loadAccounts() {
+  const d = await fetch('/api/strategy-accounts').then(r=>r.json());
+  const selectors = ['mf_account','fills_account','pos_account'];
+  selectors.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    d.forEach(a => {
+      const opt = document.createElement('option');
+      opt.value = a.account_id;
+      opt.textContent = `A${a.account_id} ${a.name}`;
+      el.appendChild(opt);
+    });
+  });
+}
+
+// 今日決策
+async function loadPending() {
+  try {
+    const today = new Date().toISOString().slice(0,10);
+    const d = await fetch('/api/strategy-decisions?signal_date='+today+'&limit=30').then(r=>r.json());
+    const pending = Array.isArray(d) ? d.filter(r => r.action==='BUY' && !r.is_blocked) : [];
+    document.getElementById('pending_list').innerHTML = pending.length ?
+      `<table class="w-full text-xs">
+        <thead><tr class="text-gray-500"><th class="text-left py-1">帳戶</th><th>代號</th><th class="text-right">分數</th><th class="text-right">參考價</th><th class="text-right">停損</th><th>理由</th></tr></thead>
+        <tbody>
+        ${pending.map(r=>`<tr class="border-t border-gray-800">
+          <td class="py-1">A${r.account_id}</td>
+          <td><span class="badge-buy">BUY</span> ${r.code}</td>
+          <td class="text-right">${(r.final_score||0).toFixed(1)}</td>
+          <td class="text-right font-mono">${r.reference_price||'—'}</td>
+          <td class="text-right font-mono text-red-400">${r.stop_loss||'—'}</td>
+          <td class="text-gray-500 text-xs">${(r.reason_summary||'').slice(0,25)}</td>
+        </tr>`).join('')}
+        </tbody>
+      </table>` :
+      '<div class="text-gray-600 text-xs py-4 text-center">今日無待成交決策</div>';
+  } catch(e) {
+    document.getElementById('pending_list').textContent = '載入失敗';
+  }
+}
+
+// 成交記錄
+async function loadFills() {
+  const aid = document.getElementById('fills_account').value;
+  const url = '/api/paper/fills?limit=20' + (aid ? '&account_id='+aid : '');
+  try {
+    const d = await fetch(url).then(r=>r.json());
+    document.getElementById('fills_list').innerHTML = d.length ?
+      `<table class="w-full text-xs">
+        <thead><tr class="text-gray-500"><th class="text-left py-1">日期</th><th>帳戶</th><th>動作</th><th>代號</th><th class="text-right">股數</th><th class="text-right">成交價</th><th class="text-right">手續費</th><th class="text-right">淨額</th></tr></thead>
+        <tbody>
+        ${d.map(r=>`<tr class="border-t border-gray-800">
+          <td class="py-1 text-gray-500">${r.execution_date||'—'}</td>
+          <td>A${r.account_id}</td>
+          <td><span class="${r.action==='BUY'?'badge-buy':'badge-sell'}">${r.action}</span></td>
+          <td class="text-blue-400">${r.code}</td>
+          <td class="text-right font-mono">${r.shares}</td>
+          <td class="text-right font-mono">${r.fill_price}</td>
+          <td class="text-right text-gray-500">${Math.round(r.fee||0)}</td>
+          <td class="text-right font-mono ${r.action==='BUY'?'text-red-400':'text-green-400'}">${Math.round(r.net_amount||0).toLocaleString()}</td>
+        </tr>`).join('')}
+        </tbody>
+      </table>` :
+      '<div class="text-gray-600 text-xs py-4 text-center">尚無成交記錄</div>';
+  } catch(e) { document.getElementById('fills_list').textContent = '載入失敗'; }
+}
+
+// 持倉
+async function loadPositions() {
+  const aid = document.getElementById('pos_account').value;
+  if (!aid) return;
+  try {
+    const d = await fetch(`/api/strategy-accounts/${aid}/positions`).then(r=>r.json());
+    document.getElementById('positions_list').innerHTML = d.length ?
+      `<table class="w-full text-xs">
+        <thead><tr class="text-gray-500"><th class="text-left py-1">代號</th><th class="text-left">名稱</th><th class="text-right">股數</th><th class="text-right">均成本</th><th class="text-right">現價</th><th class="text-right">未實現</th><th class="text-right">損益%</th></tr></thead>
+        <tbody>
+        ${d.map(r=>`<tr class="border-t border-gray-800">
+          <td class="py-1 text-blue-400 font-mono">${r.code}</td>
+          <td>${r.name||''}</td>
+          <td class="text-right font-mono">${r.lots}</td>
+          <td class="text-right font-mono">${r.avg_cost?.toFixed(2)||'—'}</td>
+          <td class="text-right font-mono">${r.current_price?.toFixed(2)||'—'}</td>
+          <td class="text-right font-mono ${(r.unrealized_pnl||0)>=0?'text-up':'text-dn'}">${(r.unrealized_pnl||0)>=0?'+':''}${Math.round(r.unrealized_pnl||0).toLocaleString()}</td>
+          <td class="text-right ${(r.pnl_pct||0)>=0?'text-up':'text-dn'}">${(r.pnl_pct||0)>=0?'+':''}${(r.pnl_pct||0).toFixed(2)}%</td>
+        </tr>`).join('')}
+        </tbody>
+      </table>` :
+      '<div class="text-gray-600 text-xs py-4 text-center">目前無持倉</div>';
+  } catch(e) { document.getElementById('positions_list').textContent = '載入失敗'; }
+}
+
+// 手動成交
+async function submitManualFill() {
+  const aid = document.getElementById('mf_account').value;
+  const action = document.getElementById('mf_action').value;
+  const code = document.getElementById('mf_code').value.trim();
+  const shares = parseInt(document.getElementById('mf_shares').value);
+  const price = parseFloat(document.getElementById('mf_price').value);
+  const note = document.getElementById('mf_note').value;
+  const res_el = document.getElementById('mf_result');
+
+  if (!aid || !code || !shares || !price) {
+    res_el.textContent = '❌ 請填寫所有必填欄位';
+    res_el.className = 'text-xs text-red-400';
+    return;
+  }
+
+  res_el.textContent = '處理中...';
+  try {
+    const r = await fetch('/api/paper/manual-fill', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({account_id: parseInt(aid), code, action, shares, fill_price: price, note})
+    }).then(r=>r.json());
+
+    if (r.ok) {
+      res_el.textContent = `✅ 成交：${action} ${code} ${shares}股 @${price}`;
+      res_el.className = 'text-xs text-green-400';
+      loadFills();
+      loadPositions();
+    } else {
+      res_el.textContent = '❌ ' + (r.error || '成交失敗');
+      res_el.className = 'text-xs text-red-400';
+    }
+  } catch(e) {
+    res_el.textContent = '❌ 網路錯誤';
+    res_el.className = 'text-xs text-red-400';
+  }
+}
+
+// 執行 V5 Pipeline
+async function runV5Pipeline() {
+  if (!confirm('執行今日 V5 Pipeline（決策+成交+估值更新）？')) return;
+  try {
+    const r = await fetch('/api/strategies/run-v5-pipeline', {method:'POST'}).then(r=>r.json());
+    alert(`✅ 完成\n決策：${r.decisions?.decisions||0}筆\n成交：${r.fills?.filled||0}筆`);
+    loadPending(); loadFills();
+  } catch(e) { alert('執行失敗'); }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadAccounts().then(() => { loadPending(); loadFills(); });
+});
+</script>
+{% endblock %}

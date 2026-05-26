@@ -101,6 +101,15 @@
     <div id="dc_accounts">載入中...</div>
   </div>
 
+
+  <!-- V5 帳戶狀況 -->
+  <div class="dc-card mb-4">
+    <div class="flex items-center justify-between mb-2">
+      <div class="text-xs text-gray-500 font-semibold uppercase tracking-wide">🆕 V5 Forward Paper 狀況</div>
+      <a href="/competition" class="text-xs text-blue-400 hover:underline">月度競賽 →</a>
+    </div>
+    <div id="dc_v5_accounts">載入中...</div>
+  </div>
   <!-- E. 今天不能做什麼 -->
   <div class="dc-card">
     <div class="text-xs text-gray-500 mb-3 font-semibold uppercase tracking-wide">🚫 今天不能做的事</div>
@@ -409,6 +418,48 @@ function closeReviewDetail() {
   if (el) el.classList.add('hidden');
 }
 
+
+async function loadV5Summary() {
+  try {
+    const [accts, bench] = await Promise.all([
+      fetch('/api/strategy-accounts').then(r=>r.json()),
+      fetch('/api/benchmark/0050').then(r=>r.json()),
+    ]);
+    const benchRet = bench.length ? +bench[bench.length-1].cumulative_return : 0;
+    const el = document.getElementById('dc_v5_accounts');
+    if (!accts.length) { el.textContent = '尚無 V5 帳戶'; return; }
+    el.innerHTML = `<table class="w-full text-xs">
+      <thead><tr class="text-gray-500">
+        <th class="text-left py-1">帳戶</th>
+        <th class="text-right">總資產</th>
+        <th class="text-right">累積報酬</th>
+        <th class="text-right">Alpha</th>
+      </tr></thead>
+      <tbody>
+      ${accts.map(a => {
+        const ret = +(a.total_return||0);
+        const alpha = +(ret - benchRet).toFixed(2);
+        return `<tr class="border-t border-gray-800">
+          <td class="py-1">A${a.account_id} ${a.name.replace('A'+a.account_id+' ','')}</td>
+          <td class="text-right font-mono">${Math.round(a.total_equity||200000).toLocaleString()}</td>
+          <td class="text-right font-mono ${ret>=0?'text-up':'text-dn'}">${ret>=0?'+':''}${ret.toFixed(2)}%</td>
+          <td class="text-right font-mono ${alpha>=0?'text-green-400':'text-red-400'}">${alpha>=0?'+':''}${alpha.toFixed(2)}%</td>
+        </tr>`;
+      }).join('')}
+      <tr class="border-t border-yellow-800">
+        <td class="py-1 text-yellow-400">📊 0050 benchmark</td>
+        <td class="text-right">—</td>
+        <td class="text-right font-mono text-yellow-400">${benchRet>=0?'+':''}${benchRet.toFixed(2)}%</td>
+        <td class="text-right text-gray-600">基準</td>
+      </tr>
+      </tbody>
+    </table>`;
+  } catch(e) {
+    const el = document.getElementById('dc_v5_accounts');
+    if (el) el.textContent = 'V5 帳戶載入失敗';
+  }
+}
+
 async function loadRestrictions() {
   var items = [];
 
@@ -452,6 +503,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadSignals();
   loadAccounts();
   loadRestrictions();
+  loadV5Summary();
 });
 </script>
 {% endblock %}
