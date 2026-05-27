@@ -368,7 +368,7 @@ async function loadV4Summary() {
       const pct = parseFloat(last.change_pct||0).toFixed(2);
       const color = pct>=0?'#ff6b6b':'#51cf66';
       document.getElementById('v4_etf_status').innerHTML =
-        `${last.close} <span style="color:${color}">${pct>=0?'+':''}}${pct}%</span>`;
+        `${last.close} <span style="color:${color}">${pct>=0?'+':''}${pct}%</span>`;
     }
   } catch(e) {}
 }
