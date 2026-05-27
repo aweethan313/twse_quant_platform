@@ -153,9 +153,9 @@ class TWSEClient:
         name_col = find_col(["證券", "名稱"]) or find_col(["名稱"])
 
         foreign_col = (
-            find_col(["外陸資買賣超股數"], exclude_keywords=["不含", "自營商"]) or
-            find_col(["外資買賣超股數"], exclude_keywords=["自營商"]) or
-            find_col(["外陸資", "買賣超"], exclude_keywords=["不含", "自營商"])
+            find_col(["外陸資買賣超股數(不含外資自營商)"]) or
+            find_col(["外陸資", "買賣超", "不含"]) or
+            find_col(["外陸資", "買賣超"], exclude_keywords=["自營商買賣"])
         )
         trust_col = find_col(["投信", "買賣超"])
         dealer_col = (
