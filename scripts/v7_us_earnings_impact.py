@@ -24,25 +24,22 @@ def detect_us_events(db, lookback_days: int = 30):
     from_date = str(date.today() - timedelta(days=lookback_days))
 
     # 從 overnight_market_data 取美股資料
+    # 從 market_context_daily 取美股資料
+    rows = []
     try:
-        rows = db.execute(text("""
-            SELECT ticker, trade_date, change_pct, close
-            FROM overnight_market_data
-            WHERE trade_date >= :d AND ABS(change_pct) >= :thresh
-            ORDER BY trade_date DESC
-        """), {"d": from_date, "thresh": IMPACT_THRESHOLD}).fetchall()
-    except Exception:
-        # overnight 表可能欄位不同
-        try:
-            rows = db.execute(text("""
-                SELECT symbol, date, pct_change, price
-                FROM overnight_market_data
-                WHERE date >= :d AND ABS(pct_change) >= :thresh
-                ORDER BY date DESC
-            """), {"d": from_date, "thresh": IMPACT_THRESHOLD}).fetchall()
-        except Exception as e:
-            print(f"⚠️ 無法讀取 overnight_market_data: {e}")
-            rows = []
+        mkt_rows = db.execute(text("""
+            SELECT context_date, nasdaq_ret, sox_ret, qqq_ret, sp500_ret
+            FROM market_context_daily
+            WHERE context_date >= :d
+            ORDER BY context_date DESC
+        """), {"d": from_date}).fetchall()
+        for edate, nret, sret, qret, spret in mkt_rows:
+            for ticker, ret in [("QQQ",qret),("SOXX",sret),("^GSPC",spret)]:
+                if ret and abs(float(ret)) >= IMPACT_THRESHOLD:
+                    rows.append((ticker, edate, float(ret), None))
+    except Exception as e:
+        print(f"⚠️ {e}")
+        rows = []
 
     events = []
     for ticker, edate, chg, close in rows:
