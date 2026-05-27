@@ -150,6 +150,16 @@ def run_daily_workflow(target_date: date = None) -> dict:
                 "message": f"檢討書: {path or '無前日資料'}"}
     step("10b_daily_review", review)
 
+    # Step 10e: 更新 trading_calendar
+    def _update_trading_cal():
+        try:
+            from scripts.v6_1_build_trading_calendar import build
+            r = build()
+            return {"status":"PASS","message":f"trading_calendar: {r.get('open_days',0)}個交易日"}
+        except Exception as e:
+            return {"status":"WARN","message":f"trading_calendar更新失敗: {e}"}
+    step("10e_trading_cal", _update_trading_cal)
+
     # Step 10d: V6 每日
     def _v6_daily():
         try:
