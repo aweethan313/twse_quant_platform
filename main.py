@@ -3015,3 +3015,7 @@ def page_v6_chip_alerts(request: Request):
 @app.get("/v6/strategy-vs-0050", response_class=HTMLResponse)
 def page_v6_strategy_vs_0050(request: Request):
     return templates.TemplateResponse("v6_strategy_vs_0050.html", {"request": request})
+
+@app.get("/v6/selection-heatmap", response_class=HTMLResponse)
+def page_v6_selection_heatmap(request: Request):
+    return templates.TemplateResponse("v6_selection_heatmap.html", {"request": request})
