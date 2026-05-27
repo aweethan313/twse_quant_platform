@@ -704,6 +704,11 @@ function showStockDetailLink(){
       const bias = d.bias;
       const syms = d.symbols || {};
       function biasColor(l) { if(!l && l!==0) return '#aaa'; const s=String(l); return s.includes('多')?'#ff4444':s.includes('空')?'#22cc66':'#aaa'; }
+      function scoreColor(v) {
+        const n = parseFloat(v);
+        if (isNaN(n)) return biasColor(v);
+        return n >= 65 ? '#ff4444' : n <= 35 ? '#22cc66' : '#ffcc00';
+      }
       function retColor(v) { return v>0?'#ff4444':v<0?'#22cc66':'#aaa'; }
       const symRows = Object.entries(syms).map(([s,d])=>{
         const isMU = s==='MU';
@@ -729,7 +734,7 @@ function showStockDetailLink(){
           ${[['大盤',bias.overall],['半導體',bias.semi_score!=null?bias.semi_score.toFixed(0):bias.semi],['AI',bias.ai_score!=null?bias.ai_score.toFixed(0):bias.ai],['綜合分',bias.score+'']]
             .map(([l,v])=>`<div style="background:rgba(255,255,255,0.05);border-radius:4px;padding:4px 10px;text-align:center">
               <div style="font-size:0.68rem;color:#666">${l}</div>
-              <div style="font-size:0.85rem;font-weight:700;color:${biasColor(v)}">${v}</div></div>`).join('')}
+              <div style="font-size:0.85rem;font-weight:700;color:${scoreColor(v)}">${v}</div></div>`).join('')}
         </div>
         <div>${symRows}</div>
         <div id="v2-regime-row" style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.07);font-size:0.75rem;color:#666">載入市場 regime...</div>`;
