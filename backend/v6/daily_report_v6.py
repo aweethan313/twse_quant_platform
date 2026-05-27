@@ -48,7 +48,7 @@ def generate_daily_report_v6(report_date: date = None) -> str:
 
         # ── 4. Kill Switch（去重）──
         ks_rows = db.execute(text("""
-            SELECT DISTINCT strategy_id, strategy_name, status, reason
+            SELECT DISTINCT strategy_id, strategy_id as strategy_name, status, reason
             FROM strategy_kill_switch_status
             WHERE status != 'ACTIVE'
             ORDER BY strategy_id
