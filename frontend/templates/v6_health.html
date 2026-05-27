@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}V6 策略健康 | TWSE QUANT{% endblock %}
+
+{% block head %}
+<style>
+.v6-card { background:#161b22; border:1px solid #30363d; border-radius:10px; padding:16px; margin-bottom:12px; }
+.rec-badge { padding:2px 10px; border-radius:12px; font-size:11px; font-weight:700; }
+.rec-PROMOTE { background:rgba(68,255,136,.15); color:#44ff88; }
+.rec-KEEP    { background:rgba(99,179,237,.15); color:#63b3ed; }
+.rec-REDUCE  { background:rgba(246,173,85,.15); color:#f6ad55; }
+.rec-PAUSE   { background:rgba(252,129,74,.15); color:#fc814a; }
+.rec-RETIRE  { background:rgba(255,68,68,.15);  color:#ff4444; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 py-5">
+  <h1 class="text-xl font-bold mb-4">🏥 策略健康分數</h1>
+
+  <div class="v6-card mb-4">
+    <div class="text-xs text-gray-500 mb-3">健康分數 = Alpha(30%) + 回撤控制(20%) + 獲利因子(15%) + 勝率(10%) + 樣本(10%) + 穩定度(15%)</div>
+    <div id="health_grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">載入中...</div>
+  </div>
+
+  <div class="v6-card">
+    <div class="text-xs text-gray-500 font-semibold uppercase mb-3">建議說明</div>
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
+      <div class="rec-badge rec-PROMOTE inline-block">🚀 PROMOTE</div><div class="text-gray-500">Alpha>3%, 回撤&lt;5%, 健康≥80</div>
+      <div class="rec-badge rec-KEEP inline-block">✅ KEEP</div><div class="text-gray-500">健康60~80，持續觀察</div>
+      <div class="rec-badge rec-REDUCE inline-block">⚠️ REDUCE</div><div class="text-gray-500">健康40~60，降低比重</div>
+      <div class="rec-badge rec-PAUSE inline-block">🛑 PAUSE</div><div class="text-gray-500">回撤過高或健康&lt;40</div>
+      <div class="rec-badge rec-RETIRE inline-block">💀 RETIRE</div><div class="text-gray-500">多月持續輸0050</div>
+    </div>
+  </div>
+</div>
+
+<script>
+async function loadHealth() {
+  const h = await fetch('/api/v6/strategy-health').then(r=>r.json());
+  const latest = {};
+  h.forEach(r => { if (!latest[r.account_id] || r.created_at > latest[r.account_id].created_at) latest[r.account_id]=r; });
+  const items = Object.values(latest);
+
+  document.getElementById('health_grid').innerHTML = items.length ?
+    items.map(r => {
+      const bar = Math.round((r.health_score||0));
+      const barColor = bar>=60?'#44ff88':bar>=40?'#f6ad55':'#ff4444';
+      return `<div class="bg-surface-2 border border-border rounded-lg p-4">
+        <div class="flex justify-between items-center mb-2">
+          <div class="font-semibold text-sm">A${r.account_id}</div>
+          <span class="rec-badge rec-${r.recommendation}">${r.recommendation}</span>
+        </div>
+        <div class="text-3xl font-bold font-mono mb-2" style="color:${barColor}">${r.health_score}</div>
+        <div style="background:#21262d;border-radius:4px;height:6px;margin-bottom:8px">
+          <div style="width:${bar}%;height:6px;border-radius:4px;background:${barColor}"></div>
+        </div>
+        <div class="space-y-1 text-xs">
+          <div class="flex justify-between"><span class="text-gray-500">Alpha vs 0050</span>
+            <span class="${(r.alpha_vs_0050||0)>=0?'text-green-400':'text-red-400'} font-mono">${(r.alpha_vs_0050||0)>=0?'+':''}${(r.alpha_vs_0050||0).toFixed(2)}%</span></div>
+          <div class="flex justify-between"><span class="text-gray-500">最大回撤</span>
+            <span class="text-red-400 font-mono">${(r.max_drawdown||0).toFixed(1)}%</span></div>
+          <div class="flex justify-between"><span class="text-gray-500">勝率</span>
+            <span class="font-mono">${(r.win_rate||0).toFixed(1)}%</span></div>
+          <div class="flex justify-between"><span class="text-gray-500">交易次數</span>
+            <span>${r.trade_count||0} 筆 ${(r.trade_count||0)<3?'⚠️ 樣本不足':''}</span></div>
+        </div>
+        <div class="text-xs text-gray-500 mt-2 pt-2 border-t border-gray-800">${r.reason_summary||''}</div>
+      </div>`;
+    }).join('') :
+    '<div class="text-gray-600 text-xs col-span-3">尚無健康分數</div>';
+}
+document.addEventListener('DOMContentLoaded', loadHealth);
+</script>
+{% endblock %}

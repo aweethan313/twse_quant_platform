@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% block title %}V6 歷史回測 | TWSE QUANT{% endblock %}
+
+{% block head %}
+<style>
+.v6-card { background:#161b22; border:1px solid #30363d; border-radius:10px; padding:16px; margin-bottom:12px; }
+.tab-btn { padding:6px 14px; border-radius:6px; font-size:12px; cursor:pointer; color:#8b949e; }
+.tab-btn.active { background:#30363d; color:#fff; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 py-5">
+  <div class="flex items-center justify-between mb-4">
+    <h1 class="text-xl font-bold">📊 歷史回測驗證</h1>
+    <div class="flex gap-2">
+      <button onclick="runBacktest()" class="text-xs px-3 py-1.5 rounded bg-blue-900/40 text-blue-400 border border-blue-800">▶ 重新回測</button>
+      <a href="/v6" class="text-xs px-3 py-1.5 rounded border border-gray-700 text-gray-400">← 總覽</a>
+    </div>
+  </div>
+
+  <!-- 摘要卡片 -->
+  <div id="summary_cards" class="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4"></div>
+
+  <!-- Tab -->
+  <div class="flex gap-2 mb-3">
+    <button class="tab-btn active" onclick="switchTab('ranking',this)">🏆 Alpha 排名</button>
+    <button class="tab-btn" onclick="switchTab('detail',this)">📋 詳細指標</button>
+    <button class="tab-btn" onclick="switchTab('chart',this)">📈 報酬比較</button>
+  </div>
+
+  <div id="tab_ranking" class="v6-card">
+    <div id="ranking_table">載入中...</div>
+  </div>
+
+  <div id="tab_detail" class="v6-card hidden">
+    <div id="detail_table">載入中...</div>
+  </div>
+
+  <div id="tab_chart" class="v6-card hidden">
+    <canvas id="backtest_chart" style="max-height:380px"></canvas>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script>
+var _data = [];
+var _chart = null;
+const COLORS = ['#63b3ed','#48bb78','#f6ad55','#fc8181','#b794f4','#4fd1c7'];
+
+function switchTab(tab, btn) {
+  ['ranking','detail','chart'].forEach(t => document.getElementById('tab_'+t).classList.add('hidden'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab_'+tab).classList.remove('hidden');
+  btn.classList.add('active');
+  if (tab==='chart' && _data.length) renderChart();
+}
+
+async function loadData() {
+  try {
+    _data = await fetch('/api/v6/backtest/results').then(r=>r.json());
+    if (!_data.length) {
+      document.getElementById('summary_cards').innerHTML = '<div class="text-gray-600 text-xs col-span-3">尚無回測資料</div>';
+      return;
+    }
+    const bench = _data[0].benchmark_0050_return || 0;
+    const sorted = [..._data].sort((a,b)=>b.alpha_vs_0050-a.alpha_vs_0050);
+    const beat = sorted.filter(r=>r.alpha_vs_0050>0).length;
+
+    // 摘要卡片
+    document.getElementById('summary_cards').innerHTML = `
+      <div class="bg-surface-2 border border-border rounded-lg p-3 text-center">
+        <div class="text-xs text-gray-500 mb-1">0050 基準</div>
+        <div class="text-xl font-bold font-mono text-yellow-400">${bench>=0?'+':''}${bench.toFixed(2)}%</div>
+      </div>
+      <div class="bg-surface-2 border border-border rounded-lg p-3 text-center">
+        <div class="text-xs text-gray-500 mb-1">贏過 0050</div>
+        <div class="text-xl font-bold font-mono text-green-400">${beat}/${sorted.length} 個</div>
+      </div>
+      <div class="bg-surface-2 border border-border rounded-lg p-3 text-center">
+        <div class="text-xs text-gray-500 mb-1">最佳 Alpha</div>
+        <div class="text-xl font-bold font-mono text-up">+${Math.max(...sorted.map(r=>r.alpha_vs_0050)).toFixed(2)}%</div>
+      </div>`;
+
+    // Alpha 排名表
+    document.getElementById('ranking_table').innerHTML = `
+      <table class="w-full text-xs">
+        <thead><tr class="text-gray-500 border-b border-gray-700">
+          <th class="text-left py-2">排名</th><th>策略</th>
+          <th class="text-right">總報酬</th><th class="text-right">Alpha vs 0050</th>
+          <th class="text-right">年化報酬</th><th class="text-right">最大回撤</th>
+        </tr></thead><tbody>
+        ${sorted.map((r,i)=>`<tr class="border-t border-gray-800">
+          <td class="py-2">${i===0?'🥇':i===1?'🥈':i===2?'🥉':'#'+(i+1)}</td>
+          <td class="font-medium">${r.alpha_vs_0050>0?'✅':'❌'} ${r.strategy_name}</td>
+          <td class="text-right font-mono ${r.total_return>=0?'text-up':'text-dn'}">${r.total_return>=0?'+':''}${r.total_return.toFixed(2)}%</td>
+          <td class="text-right font-mono font-bold ${r.alpha_vs_0050>=0?'text-green-400':'text-red-400'}">${r.alpha_vs_0050>=0?'+':''}${r.alpha_vs_0050.toFixed(2)}%</td>
+          <td class="text-right">${r.annualized_return.toFixed(2)}%</td>
+          <td class="text-right text-red-400">${r.max_drawdown.toFixed(1)}%</td>
+        </tr>`).join('')}
+        </tbody></table>`;
+
+    // 詳細指標表
+    document.getElementById('detail_table').innerHTML = `
+      <table class="w-full text-xs">
+        <thead><tr class="text-gray-500 border-b border-gray-700">
+          <th class="text-left py-2">策略</th>
+          <th class="text-right">勝率</th><th class="text-right">獲利因子</th>
+          <th class="text-right">平均獲利</th><th class="text-right">平均虧損</th>
+          <th class="text-right">交易次數</th><th class="text-right">手續費</th>
+        </tr></thead><tbody>
+        ${sorted.map(r=>`<tr class="border-t border-gray-800">
+          <td class="py-2">${r.strategy_name}</td>
+          <td class="text-right">${r.win_rate.toFixed(1)}%</td>
+          <td class="text-right ${r.profit_factor>=1?'text-green-400':'text-red-400'}">${r.profit_factor.toFixed(2)}</td>
+          <td class="text-right text-up">+${(r.average_win||0).toFixed(0)}</td>
+          <td class="text-right text-dn">${(r.average_loss||0).toFixed(0)}</td>
+          <td class="text-right">${r.trade_count}</td>
+          <td class="text-right text-gray-500">${(r.fee_total||0).toFixed(0)}</td>
+        </tr>`).join('')}
+        </tbody></table>`;
+  } catch(e) { console.error(e); }
+}
+
+function renderChart() {
+  if (_chart) { _chart.destroy(); _chart = null; }
+  const bench = _data[0]?.benchmark_0050_return || 0;
+  const datasets = _data.map((r,i)=>({
+    label: r.strategy_name,
+    data: [0, r.total_return],
+    backgroundColor: COLORS[i%COLORS.length]+'99',
+    borderColor: COLORS[i%COLORS.length],
+    borderWidth: 2,
+  }));
+  datasets.push({
+    label: '0050 基準',
+    data: [0, bench],
+    backgroundColor: '#ffd70099',
+    borderColor: '#ffd700',
+    borderWidth: 2,
+  });
+  _chart = new Chart(document.getElementById('backtest_chart'), {
+    type: 'bar',
+    data: { labels: ['起始', '結束'], datasets },
+    options: {
+      responsive: true,
+      plugins: {
+        title: { display: true, text: '策略總報酬比較（%）', color:'#888' },
+        legend: { labels: { color:'#bbb', font:{size:10} } },
+        tooltip: { callbacks: { label: i => `${i.dataset.label}: ${i.raw>=0?'+':''}${i.raw.toFixed(2)}%` } }
+      },
+      scales: {
+        x: { ticks:{color:'#555'} },
+        y: { ticks:{color:'#bbb', callback:v=>(v>=0?'+':'')+v.toFixed(1)+'%'}, grid:{color:'#21262d'} }
+      }
+    }
+  });
+}
+
+async function runBacktest() {
+  if (!confirm('重新執行回測（約 1~2 分鐘）？')) return;
+  document.getElementById('ranking_table').innerHTML = '⏳ 回測執行中...';
+  const r = await fetch('/api/v6/backtest/run', {method:'POST'}).then(r=>r.json());
+  await loadData();
+  alert('✅ 回測完成');
+}
+
+document.addEventListener('DOMContentLoaded', loadData);
+</script>
+{% endblock %}

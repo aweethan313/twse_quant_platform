@@ -2728,3 +2728,20 @@ def api_strategy_decisions(signal_date: str = None, account_id: int = None, limi
         return [dict(zip(cols[:len(r)], r)) for r in rows]
     finally:
         db.close()
+
+# ── V6 頁面 ──
+@app.get("/v6", response_class=HTMLResponse)
+def page_v6(request: Request):
+    return templates.TemplateResponse("v6_overview.html", {"request": request})
+
+@app.get("/v6/backtest", response_class=HTMLResponse)
+def page_v6_backtest(request: Request):
+    return templates.TemplateResponse("v6_backtest.html", {"request": request})
+
+@app.get("/v6/health", response_class=HTMLResponse)
+def page_v6_health(request: Request):
+    return templates.TemplateResponse("v6_health.html", {"request": request})
+
+@app.get("/v6/candidate-quality", response_class=HTMLResponse)
+def page_v6_candidate_quality(request: Request):
+    return templates.TemplateResponse("v6_candidate_quality.html", {"request": request})

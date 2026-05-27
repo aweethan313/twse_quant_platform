@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}V6 候選股品質 | TWSE QUANT{% endblock %}
+
+{% block head %}
+<style>
+.v6-card { background:#161b22; border:1px solid #30363d; border-radius:10px; padding:16px; margin-bottom:12px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 py-5">
+  <h1 class="text-xl font-bold mb-4">📈 候選股分數有效性</h1>
+
+  <div class="v6-card mb-4">
+    <div class="text-xs text-gray-500 font-semibold uppercase mb-3">分數區間 vs 報酬（5日 / 10日 / Alpha）</div>
+    <div id="bucket_table">載入中...</div>
+    <div class="text-xs text-gray-600 mt-3 p-3 bg-yellow-900/20 rounded border border-yellow-800/30">
+      💡 <b class="text-yellow-400">解讀重點：</b>如果高分股（70+）報酬 < 低分股，代表評分系統需要重新校正，或高分股已在評分日被追高。
+    </div>
+  </div>
+
+  <div class="v6-card">
+    <div class="flex items-center justify-between mb-3">
+      <div class="text-xs text-gray-500 font-semibold uppercase">最新候選股追蹤</div>
+      <select id="date_select" onchange="loadRecent()" class="text-xs bg-surface-2 border border-border rounded px-2 py-1">
+        <option>載入中...</option>
+      </select>
+    </div>
+    <div id="recent_table">載入中...</div>
+  </div>
+</div>
+
+<script>
+async function loadBuckets() {
+  const d = await fetch('/api/v6/candidate-score-buckets').then(r=>r.json());
+  if (!d.length) {
+    document.getElementById('bucket_table').innerHTML = '<div class="text-gray-600 text-xs">尚無資料</div>';
+    return;
+  }
+  const maxRet = Math.max(...d.map(r=>Math.abs(r.avg_5d||0)));
+
+  document.getElementById('bucket_table').innerHTML = `
+    <table class="w-full text-xs">
+      <thead><tr class="text-gray-500 border-b border-gray-700">
+        <th class="text-left py-2">分數區間</th>
+        <th class="text-right">樣本數</th>
+        <th class="text-right">均5日報酬</th>
+        <th class="text-right">均10日報酬</th>
+        <th class="text-right">均20日報酬</th>
+        <th class="text-right">Alpha(5日)</th>
+        <th class="text-right">5日勝率</th>
+        <th class="text-right">平均回撤</th>
+      </tr></thead><tbody>
+      ${d.map(r=>{
+        const r5 = r.avg_5d||0;
+        const barW = Math.min(100, Math.abs(r5)/Math.max(maxRet,1)*100);
+        return `<tr class="border-t border-gray-800">
+          <td class="py-2 font-bold">${r.score_bucket}</td>
+          <td class="text-right text-gray-500">${r.n}</td>
+          <td class="text-right">
+            <div class="flex items-center justify-end gap-1">
+              <div style="width:40px;height:4px;background:#21262d;border-radius:2px">
+                <div style="width:${barW}%;height:4px;background:${r5>=0?'#48bb78':'#fc8181'};border-radius:2px"></div>
+              </div>
+              <span class="font-mono ${r5>=0?'text-up':'text-dn'}">${r5>=0?'+':''}${r5.toFixed(2)}%</span>
+            </div>
+          </td>
+          <td class="text-right font-mono ${(r.avg_10d||0)>=0?'text-up':'text-dn'}">${(r.avg_10d||0)>=0?'+':''}${(r.avg_10d||0).toFixed(2)}%</td>
+          <td class="text-right font-mono ${(r.avg_20d||0)>=0?'text-up':'text-dn'}">${(r.avg_20d||0)>=0?'+':''}${(r.avg_20d||0).toFixed(2)}%</td>
+          <td class="text-right font-mono ${(r.avg_alpha5||0)>=0?'text-green-400':'text-red-400'}">${(r.avg_alpha5||0)>=0?'+':''}${(r.avg_alpha5||0).toFixed(2)}%</td>
+          <td class="text-right">${(r.win_rate_5d||0).toFixed(1)}%</td>
+          <td class="text-right text-red-400">${(r.avg_dd||0).toFixed(2)}%</td>
+        </tr>`;
+      }).join('')}
+      </tbody></table>`;
+}
+
+async function loadDates() {
+  const d = await fetch('/api/v6/candidate-forward-returns?limit=1').then(r=>r.json());
+  const sel = document.getElementById('date_select');
+  if (d.length) {
+    sel.innerHTML = `<option value="${d[0].signal_date}">${d[0].signal_date}</option>`;
+    loadRecent();
+  }
+}
+
+async function loadRecent() {
+  const date = document.getElementById('date_select').value;
+  if (!date) return;
+  const d = await fetch(`/api/v6/candidate-forward-returns?signal_date=${date}&limit=30`).then(r=>r.json());
+  document.getElementById('recent_table').innerHTML = d.length ?
+    `<table class="w-full text-xs">
+      <thead><tr class="text-gray-500 border-b border-gray-700">
+        <th class="text-left py-2">代號</th><th>名稱</th><th class="text-right">分數</th>
+        <th class="text-right">收盤</th><th class="text-right">1日</th>
+        <th class="text-right">5日</th><th class="text-right">10日</th>
+        <th class="text-right">Alpha5</th>
+      </tr></thead><tbody>
+      ${d.map(r=>`<tr class="border-t border-gray-800">
+        <td class="py-1 text-blue-400 font-mono">${r.code}</td>
+        <td>${r.stock_name||''}</td>
+        <td class="text-right">${(r.candidate_score||0).toFixed(1)}</td>
+        <td class="text-right font-mono">${r.close_price||'—'}</td>
+        <td class="text-right font-mono ${(r.return_1d||0)>=0?'text-up':'text-dn'}">${r.return_1d!=null?(r.return_1d>=0?'+':'')+r.return_1d.toFixed(2)+'%':'—'}</td>
+        <td class="text-right font-mono ${(r.return_5d||0)>=0?'text-up':'text-dn'}">${r.return_5d!=null?(r.return_5d>=0?'+':'')+r.return_5d.toFixed(2)+'%':'—'}</td>
+        <td class="text-right font-mono ${(r.return_10d||0)>=0?'text-up':'text-dn'}">${r.return_10d!=null?(r.return_10d>=0?'+':'')+r.return_10d.toFixed(2)+'%':'—'}</td>
+        <td class="text-right ${(r.alpha_5d_vs_0050||0)>=0?'text-green-400':'text-red-400'}">${r.alpha_5d_vs_0050!=null?(r.alpha_5d_vs_0050>=0?'+':'')+r.alpha_5d_vs_0050.toFixed(2)+'%':'—'}</td>
+      </tr>`).join('')}
+      </tbody></table>` :
+    '<div class="text-gray-600 text-xs">無資料</div>';
+}
+
+document.addEventListener('DOMContentLoaded', () => { loadBuckets(); loadDates(); });
+</script>
+{% endblock %}
