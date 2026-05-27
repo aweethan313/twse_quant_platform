@@ -54,7 +54,7 @@ async function loadAll() {
       return `<tr class="border-t border-gray-800">
         <td class="py-1">${alpha>0?'✅':'❌'} ${a.name}</td>
         <td class="text-right font-mono ${ret>=0?'text-up':'text-dn'}">${ret>=0?'+':''}${parseFloat(ret).toFixed(2)}%</td>
-        <td class="text-right font-mono font-bold ${alpha>=0?'text-green-400':'text-red-400'}">${alpha>=0?'+':''}${alpha}%</td>
+        <td class="text-right font-mono font-bold ${alpha>=0?'text-up':'text-dn'}">${alpha>=0?'+':''}${alpha}%</td>
         <td class="text-right text-xs">${alpha>0?'跑贏':'跑輸'}</td>
       </tr>`;
     }).join('')}</tbody></table>` : '<div class="text-gray-600 text-xs">尚無資料</div>';

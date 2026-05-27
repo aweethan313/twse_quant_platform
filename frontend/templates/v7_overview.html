@@ -11,7 +11,7 @@
     <h1 class="text-xl font-bold">🚀 V7 進階分析</h1>
     <div class="flex gap-2">
       <a href="/v7/market-timing" class="text-xs px-3 py-1.5 rounded bg-blue-900/40 text-blue-400 border border-blue-800">📈 擇時</a>
-      <a href="/v7/sector-rotation" class="text-xs px-3 py-1.5 rounded bg-green-900/40 text-green-400 border border-green-800">🔄 輪動</a>
+      <a href="/v7/sector-rotation" class="text-xs px-3 py-1.5 rounded bg-green-900/40 text-up border border-green-800">🔄 輪動</a>
     </div>
   </div>
 
@@ -54,7 +54,7 @@ async function load() {
         </div>
         <div class="bg-surface-1 rounded p-3 text-center">
           <div class="text-gray-500">部位乘數</div>
-          <div class="text-xl font-bold ${t.position_multiplier>=1?'text-green-400':'text-yellow-400'}">${((t.position_multiplier||1)*100).toFixed(0)}%</div>
+          <div class="text-xl font-bold ${t.position_multiplier>=1?'text-up':'text-yellow-400'}">${((t.position_multiplier||1)*100).toFixed(0)}%</div>
         </div>
         <div class="bg-surface-1 rounded p-3">
           <div class="text-gray-500 mb-1">說明</div>
@@ -91,7 +91,7 @@ async function load() {
       </tr></thead><tbody>
       ${f.map(r=>`<tr class="border-t border-gray-800">
         <td class="py-1">${r.factor}</td>
-        <td class="text-right font-mono ${(r.ic||0)>=0.02?'text-green-400':(r.ic||0)>=-0.02?'text-gray-400':'text-red-400'}">${(r.ic||0)>=0?'+':''}${(r.ic||0).toFixed(4)}</td>
+        <td class="text-right font-mono ${(r.ic||0)>=0.02?'text-up':(r.ic||0)>=-0.02?'text-gray-400':'text-dn'}">${(r.ic||0)>=0?'+':''}${(r.ic||0).toFixed(4)}</td>
         <td class="text-right">${(r.hit_rate||0).toFixed(1)}%</td>
         <td class="text-right ${(r.avg_5d||0)>=0?'text-up':'text-dn'}">${(r.avg_5d||0)>=0?'+':''}${(r.avg_5d||0).toFixed(2)}%</td>
       </tr>`).join('')}

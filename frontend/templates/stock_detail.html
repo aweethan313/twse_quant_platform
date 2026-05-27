@@ -106,7 +106,7 @@ async function loadStock() {
     // techBase 有 ma5, ma20, boll 等
     const t = Object.assign({}, techBase, techFeature || {});
     document.getElementById('s_tech').innerHTML = t ? [
-      ['RSI14', (t.rsi14||0).toFixed(1), t.rsi14>=70?'text-red-400':t.rsi14<=30?'text-green-400':''],
+      ['RSI14', (t.rsi14||0).toFixed(1), t.rsi14>=70?'text-dn':t.rsi14<=30?'text-up':''],
       ['MA20距離', `${(t.distance_ma20||0).toFixed(2)}%`, (t.distance_ma20||0)>=0?'text-up':'text-dn'],
       ['5日報酬', `${(t.return_5d||0).toFixed(2)}%`, (t.return_5d||0)>=0?'text-up':'text-dn'],
       ['MA20', t.ma20||'—', ''],
@@ -184,7 +184,7 @@ async function loadStock() {
           <td class="text-right ${(f.return_1d||0)>=0?'text-up':'text-dn'}">${f.return_1d!=null?(f.return_1d>=0?'+':'')+f.return_1d.toFixed(2)+'%':'—'}</td>
           <td class="text-right ${(f.return_5d||0)>=0?'text-up':'text-dn'}">${f.return_5d!=null?(f.return_5d>=0?'+':'')+f.return_5d.toFixed(2)+'%':'—'}</td>
           <td class="text-right ${(f.return_10d||0)>=0?'text-up':'text-dn'}">${f.return_10d!=null?(f.return_10d>=0?'+':'')+f.return_10d.toFixed(2)+'%':'—'}</td>
-          <td class="text-right ${(f.alpha_5d_vs_0050||0)>=0?'text-green-400':'text-red-400'}">${f.alpha_5d_vs_0050!=null?(f.alpha_5d_vs_0050>=0?'+':'')+f.alpha_5d_vs_0050.toFixed(2)+'%':'—'}</td>
+          <td class="text-right ${(f.alpha_5d_vs_0050||0)>=0?'text-up':'text-dn'}">${f.alpha_5d_vs_0050!=null?(f.alpha_5d_vs_0050>=0?'+':'')+f.alpha_5d_vs_0050.toFixed(2)+'%':'—'}</td>
         </tr>`).join('')}
         </tbody></table>` :
       '<div class="text-gray-600 text-xs">無歷史選股記錄</div>';

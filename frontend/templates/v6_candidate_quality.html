@@ -67,9 +67,9 @@ async function loadBuckets() {
           </td>
           <td class="text-right font-mono ${(r.avg_10d||0)>=0?'text-up':'text-dn'}">${(r.avg_10d||0)>=0?'+':''}${(r.avg_10d||0).toFixed(2)}%</td>
           <td class="text-right font-mono ${(r.avg_20d||0)>=0?'text-up':'text-dn'}">${(r.avg_20d||0)>=0?'+':''}${(r.avg_20d||0).toFixed(2)}%</td>
-          <td class="text-right font-mono ${(r.avg_alpha5||0)>=0?'text-green-400':'text-red-400'}">${(r.avg_alpha5||0)>=0?'+':''}${(r.avg_alpha5||0).toFixed(2)}%</td>
+          <td class="text-right font-mono ${(r.avg_alpha5||0)>=0?'text-up':'text-dn'}">${(r.avg_alpha5||0)>=0?'+':''}${(r.avg_alpha5||0).toFixed(2)}%</td>
           <td class="text-right">${(r.win_rate_5d||0).toFixed(1)}%</td>
-          <td class="text-right text-red-400">${(r.avg_dd||0).toFixed(2)}%</td>
+          <td class="text-right text-dn">${(r.avg_dd||0).toFixed(2)}%</td>
         </tr>`;
       }).join('')}
       </tbody></table>`;
@@ -104,7 +104,7 @@ async function loadRecent() {
         <td class="text-right font-mono ${(r.return_1d||0)>=0?'text-up':'text-dn'}">${r.return_1d!=null?(r.return_1d>=0?'+':'')+r.return_1d.toFixed(2)+'%':'—'}</td>
         <td class="text-right font-mono ${(r.return_5d||0)>=0?'text-up':'text-dn'}">${r.return_5d!=null?(r.return_5d>=0?'+':'')+r.return_5d.toFixed(2)+'%':'—'}</td>
         <td class="text-right font-mono ${(r.return_10d||0)>=0?'text-up':'text-dn'}">${r.return_10d!=null?(r.return_10d>=0?'+':'')+r.return_10d.toFixed(2)+'%':'—'}</td>
-        <td class="text-right ${(r.alpha_5d_vs_0050||0)>=0?'text-green-400':'text-red-400'}">${r.alpha_5d_vs_0050!=null?(r.alpha_5d_vs_0050>=0?'+':'')+r.alpha_5d_vs_0050.toFixed(2)+'%':'—'}</td>
+        <td class="text-right ${(r.alpha_5d_vs_0050||0)>=0?'text-up':'text-dn'}">${r.alpha_5d_vs_0050!=null?(r.alpha_5d_vs_0050>=0?'+':'')+r.alpha_5d_vs_0050.toFixed(2)+'%':'—'}</td>
       </tr>`).join('')}
       </tbody></table>` :
     '<div class="text-gray-600 text-xs">無資料</div>';

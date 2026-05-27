@@ -22,7 +22,7 @@
     <div class="flex gap-2">
       <a href="/v6/backtest" class="text-xs px-3 py-1.5 rounded bg-blue-900/40 text-blue-400 border border-blue-800">📊 回測</a>
       <a href="/v6/health" class="text-xs px-3 py-1.5 rounded bg-purple-900/40 text-purple-400 border border-purple-800">🏥 健康</a>
-      <a href="/v6/candidate-quality" class="text-xs px-3 py-1.5 rounded bg-green-900/40 text-green-400 border border-green-800">📈 選股</a>
+      <a href="/v6/candidate-quality" class="text-xs px-3 py-1.5 rounded bg-green-900/40 text-up border border-green-800">📈 選股</a>
       <a href="/v6/chip-alerts" class="text-xs px-3 py-1.5 rounded bg-yellow-900/40 text-yellow-400 border border-yellow-800">🔔 籌碼</a>
       <a href="/v6/strategy-vs-0050" class="text-xs px-3 py-1.5 rounded bg-purple-900/40 text-purple-400 border border-purple-800">📊 vs0050</a>
     </div>
@@ -75,7 +75,7 @@ async function load() {
           <td class="py-1">${r.alpha_vs_0050>0?'✅':'❌'} ${r.strategy_name}</td>
           <td class="text-right font-mono ${r.total_return>=0?'text-up':'text-dn'}">${r.total_return>=0?'+':''}${r.total_return.toFixed(2)}%</td>
           <td class="text-right font-mono ${r.alpha_vs_0050>=0?'alpha-pos':'alpha-neg'}">${r.alpha_vs_0050>=0?'+':''}${r.alpha_vs_0050.toFixed(2)}%</td>
-          <td class="text-right text-red-400">${r.max_drawdown.toFixed(1)}%</td>
+          <td class="text-right text-dn">${r.max_drawdown.toFixed(1)}%</td>
           <td class="text-right">${r.win_rate.toFixed(1)}%</td>
           <td class="text-right">${r.trade_count}</td>
         </tr>`).join('')}
@@ -97,7 +97,7 @@ async function load() {
             <span class="font-medium">A${r.account_id}</span>
             <span class="px-2 py-0.5 rounded text-xs ${recMap[r.recommendation]||'badge-keep'}">${r.recommendation}</span>
           </div>
-          <div class="text-2xl font-bold font-mono mb-1 ${r.health_score>=60?'text-green-400':r.health_score>=40?'text-yellow-400':'text-red-400'}">${r.health_score}</div>
+          <div class="text-2xl font-bold font-mono mb-1 ${r.health_score>=60?'text-up':r.health_score>=40?'text-yellow-400':'text-dn'}">${r.health_score}</div>
           <div class="text-gray-500 text-xs leading-relaxed">${r.reason_summary||''}</div>
         </div>`).join('')}
       </div>` :

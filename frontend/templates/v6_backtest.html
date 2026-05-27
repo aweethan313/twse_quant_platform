@@ -75,7 +75,7 @@ async function loadData() {
       </div>
       <div class="bg-surface-2 border border-border rounded-lg p-3 text-center">
         <div class="text-xs text-gray-500 mb-1">贏過 0050</div>
-        <div class="text-xl font-bold font-mono text-green-400">${beat}/${sorted.length} 個</div>
+        <div class="text-xl font-bold font-mono text-up">${beat}/${sorted.length} 個</div>
       </div>
       <div class="bg-surface-2 border border-border rounded-lg p-3 text-center">
         <div class="text-xs text-gray-500 mb-1">最佳 Alpha</div>
@@ -94,9 +94,9 @@ async function loadData() {
           <td class="py-2">${i===0?'🥇':i===1?'🥈':i===2?'🥉':'#'+(i+1)}</td>
           <td class="font-medium">${r.alpha_vs_0050>0?'✅':'❌'} ${r.strategy_name}</td>
           <td class="text-right font-mono ${r.total_return>=0?'text-up':'text-dn'}">${r.total_return>=0?'+':''}${r.total_return.toFixed(2)}%</td>
-          <td class="text-right font-mono font-bold ${r.alpha_vs_0050>=0?'text-green-400':'text-red-400'}">${r.alpha_vs_0050>=0?'+':''}${r.alpha_vs_0050.toFixed(2)}%</td>
+          <td class="text-right font-mono font-bold ${r.alpha_vs_0050>=0?'text-up':'text-dn'}">${r.alpha_vs_0050>=0?'+':''}${r.alpha_vs_0050.toFixed(2)}%</td>
           <td class="text-right">${r.annualized_return.toFixed(2)}%</td>
-          <td class="text-right text-red-400">${r.max_drawdown.toFixed(1)}%</td>
+          <td class="text-right text-dn">${r.max_drawdown.toFixed(1)}%</td>
         </tr>`).join('')}
         </tbody></table>`;
 
@@ -112,7 +112,7 @@ async function loadData() {
         ${sorted.map(r=>`<tr class="border-t border-gray-800">
           <td class="py-2">${r.strategy_name}</td>
           <td class="text-right">${r.win_rate.toFixed(1)}%</td>
-          <td class="text-right ${r.profit_factor>=1?'text-green-400':'text-red-400'}">${r.profit_factor.toFixed(2)}</td>
+          <td class="text-right ${r.profit_factor>=1?'text-up':'text-dn'}">${r.profit_factor.toFixed(2)}</td>
           <td class="text-right text-up">+${(r.average_win||0).toFixed(0)}</td>
           <td class="text-right text-dn">${(r.average_loss||0).toFixed(0)}</td>
           <td class="text-right">${r.trade_count}</td>

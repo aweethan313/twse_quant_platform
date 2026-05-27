@@ -56,9 +56,9 @@ async function loadHealth() {
         </div>
         <div class="space-y-1 text-xs">
           <div class="flex justify-between"><span class="text-gray-500">Alpha vs 0050</span>
-            <span class="${(r.alpha_vs_0050||0)>=0?'text-green-400':'text-red-400'} font-mono">${(r.alpha_vs_0050||0)>=0?'+':''}${(r.alpha_vs_0050||0).toFixed(2)}%</span></div>
+            <span class="${(r.alpha_vs_0050||0)>=0?'text-up':'text-dn'} font-mono">${(r.alpha_vs_0050||0)>=0?'+':''}${(r.alpha_vs_0050||0).toFixed(2)}%</span></div>
           <div class="flex justify-between"><span class="text-gray-500">最大回撤</span>
-            <span class="text-red-400 font-mono">${(r.max_drawdown||0).toFixed(1)}%</span></div>
+            <span class="text-dn font-mono">${(r.max_drawdown||0).toFixed(1)}%</span></div>
           <div class="flex justify-between"><span class="text-gray-500">勝率</span>
             <span class="font-mono">${(r.win_rate||0).toFixed(1)}%</span></div>
           <div class="flex justify-between"><span class="text-gray-500">交易次數</span>

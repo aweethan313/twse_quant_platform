@@ -39,7 +39,7 @@ async function load() {
         <td class="text-right text-gray-500">${r.n||0}</td>
         <td class="text-right ${(r.ret_1d||0)>=0?'text-up':'text-dn'}">${(r.ret_1d||0)>=0?'+':''}${(r.ret_1d||0).toFixed(2)}%</td>
         <td class="text-right font-bold ${(r.ret_5d||0)>=0?'text-up':'text-dn'}">${(r.ret_5d||0)>=0?'+':''}${(r.ret_5d||0).toFixed(2)}%</td>
-        <td class="text-right ${(r.chip||0)>=0?'text-blue-400':'text-red-400'}">${(r.chip||0).toFixed(0)}</td>
+        <td class="text-right ${(r.chip||0)>=0?'text-blue-400':'text-dn'}">${(r.chip||0).toFixed(0)}</td>
         <td class="text-right font-bold">${(r.score||0).toFixed(2)}</td>
       </tr>`).join('')}
       </tbody></table>`;

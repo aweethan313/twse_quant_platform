@@ -38,7 +38,7 @@ async function loadChip() {
   const risk=d.filter(r=>r.severity==='RISK').length, strong=d.filter(r=>r.severity==='STRONG').length,
         watch=d.filter(r=>r.severity==='WATCH').length;
   document.getElementById('chip_stats').innerHTML = [
-    ['🚨 RISK', risk, 'text-red-400'],['🔥 STRONG', strong, 'text-yellow-400'],
+    ['🚨 RISK', risk, 'text-dn'],['🔥 STRONG', strong, 'text-yellow-400'],
     ['👁 WATCH', watch, 'text-blue-400'],['📊 總計', d.length, 'text-gray-400']
   ].map(([l,n,cls])=>`<div class="bg-surface-2 border border-border rounded p-3 text-center">
     <div class="text-xs text-gray-500">${l}</div><div class="text-2xl font-bold ${cls}">${n}</div></div>`).join('');
