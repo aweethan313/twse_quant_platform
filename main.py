@@ -3226,7 +3226,7 @@ def api_v8_revenue(code: str = None, limit: int = 12):
     from sqlalchemy import text as _t
     db = SessionLocal()
     try:
-        q = "SELECT code, stock_name, year, month, revenue, revenue_yoy, revenue_mom, announce_date FROM monthly_revenue"
+        q = "SELECT code, stock_name, year, month, revenue, yoy_pct, mom_pct, published_date FROM monthly_revenue"
         p = {}
         if code: q += " WHERE code=:c"; p["c"] = code
         q += " ORDER BY year DESC, month DESC LIMIT :n"; p["n"] = limit
