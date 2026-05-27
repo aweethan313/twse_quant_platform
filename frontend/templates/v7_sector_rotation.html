@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}產業輪動 | TWSE QUANT{% endblock %}
+{% block head %}<style>.v7-card{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:16px;margin-bottom:12px}</style>{% endblock %}
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 py-5">
+  <div class="flex justify-between items-center mb-4">
+    <h1 class="text-xl font-bold">🔄 產業輪動分析</h1>
+    <a href="/v7" class="text-xs px-3 py-1.5 rounded border border-gray-700 text-gray-400">← V7</a>
+  </div>
+  <div class="v7-card">
+    <div class="text-xs text-gray-500 mb-3 font-semibold uppercase">今日產業強弱排名</div>
+    <div id="rotation_table">載入中...</div>
+  </div>
+  <div class="v7-card">
+    <div class="text-xs text-gray-500 mb-2">強度分 = 5日報酬×50% + 1日報酬×30% + 籌碼強度×20%</div>
+    <canvas id="rotation_chart" style="max-height:300px"></canvas>
+  </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script>
+async function load() {
+  const d = await fetch('/api/v7/sector-rotation').then(r=>r.json());
+  const data = d.data || [];
+  if (!data.length) {
+    document.getElementById('rotation_table').innerHTML = '<div class="text-gray-600 text-xs">請執行 python3 -m scripts.v7_sector_rotation</div>';
+    return;
+  }
+  document.getElementById('rotation_table').innerHTML = `
+    <div class="text-xs text-gray-500 mb-2">資料日：${d.date||'—'}</div>
+    <table class="w-full text-xs">
+      <thead><tr class="text-gray-500 border-b border-gray-700">
+        <th class="text-left py-2">排名</th><th>主題</th><th class="text-right">成分股</th>
+        <th class="text-right">1日</th><th class="text-right">5日</th>
+        <th class="text-right">籌碼</th><th class="text-right">強度分</th>
+      </tr></thead><tbody>
+      ${data.map(r=>`<tr class="border-t border-gray-800">
+        <td class="py-1 font-bold text-yellow-400">#${r.rank}</td>
+        <td class="font-medium">${r.theme}</td>
+        <td class="text-right text-gray-500">${r.n||0}</td>
+        <td class="text-right ${(r.ret_1d||0)>=0?'text-up':'text-dn'}">${(r.ret_1d||0)>=0?'+':''}${(r.ret_1d||0).toFixed(2)}%</td>
+        <td class="text-right font-bold ${(r.ret_5d||0)>=0?'text-up':'text-dn'}">${(r.ret_5d||0)>=0?'+':''}${(r.ret_5d||0).toFixed(2)}%</td>
+        <td class="text-right ${(r.chip||0)>=0?'text-blue-400':'text-red-400'}">${(r.chip||0).toFixed(0)}</td>
+        <td class="text-right font-bold">${(r.score||0).toFixed(2)}</td>
+      </tr>`).join('')}
+      </tbody></table>`;
+
+  // 橫條圖
+  new Chart(document.getElementById('rotation_chart'), {
+    type: 'bar', indexAxis: 'y',
+    data: {
+      labels: data.map(r=>r.theme),
+      datasets: [{
+        label: '5日報酬%',
+        data: data.map(r=>r.ret_5d||0),
+        backgroundColor: data.map(r=>(r.ret_5d||0)>=0?'rgba(68,255,136,0.5)':'rgba(255,68,68,0.5)'),
+        borderColor: data.map(r=>(r.ret_5d||0)>=0?'#44ff88':'#ff4444'),
+        borderWidth:1,
+      }]
+    },
+    options:{responsive:true,plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:'#bbb',callback:v=>(v>=0?'+':'')+v.toFixed(1)+'%'},grid:{color:'#21262d'}},
+              y:{ticks:{color:'#bbb'}}}}
+  });
+}
+document.addEventListener('DOMContentLoaded', load);
+</script>
+{% endblock %}

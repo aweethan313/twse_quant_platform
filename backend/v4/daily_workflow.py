@@ -160,6 +160,18 @@ def run_daily_workflow(target_date: date = None) -> dict:
             return {"status":"WARN","message":f"trading_calendar更新失敗: {e}"}
     step("10e_trading_cal", _update_trading_cal)
 
+    # Step 10g: V7 每日
+    def _v7_daily():
+        try:
+            from scripts.v7_market_timing import update_market_timing
+            from scripts.v7_sector_rotation import update_sector_rotation
+            update_market_timing(target_date)
+            update_sector_rotation(target_date)
+            return {"status":"PASS","message":"V7: 擇時+輪動更新"}
+        except Exception as e:
+            return {"status":"WARN","message":f"V7: {e}"}
+    step("10g_v7_daily", _v7_daily)
+
     # Step 10d: V6 每日
     def _v6_daily():
         try:

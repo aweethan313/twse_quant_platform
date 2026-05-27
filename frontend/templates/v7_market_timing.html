@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}大盤擇時 | TWSE QUANT{% endblock %}
+{% block head %}<style>.v7-card{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:16px;margin-bottom:12px}</style>{% endblock %}
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 py-5">
+  <div class="flex justify-between items-center mb-4">
+    <h1 class="text-xl font-bold">📈 大盤擇時模型</h1>
+    <div class="flex gap-2">
+      <button onclick="runTiming()" class="text-xs px-3 py-1.5 rounded bg-blue-900/40 text-blue-400 border border-blue-800">🔄 重新計算</button>
+      <a href="/v7" class="text-xs px-3 py-1.5 rounded border border-gray-700 text-gray-400">← V7</a>
+    </div>
+  </div>
+  <div class="v7-card mb-3">
+    <div class="text-xs text-gray-500 mb-3">規則：站上MA20且MA60 → 滿倉 | 跌破MA20 → 半倉 | 跌破MA20+MA60 → 空倉</div>
+    <div id="timing_history">載入中...</div>
+  </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script>
+async function loadTiming() {
+  const d = await fetch('/api/v7/market-timing?days=60').then(r=>r.json());
+  const riskColors = {low:'#44ff88',medium:'#ffcc00',medium_high:'#f6ad55',high:'#ff4444'};
+  document.getElementById('timing_history').innerHTML = `
+    <table class="w-full text-xs">
+      <thead><tr class="text-gray-500 border-b border-gray-700">
+        <th class="text-left py-2">日期</th><th class="text-right">收盤</th>
+        <th class="text-right">MA20</th><th class="text-right">MA60</th>
+        <th>風險</th><th class="text-right">乘數</th><th>說明</th>
+      </tr></thead><tbody>
+      ${d.map(r=>`<tr class="border-t border-gray-800">
+        <td class="py-1">${r.date}</td>
+        <td class="text-right font-mono">${(r.close||0).toFixed(2)}</td>
+        <td class="text-right font-mono text-gray-500">${(r.ma20||0).toFixed(2)}</td>
+        <td class="text-right font-mono text-gray-500">${(r.ma60||0).toFixed(2)}</td>
+        <td><span style="color:${riskColors[r.risk_level]||'#aaa'}" class="font-bold">${r.risk_level}</span></td>
+        <td class="text-right font-bold" style="color:${r.position_multiplier>=1?'#44ff88':r.position_multiplier>=0.5?'#ffcc00':'#ff4444'}">${((r.position_multiplier||1)*100).toFixed(0)}%</td>
+        <td class="text-xs text-gray-500">${(r.reason||'').slice(0,30)}</td>
+      </tr>`).join('')}
+      </tbody></table>`;
+}
+async function runTiming() {
+  document.getElementById('timing_history').textContent = '計算中...';
+  await fetch('/api/v7/market-timing/today');
+  loadTiming();
+}
+document.addEventListener('DOMContentLoaded', loadTiming);
+</script>
+{% endblock %}

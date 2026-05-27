@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}V7 進階分析 | TWSE QUANT{% endblock %}
+{% block head %}
+<style>.v7-card{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:16px;margin-bottom:12px}
+.risk-high{color:#ff4444}.risk-medium_high{color:#f6ad55}.risk-medium{color:#ffcc00}.risk-low{color:#44ff88}
+</style>
+{% endblock %}
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 py-5">
+  <div class="flex justify-between items-center mb-4">
+    <h1 class="text-xl font-bold">🚀 V7 進階分析</h1>
+    <div class="flex gap-2">
+      <a href="/v7/market-timing" class="text-xs px-3 py-1.5 rounded bg-blue-900/40 text-blue-400 border border-blue-800">📈 擇時</a>
+      <a href="/v7/sector-rotation" class="text-xs px-3 py-1.5 rounded bg-green-900/40 text-green-400 border border-green-800">🔄 輪動</a>
+    </div>
+  </div>
+
+  <!-- 擇時今日 -->
+  <div class="v7-card">
+    <div class="text-xs text-gray-500 font-semibold uppercase mb-3">📊 今日大盤擇時</div>
+    <div id="timing_today">載入中...</div>
+  </div>
+
+  <!-- 產業輪動 -->
+  <div class="v7-card">
+    <div class="text-xs text-gray-500 font-semibold uppercase mb-3">🔄 產業輪動排名</div>
+    <div id="sector_rank">載入中...</div>
+  </div>
+
+  <!-- 評分校正 -->
+  <div class="v7-card">
+    <div class="text-xs text-gray-500 font-semibold uppercase mb-3">🎯 因子分析（預測力）</div>
+    <div id="factor_analysis">載入中...</div>
+  </div>
+
+  <!-- 美股事件 -->
+  <div class="v7-card">
+    <div class="text-xs text-gray-500 font-semibold uppercase mb-3">🌐 美股重大事件</div>
+    <div id="us_events">載入中...</div>
+  </div>
+</div>
+<script>
+async function load() {
+  // 擇時
+  try {
+    const t = await fetch('/api/v7/market-timing/today').then(r=>r.json());
+    const riskClass = 'risk-'+(t.risk_level||'medium');
+    const icons = {low:'🟢',medium:'🟡',medium_high:'🟠',high:'🔴'};
+    document.getElementById('timing_today').innerHTML = `
+      <div class="grid grid-cols-3 gap-3 text-xs">
+        <div class="bg-surface-1 rounded p-3 text-center">
+          <div class="text-gray-500">風險等級</div>
+          <div class="text-xl font-bold ${riskClass}">${icons[t.risk_level]||'⚪'} ${t.risk_level||'—'}</div>
+        </div>
+        <div class="bg-surface-1 rounded p-3 text-center">
+          <div class="text-gray-500">部位乘數</div>
+          <div class="text-xl font-bold ${t.position_multiplier>=1?'text-green-400':'text-yellow-400'}">${((t.position_multiplier||1)*100).toFixed(0)}%</div>
+        </div>
+        <div class="bg-surface-1 rounded p-3">
+          <div class="text-gray-500 mb-1">說明</div>
+          <div class="text-xs leading-relaxed">${t.reason||'—'}</div>
+        </div>
+      </div>`;
+  } catch(e) { document.getElementById('timing_today').textContent='無擇時資料，請執行 python3 -m scripts.v7_market_timing'; }
+
+  // 產業輪動
+  try {
+    const s = await fetch('/api/v7/sector-rotation').then(r=>r.json());
+    document.getElementById('sector_rank').innerHTML = s.data?.length ?
+      `<div class="text-xs text-gray-500 mb-2">資料日：${s.date||'—'}</div>
+      <table class="w-full text-xs"><thead><tr class="text-gray-500 border-b border-gray-700">
+        <th class="text-left py-1">排名</th><th>主題</th><th class="text-right">1日</th><th class="text-right">5日</th><th class="text-right">強度分</th>
+      </tr></thead><tbody>
+      ${s.data.map(r=>`<tr class="border-t border-gray-800">
+        <td class="py-1 text-yellow-400 font-bold">#${r.rank}</td>
+        <td>${r.theme}</td>
+        <td class="text-right ${(r.ret_1d||0)>=0?'text-up':'text-dn'}">${(r.ret_1d||0)>=0?'+':''}${(r.ret_1d||0).toFixed(2)}%</td>
+        <td class="text-right ${(r.ret_5d||0)>=0?'text-up':'text-dn'}">${(r.ret_5d||0)>=0?'+':''}${(r.ret_5d||0).toFixed(2)}%</td>
+        <td class="text-right font-bold">${(r.score||0).toFixed(2)}</td>
+      </tr>`).join('')}
+      </tbody></table>` :
+      '<div class="text-gray-600 text-xs">尚無輪動資料，請執行 python3 -m scripts.v7_sector_rotation</div>';
+  } catch(e) {}
+
+  // 因子分析
+  try {
+    const f = await fetch('/api/v7/factor-analysis').then(r=>r.json());
+    document.getElementById('factor_analysis').innerHTML = f.length ?
+      `<table class="w-full text-xs"><thead><tr class="text-gray-500 border-b border-gray-700">
+        <th class="text-left py-1">因子</th><th class="text-right">IC</th><th class="text-right">勝率</th><th class="text-right">均5日</th>
+      </tr></thead><tbody>
+      ${f.map(r=>`<tr class="border-t border-gray-800">
+        <td class="py-1">${r.factor}</td>
+        <td class="text-right font-mono ${(r.ic||0)>=0.02?'text-green-400':(r.ic||0)>=-0.02?'text-gray-400':'text-red-400'}">${(r.ic||0)>=0?'+':''}${(r.ic||0).toFixed(4)}</td>
+        <td class="text-right">${(r.hit_rate||0).toFixed(1)}%</td>
+        <td class="text-right ${(r.avg_5d||0)>=0?'text-up':'text-dn'}">${(r.avg_5d||0)>=0?'+':''}${(r.avg_5d||0).toFixed(2)}%</td>
+      </tr>`).join('')}
+      </tbody></table>
+      <div class="text-xs text-gray-600 mt-2">IC > 0.02 才有預測力 | 執行 python3 -m scripts.v7_score_calibration 更新</div>` :
+      '<div class="text-gray-600 text-xs">尚無因子分析，請執行 python3 -m scripts.v7_score_calibration</div>';
+  } catch(e) {}
+
+  // 美股事件
+  try {
+    const u = await fetch('/api/v7/us-events?days=90').then(r=>r.json());
+    document.getElementById('us_events').innerHTML = u.length ?
+      `<table class="w-full text-xs"><thead><tr class="text-gray-500 border-b border-gray-700">
+        <th class="text-left py-1">日期</th><th>標的</th><th class="text-right">漲跌</th><th class="text-right">台半5日</th><th>說明</th>
+      </tr></thead><tbody>
+      ${u.map(r=>`<tr class="border-t border-gray-800">
+        <td class="py-1">${r.date}</td>
+        <td class="font-bold text-blue-400">${r.ticker}</td>
+        <td class="text-right font-mono ${(r.change_pct||0)>=0?'text-up':'text-dn'}">${(r.change_pct||0)>=0?'+':''}${(r.change_pct||0).toFixed(1)}%</td>
+        <td class="text-right ${r.tw_impact_5d==null?'text-gray-500':(r.tw_impact_5d||0)>=0?'text-up':'text-dn'}">${r.tw_impact_5d!=null?(r.tw_impact_5d>=0?'+':'')+r.tw_impact_5d.toFixed(2)+'%':'待觀察'}</td>
+        <td class="text-gray-400 text-xs">${r.note||''}</td>
+      </tr>`).join('')}
+      </tbody></table>` :
+      '<div class="text-gray-600 text-xs">尚無美股事件資料，請執行 python3 -m scripts.v7_us_earnings_impact</div>';
+  } catch(e) {}
+}
+document.addEventListener('DOMContentLoaded', load);
+</script>
+{% endblock %}
