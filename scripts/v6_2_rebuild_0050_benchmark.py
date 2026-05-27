@@ -90,23 +90,25 @@ def rebuild():
         cumulative_return = (equity / INIT_CASH - 1) * 100
 
         records.append((BENCHMARK_CODE, trade_date, close_f, round(daily_return, 4),
-                        shares or 0, cash, round(equity, 2), cumulative_return,
+                        shares or 0, 0, round(equity, 2), cumulative_return,
                         is_valid, anomaly_reason))
 
         if is_valid:
             prev_close = close_f
 
     # 批次寫入
+    # 移除 cash 欄位（表不支援）
+    clean = [(r[0],r[1],r[2],r[3],r[4],r[6],r[7],r[8],r[9]) for r in records]
     cur.executemany("""
         INSERT INTO benchmark_daily_equity
-            (benchmark_code, snap_date, price, daily_return, shares, cash,
+            (benchmark_code, snap_date, price, daily_return, shares,
              equity, cumulative_return, is_valid, anomaly_reason)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(benchmark_code, snap_date) DO UPDATE SET
             price=excluded.price, daily_return=excluded.daily_return,
             equity=excluded.equity, cumulative_return=excluded.cumulative_return,
             is_valid=excluded.is_valid, anomaly_reason=excluded.anomaly_reason
-    """, records)
+    """, clean)
     conn.commit()
 
     # 統計
