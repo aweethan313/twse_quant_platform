@@ -42,13 +42,15 @@
     <div id="bear_stress">載入中...</div>
   </div>
 
-  <!-- 月營收 -->
+  <!-- 月營收查詢 -->
   <div class="v8-card">
-    <div class="flex justify-between mb-3">
-      <div class="text-xs text-gray-500 font-semibold uppercase">📊 月營收（最新）</div>
-      <button onclick="fetchRevenue()" class="text-xs px-2 py-1 rounded bg-green-900/40 text-up border border-green-900">抓取月營收</button>
+    <div class="text-xs text-gray-500 font-semibold uppercase mb-3">📊 月營收查詢</div>
+    <div class="flex gap-2 mb-3">
+      <input id="rev_code" class="bg-surface-2 border border-border rounded px-3 py-1.5 text-sm flex-1 max-w-xs"
+             placeholder="輸入股票代號，例如 2330" onkeydown="if(event.key==='Enter')searchRevenue()">
+      <button onclick="searchRevenue()" class="text-xs px-3 py-1.5 rounded bg-blue-900/40 text-blue-400 border border-blue-800">查詢</button>
     </div>
-    <div id="revenue_table">載入中...</div>
+    <div id="revenue_table"><div class="text-gray-600 text-xs">輸入代號查詢該股月營收趨勢</div></div>
   </div>
 </div>
 
