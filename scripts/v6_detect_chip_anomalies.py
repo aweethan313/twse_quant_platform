@@ -15,10 +15,7 @@ def detect_chip_anomalies(target_date: date = None):
         # 取今日籌碼
         chips = db.execute(text("""
             SELECT c.code, sm.name,
-                   c.foreign_buy, c.foreign_sell,
-                   c.trust_buy, c.trust_sell,
-                   c.dealer_buy, c.dealer_sell,
-                   c.foreign_net, c.trust_net
+                   c.foreign_net, c.trust_net, c.dealer_net
             FROM chip_daily c
             LEFT JOIN stock_meta sm ON sm.code=c.code
             WHERE c.trade_date=:d
@@ -35,10 +32,9 @@ def detect_chip_anomalies(target_date: date = None):
         alerts = []
         for row in chips:
             code, name = row[0], row[1]
-            f_buy, f_sell = float(row[2] or 0), float(row[3] or 0)
-            t_buy, t_sell = float(row[4] or 0), float(row[5] or 0)
-            f_net = float(row[8] or 0)
-            t_net = float(row[9] or 0)
+            f_net = float(row[2] or 0)
+            t_net = float(row[3] or 0)
+            dealer_net = float(row[4] or 0)
 
             # 取近20日籌碼
             hist = db.execute(text("""
@@ -91,7 +87,7 @@ def detect_chip_anomalies(target_date: date = None):
                           sev, f"投信連買{t_streak+1}天 今日+{t_net:.0f}張")
 
             # 4. 三大法人同步買超
-            dealer_net = float(row[6] or 0) - float(row[7] or 0)
+            # dealer_net 已在上面取得
             if f_net > 0 and t_net > 0 and dealer_net > 0:
                 add_alert("THREE_PARTY_BUY", "三大法人", f_net+t_net+dealer_net, 0,
                           "STRONG", f"三大法人同步買超 外資+{f_net:.0f} 投信+{t_net:.0f}張")

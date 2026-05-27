@@ -25,7 +25,7 @@ def build_forward_returns(start_date="2025-01-01", end_date=None):
         # 取所有歷史候選股（BUY/WATCH 且有分數）
         candidates = db.execute(text("""
             SELECT DISTINCT ds.score_date, ds.code, sm.name,
-                   ds.final_score, ds.rank_in_day,
+                   ds.final_score, ds.final_score as rank_val,
                    o.close
             FROM daily_scores ds
             LEFT JOIN stock_meta sm ON sm.code=ds.code

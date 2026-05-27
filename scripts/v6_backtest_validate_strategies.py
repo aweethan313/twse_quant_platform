@@ -91,7 +91,7 @@ def run_strategy_backtest(db, strategy_name: str, cfg: dict, trade_dates: list) 
             price_row = db.execute(text(
                 "SELECT close FROM ohlcv_daily WHERE code=:c AND trade_date=:d"
             ), {"c": code, "d": str(signal_date)}).fetchone()
-            if not price_row: continue
+            if not price_row or price_row[0] is None: continue
             cur_price = float(price_row[0])
             pnl_pct = (cur_price / pos["avg_cost"] - 1)
             if pnl_pct <= -sl_pct or pnl_pct >= tp_pct:

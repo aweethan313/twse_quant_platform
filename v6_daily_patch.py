@@ -6,21 +6,17 @@ with open("backend/v5/decision_engine.py") as f:
     de = f.read()
 
 old_cooldown_check = "            # 現金太少直接 SKIP"
-new_cooldown_check = """            # 停損冷卻期檢查
+new_cooldown_check = '''            # 停損冷卻期檢查
             if not blocked:
                 try:
-                    cd_row = db.execute(text("""
-                        SELECT id FROM strategy_cooldowns
-                        WHERE account_id=:aid AND code=:c AND is_active=1
-                        AND cooldown_until >= :d
-                    """), {"aid": account_id, "c": code, "d": str(signal_date)}).fetchone()
-                    if cd_row:
+                    from scripts.v6_update_cooldowns import is_in_cooldown
+                    if is_in_cooldown(account_id, code, signal_date):
                         action = "SKIP"
                         blocked = True
                         blocked_reason = "STOP_LOSS_COOLDOWN（冷卻期未結束）"
                 except: pass
 
-            # 現金太少直接 SKIP"""
+            # 現金太少直接 SKIP'''
 
 if old_cooldown_check in de and "STOP_LOSS_COOLDOWN" not in de:
     de = de.replace(old_cooldown_check, new_cooldown_check)
