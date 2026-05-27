@@ -99,9 +99,12 @@ async function loadStock() {
     document.getElementById('s_change').innerHTML = chg != null ?
       `<span class="${chg>=0?'text-up':'text-dn'}">${chg>=0?'+':''}${parseFloat(chg).toFixed(2)}%</span>` : '—';
 
-    // 技術指標（支援多種 API 格式）
+    // 技術指標：合併兩個 API 的資料，techFeature（/api/stock-tech）優先
     const techArr = Array.isArray(tech) ? tech : (tech.data||[tech]);
-    const t = techArr[0] || techFeature || {};
+    const techBase = techArr[0] || {};
+    // techFeature 有 rsi14, distance_ma20, return_5d
+    // techBase 有 ma5, ma20, boll 等
+    const t = Object.assign({}, techBase, techFeature || {});
     document.getElementById('s_tech').innerHTML = t ? [
       ['RSI14', (t.rsi14||0).toFixed(1), t.rsi14>=70?'text-red-400':t.rsi14<=30?'text-green-400':''],
       ['MA20距離', `${(t.distance_ma20||0).toFixed(2)}%`, (t.distance_ma20||0)>=0?'text-up':'text-dn'],
@@ -113,11 +116,11 @@ async function loadStock() {
     </div>`).join('') : '<div class="text-gray-600 text-xs">無技術指標資料</div>';
 
     // 評分
-    const finalScore = score.composite_score ?? score.final_score;
+    const finalScore = score.composite ?? score.composite_score ?? score.final_score;
     document.getElementById('s_score').innerHTML = finalScore != null ? `
       <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-        ${[['綜合', finalScore],['動能', score.momentum_score??score.momentum],
-           ['籌碼', score.chip_score??score.chip],['風險', score.risk_score??score.risk]].map(([l,v])=>`
+        ${[['綜合', finalScore],['動能', score.momentum??score.momentum_score],
+           ['籌碼', score.chip??score.chip_score],['風險', score.risk_score??score.risk]].map(([l,v])=>`
           <div class="bg-surface-1 rounded p-2 text-center">
             <div class="text-gray-500 mb-1">${l}</div>
             <div class="font-bold ${v>=70?'text-up':v<=30?'text-dn':''}">${(v||0).toFixed(1)}</div>
@@ -128,7 +131,7 @@ async function loadStock() {
     ` : '<div class="text-gray-600 text-xs">無評分資料</div>';
 
     // 籌碼
-    const chipData = Array.isArray(chip) ? chip[0] : chip;
+    const chipData = Array.isArray(chip) ? (chip[0]||null) : (chip.code ? chip : null);
     document.getElementById('s_chip').innerHTML = chipData ? `
       <div class="grid grid-cols-3 gap-2 text-xs">
         <div class="bg-surface-1 rounded p-2 text-center">
