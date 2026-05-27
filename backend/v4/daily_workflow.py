@@ -160,6 +160,22 @@ def run_daily_workflow(target_date: date = None) -> dict:
             return {"status":"WARN","message":f"trading_calendar更新失敗: {e}"}
     step("10e_trading_cal", _update_trading_cal)
 
+    # Step 10h: V8 每日
+    def _v8_daily():
+        try:
+            from scripts.v8_concentration_risk import check_concentration
+            from scripts.v8_ml_scoring import score_today
+            from backend.models.database import SessionLocal as _SL
+            r = check_concentration(target_date)
+            db2 = _SL()
+            try: score_today(db2, str(target_date))
+            except: pass
+            finally: db2.close()
+            return {"status":"PASS","message":f"V8: 集中度{len(r)}筆 ML評分完成"}
+        except Exception as e:
+            return {"status":"WARN","message":f"V8: {e}"}
+    step("10h_v8_daily", _v8_daily)
+
     # Step 10g: V7 每日
     def _v7_daily():
         try:

@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+{% block title %}V8 進階優化 | TWSE QUANT{% endblock %}
+{% block head %}
+<style>.v8-card{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:16px;margin-bottom:12px}</style>
+{% endblock %}
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 py-5">
+  <div class="flex justify-between items-center mb-4">
+    <h1 class="text-xl font-bold">⚡ V8 進階優化</h1>
+    <div class="flex gap-2 text-xs text-gray-500">
+      <span id="v8_status">載入中...</span>
+    </div>
+  </div>
+
+  <!-- ML 評分 Top10 -->
+  <div class="v8-card">
+    <div class="flex justify-between mb-3">
+      <div class="text-xs text-gray-500 font-semibold uppercase">🤖 ML 評分 Top 10</div>
+      <button onclick="runML()" class="text-xs px-2 py-1 rounded bg-blue-900/40 text-blue-400 border border-blue-800">重新評分</button>
+    </div>
+    <div id="ml_scores">載入中...</div>
+  </div>
+
+  <!-- 選股集中度 -->
+  <div class="v8-card">
+    <div class="text-xs text-gray-500 font-semibold uppercase mb-3">🎯 選股集中度風險</div>
+    <div id="concentration">載入中...</div>
+  </div>
+
+  <!-- 週績效 -->
+  <div class="v8-card">
+    <div class="text-xs text-gray-500 font-semibold uppercase mb-3">📅 週績效快照</div>
+    <div id="weekly_perf">載入中...</div>
+  </div>
+
+  <!-- 空頭壓力測試 -->
+  <div class="v8-card">
+    <div class="flex justify-between mb-3">
+      <div class="text-xs text-gray-500 font-semibold uppercase">📉 空頭壓力測試</div>
+      <button onclick="runBear()" class="text-xs px-2 py-1 rounded bg-red-900/40 text-dn border border-red-900">執行測試</button>
+    </div>
+    <div id="bear_stress">載入中...</div>
+  </div>
+
+  <!-- 月營收 -->
+  <div class="v8-card">
+    <div class="flex justify-between mb-3">
+      <div class="text-xs text-gray-500 font-semibold uppercase">📊 月營收（最新）</div>
+      <button onclick="fetchRevenue()" class="text-xs px-2 py-1 rounded bg-green-900/40 text-up border border-green-900">抓取月營收</button>
+    </div>
+    <div id="revenue_table">載入中...</div>
+  </div>
+</div>
+
+<script>
+async function load() {
+  // ML 評分
+  try {
+    const d = await fetch('/api/v8/ml-scores?limit=10').then(r=>r.json());
+    document.getElementById('ml_scores').innerHTML = d.data?.length ?
+      `<div class="text-xs text-gray-500 mb-2">評分日：${d.date||'—'} | 模型預測未來5日報酬</div>
+      <table class="w-full text-xs"><thead><tr class="text-gray-500 border-b border-gray-700">
+        <th class="text-left py-1">排名</th><th>代號</th><th>名稱</th>
+        <th class="text-right">ML分</th><th class="text-right">預測5日</th>
+      </tr></thead><tbody>
+      ${d.data.map(r=>`<tr class="border-t border-gray-800">
+        <td class="py-1 text-yellow-400 font-bold">#${r.ml_rank}</td>
+        <td><a href="/stock/${r.code}" class="text-blue-400 font-mono hover:underline">${r.code}</a></td>
+        <td>${r.name||''}</td>
+        <td class="text-right font-bold ${r.ml_score>=65?'text-up':r.ml_score<=35?'text-dn':''}">${(r.ml_score||0).toFixed(1)}</td>
+        <td class="text-right font-mono ${(r.pred_5d||0)>=0?'text-up':'text-dn'}">${(r.pred_5d||0)>=0?'+':''}${(r.pred_5d||0).toFixed(2)}%</td>
+      </tr>`).join('')}
+      </tbody></table>` :
+      '<div class="text-gray-600 text-xs">尚無ML評分，請先執行：python3 -m scripts.v8_ml_scoring --train 2025-01-01</div>';
+  } catch(e) { document.getElementById('ml_scores').textContent = '需先安裝 scikit-learn 並訓練模型'; }
+
+  // 集中度
+  try {
+    const d = await fetch('/api/v8/concentration-risk').then(r=>r.json());
+    const data = d.data || [];
+    const high = data.filter(r=>r.risk==='HIGH');
+    document.getElementById('concentration').innerHTML = data.length ?
+      `<div class="text-xs text-gray-500 mb-2">資料日：${d.date||'—'}</div>
+      ${high.length ? `<div class="text-dn text-xs mb-2">⚠️ ${high.length} 檔高集中度風險（4個以上策略同時持有）</div>` : '<div class="text-up text-xs mb-2">✅ 今日無高集中度風險</div>'}
+      <table class="w-full text-xs"><thead><tr class="text-gray-500 border-b border-gray-700">
+        <th class="text-left py-1">代號</th><th>名稱</th><th class="text-right">策略數</th><th>帳戶</th><th>風險</th>
+      </tr></thead><tbody>
+      ${data.slice(0,10).map(r=>`<tr class="border-t border-gray-800">
+        <td class="py-1 text-blue-400 font-mono">${r.code}</td>
+        <td>${r.name||''}</td>
+        <td class="text-right font-bold ${r.count>=4?'text-dn':r.count>=2?'text-yellow-400':''}">${r.count}</td>
+        <td class="text-gray-500 text-xs">A${r.accounts}</td>
+        <td><span class="text-xs ${r.risk==='HIGH'?'text-dn':r.risk==='MEDIUM'?'text-yellow-400':'text-gray-500'}">${r.risk}</span></td>
+      </tr>`).join('')}
+      </tbody></table>` :
+      '<div class="text-gray-600 text-xs">今日無資料</div>';
+  } catch(e) {}
+
+  // 週績效
+  try {
+    const d = await fetch('/api/v8/weekly-performance?limit=24').then(r=>r.json());
+    const weeks = [...new Set(d.map(r=>r.week_start))].slice(0,4);
+    document.getElementById('weekly_perf').innerHTML = d.length ?
+      `<table class="w-full text-xs"><thead><tr class="text-gray-500 border-b border-gray-700">
+        <th class="text-left py-1">策略</th>
+        ${weeks.map(w=>`<th class="text-right">${w.slice(5)}</th>`).join('')}
+      </tr></thead><tbody>
+      ${[...new Set(d.map(r=>r.strategy))].map(sname=>`<tr class="border-t border-gray-800">
+        <td class="py-1">${sname}</td>
+        ${weeks.map(w=>{
+          const r = d.find(x=>x.strategy===sname && x.week_start===w);
+          const al = r?.alpha||0;
+          return `<td class="text-right font-mono ${al>=0?'text-up':'text-dn'}">${al>=0?'+':''}${al.toFixed(1)}%</td>`;
+        }).join('')}
+      </tr>`).join('')}
+      </tbody></table>` :
+      '<div class="text-gray-600 text-xs">尚無週快照，請執行 python3 -m scripts.v8_weekly_snapshot</div>';
+  } catch(e) {}
+
+  // 空頭壓力測試
+  try {
+    const d = await fetch('/api/v8/bear-stress').then(r=>r.json());
+    document.getElementById('bear_stress').innerHTML = d.length ?
+      `<table class="w-full text-xs"><thead><tr class="text-gray-500 border-b border-gray-700">
+        <th class="text-left py-1">策略</th><th>壓測期</th>
+        <th class="text-right">報酬</th><th class="text-right">0050</th><th class="text-right">Alpha</th>
+      </tr></thead><tbody>
+      ${d.map(r=>`<tr class="border-t border-gray-800">
+        <td class="py-1">${r.strategy}</td>
+        <td class="text-gray-500 text-xs">${r.period}</td>
+        <td class="text-right font-mono ${(r.return||0)>=0?'text-up':'text-dn'}">${(r.return||0)>=0?'+':''}${(r.return||0).toFixed(2)}%</td>
+        <td class="text-right font-mono text-gray-500">${(r.bench||0).toFixed(2)}%</td>
+        <td class="text-right font-mono ${(r.alpha||0)>=0?'text-up':'text-dn'}">${(r.alpha||0)>=0?'+':''}${(r.alpha||0).toFixed(2)}%</td>
+      </tr>`).join('')}
+      </tbody></table>` :
+      '<div class="text-gray-600 text-xs">尚無壓測資料，點「執行測試」</div>';
+  } catch(e) {}
+
+  // 月營收
+  try {
+    const d = await fetch('/api/v8/monthly-revenue?limit=20').then(r=>r.json());
+    document.getElementById('revenue_table').innerHTML = d.length ?
+      `<table class="w-full text-xs"><thead><tr class="text-gray-500 border-b border-gray-700">
+        <th class="text-left py-1">代號</th><th>名稱</th><th class="text-right">年月</th>
+        <th class="text-right">營收(千)</th><th class="text-right">YoY</th><th class="text-right">MoM</th>
+      </tr></thead><tbody>
+      ${d.map(r=>`<tr class="border-t border-gray-800">
+        <td class="py-1 text-blue-400 font-mono">${r.code}</td>
+        <td>${r.name||''}</td>
+        <td class="text-right text-gray-500">${r.year}/${r.month}</td>
+        <td class="text-right font-mono">${r.revenue?Math.round(r.revenue/1000).toLocaleString():'—'}</td>
+        <td class="text-right font-mono ${(r.yoy||0)>=0?'text-up':'text-dn'}">${r.yoy!=null?(r.yoy>=0?'+':'')+r.yoy.toFixed(1)+'%':'—'}</td>
+        <td class="text-right ${(r.mom||0)>=0?'text-up':'text-dn'}">${r.mom!=null?(r.mom>=0?'+':'')+r.mom.toFixed(1)+'%':'—'}</td>
+      </tr>`).join('')}
+      </tbody></table>` :
+      '<div class="text-gray-600 text-xs">尚無月營收資料，點「抓取月營收」</div>';
+  } catch(e) {}
+
+  document.getElementById('v8_status').textContent = '載入完成';
+}
+
+async function runML() {
+  document.getElementById('ml_scores').textContent = 'ML評分中...';
+  const r = await fetch('/api/v8/run-ml', {method:'POST'}).then(r=>r.json()).catch(()=>({ok:false}));
+  load();
+}
+
+async function runBear() {
+  document.getElementById('bear_stress').textContent = '壓力測試執行中（約1分鐘）...';
+  await fetch('/api/v8/run-bear-stress', {method:'POST'}).catch(()=>{});
+  setTimeout(load, 5000);
+}
+
+async function fetchRevenue() {
+  document.getElementById('revenue_table').textContent = '抓取月營收中...';
+  await fetch('/api/v8/fetch-revenue', {method:'POST'}).catch(()=>{});
+  setTimeout(load, 3000);
+}
+
+document.addEventListener('DOMContentLoaded', load);
+</script>
+{% endblock %}
