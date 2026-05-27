@@ -3257,3 +3257,27 @@ def api_v8_bear_stress():
 @app.get("/v8", response_class=HTMLResponse)
 def page_v8(request: Request):
     return templates.TemplateResponse("v8_overview.html", {"request": request})
+
+@app.post('/api/v8/run-ml')
+def api_v8_run_ml():
+    from scripts.v8_ml_scoring import score_today
+    from backend.models.database import SessionLocal
+    from datetime import date as ddate
+    db = SessionLocal()
+    try:
+        r = score_today(db, str(ddate.today()))
+        return {'ok': True, 'count': len(r)}
+    finally:
+        db.close()
+
+@app.post('/api/v8/run-bear-stress')
+def api_v8_run_bear():
+    import subprocess
+    subprocess.Popen(['python3','-m','scripts.v8_bear_market_stress'])
+    return {'ok': True, 'message': '壓力測試背景執行中'}
+
+@app.post('/api/v8/fetch-revenue')
+def api_v8_fetch_revenue():
+    from scripts.v8_fetch_monthly_revenue import run
+    run(3)
+    return {'ok': True}
