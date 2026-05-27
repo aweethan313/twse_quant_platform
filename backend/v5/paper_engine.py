@@ -103,7 +103,7 @@ def simulate_paper_fills(execution_date: date = None) -> dict:
                 db.execute(text(
                     "UPDATE strategy_accounts SET cash=cash-:cost WHERE id=:id"
                 ), {"cost": total_cost, "id": aid})
-                cash_tracker[aid] = cash_tracker.get(aid, db_cash) - total_cost
+                cash_tracker[aid] = cash_tracker.get(aid, cash) - total_cost
 
                 # 更新持倉
                 existing_pos = db.execute(text(
@@ -166,7 +166,7 @@ def simulate_paper_fills(execution_date: date = None) -> dict:
                 db.execute(text(
                     "UPDATE strategy_accounts SET cash=cash+:proc WHERE id=:id"
                 ), {"proc": net_proceeds, "id": aid})
-                cash_tracker[aid] = cash_tracker.get(aid, db_cash) + net_proceeds
+                cash_tracker[aid] = cash_tracker.get(aid, cash) + net_proceeds
 
                 # 移除持倉
                 db.execute(text(
