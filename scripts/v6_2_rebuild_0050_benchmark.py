@@ -60,11 +60,12 @@ def rebuild():
 
         if close_f <= 0:
             is_valid = 0
-            anomaly_reason = "close<=0"
+            anomaly_reason = "close<=0_or_null"
             anomalies.append({"date": trade_date, "close": close_f, "reason": anomaly_reason})
         elif prev_close and prev_close > 0:
             daily_ret = (close_f - prev_close) / prev_close
             if abs(daily_ret) > MAX_DAILY_RETURN:
+                # 標記為異常但不影響 prev_close 更新（避免級聯錯誤）
                 is_valid = 0
                 anomaly_reason = f"daily_return={daily_ret*100:.1f}%_exceeds_{MAX_DAILY_RETURN*100:.0f}%"
                 anomalies.append({"date": trade_date, "close": close_f,
@@ -93,7 +94,8 @@ def rebuild():
                         shares or 0, 0, round(equity, 2), cumulative_return,
                         is_valid, anomaly_reason))
 
-        if is_valid:
+        # 永遠更新 prev_close，避免級聯錯誤
+        if close_f > 0:
             prev_close = close_f
 
     # 批次寫入
