@@ -413,7 +413,7 @@ async function loadRiskAdjusted() {
           <td class="py-1">${i===0?'🥇':i===1?'🥈':i===2?'🥉':'#'+(i+1)}</td>
           <td>${a.account_name}</td>
           <td class="text-right font-bold" style="color:${a.risk_adjusted_score>=60?'#44ff88':'#ffcc00'}">${a.risk_adjusted_score}</td>
-          <td class="text-right ${a.alpha_vs_0050>=0?'text-green-400':'text-red-400'}">${a.alpha_vs_0050>=0?'+':''}${a.alpha_vs_0050}%</td>
+          <td class="text-right ${a.alpha_vs_0050>=0?'text-up':'text-dn'}">${a.alpha_vs_0050>=0?'+':''}${a.alpha_vs_0050}%</td>
           <td class="text-right">${a.win_rate}%</td>
           <td class="text-right text-red-400">${a.max_drawdown}%</td>
           <td class="text-right text-gray-500">${a.volatility}%</td>
@@ -450,7 +450,7 @@ async function loadStrategyHealth() {
           <div class="text-gray-400 mb-1">${reg.description||''}</div>
           <div class="flex gap-4">
             <span>報酬 <b class="${(r.monthly_return||0)>=0?'text-green-400':'text-red-400'}">${(r.monthly_return||0)>=0?'+':''}${r.monthly_return||0}%</b></span>
-            <span>Alpha <b class="${(r.alpha_vs_0050||0)>=0?'text-green-400':'text-red-400'}">${(r.alpha_vs_0050||0)>=0?'+':''}${r.alpha_vs_0050||0}%</b></span>
+            <span>Alpha <b class="${(r.alpha_vs_0050||0)>=0?'text-up':'text-dn'}">${(r.alpha_vs_0050||0)>=0?'+':''}${r.alpha_vs_0050||0}%</b></span>
             <span>勝率 <b>${r.win_rate||0}%</b></span>
             <span>成交 <b>${r.trade_count||0}筆</b></span>
           </div>

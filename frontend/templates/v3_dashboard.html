@@ -491,7 +491,7 @@ async function loadV5Summary() {
           <td class="py-1">A${a.account_id} ${a.name.replace('A'+a.account_id+' ','')}</td>
           <td class="text-right font-mono">${Math.round(a.total_equity||200000).toLocaleString()}</td>
           <td class="text-right font-mono ${ret>=0?'text-up':'text-dn'}">${ret>=0?'+':''}${ret.toFixed(2)}%</td>
-          <td class="text-right font-mono ${alpha>=0?'text-green-400':'text-red-400'}">${alpha>=0?'+':''}${alpha.toFixed(2)}%</td>
+          <td class="text-right font-mono ${alpha>=0?'text-up':'text-dn'}">${alpha>=0?'+':''}${alpha.toFixed(2)}%</td>
         </tr>`;
       }).join('')}
       <tr class="border-t border-yellow-800">
