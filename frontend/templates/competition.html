@@ -182,7 +182,10 @@ document.addEventListener('DOMContentLoaded', loadCharts);
   <div class="s-card mt-3">
     <div class="flex justify-between items-center mb-3">
       <div class="text-xs text-gray-500 font-semibold uppercase">📅 本月競賽進度</div>
-      <a href="#" onclick="loadMonthly();return false" class="text-xs text-blue-400 hover:underline">重新整理</a>
+<div class="flex gap-2 items-center">
+        <input type="month" id="race_month" class="bg-surface-2 border border-border rounded px-2 py-1 text-xs" value="2026-05">
+        <button onclick="loadMonthlyByPicker()" class="text-xs px-2 py-1 rounded bg-blue-900/40 text-blue-400 border border-blue-800">查詢</button>
+      </div>
     </div>
     <div id="monthly_race">載入中...</div>
   </div>
@@ -206,7 +209,8 @@ async function loadLeaderboard() {
 
     // 取 0050 benchmark
     const bench = await fetch('/api/benchmark/0050').then(r=>r.json()).catch(()=>null);
-    const benchRet = bench?.cumulative_return ?? bench?.data?.slice(-1)[0]?.cumulative_return ?? 0;
+    const benchLast = Array.isArray(bench)?bench.slice(-1)[0]:bench;
+    const benchRet = parseFloat(benchLast?.cumulative_return ?? benchLast?.data?.slice(-1)[0]?.cumulative_return ?? 0);
     setHTML('bench_row',
       `<span class="font-mono text-yellow-400 text-lg font-bold">${benchRet>=0?'+':''}${parseFloat(benchRet).toFixed(2)}%</span>
        <span class="ml-2">累積報酬（2025/1/1 起）</span>`
@@ -273,12 +277,18 @@ async function loadLeaderboard() {
   }
 }
 
-async function loadMonthly() {
+function loadMonthlyByPicker() {
+  const m = document.getElementById('race_month')?.value || '2026-05';
+  loadMonthly(m+'-01');
+}
+async function loadMonthly(startOverride) {
   try {
-    const today = new Date();
-    const start = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-01`;
-    const race = await fetch(`/api/monthly/race?start_date=${start}`).then(r=>r.json());
+      const start = startOverride || (() => { const t=new Date(); return `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-01`; })();
+    const raceResp = await fetch(`/api/monthly/race?start_date=${start}`).then(r=>r.json());
+    const race = raceResp.accounts || raceResp || [];
+    const benchRet2 = raceResp.benchmark_return || 0;
     if (!race || !race.length) { setEmpty('monthly_race','本月尚無競賽資料'); return; }
+    const benchStr = `0050 同期：${benchRet2>=0?'+':''}${parseFloat(benchRet2).toFixed(2)}%`;
 
     const sorted = [...race].sort((a,b)=>(b.alpha_vs_0050||0)-(a.alpha_vs_0050||0));
     setHTML('monthly_race',
@@ -287,8 +297,8 @@ async function loadMonthly() {
         <th class="text-right">Alpha</th><th class="text-right">交易</th>
       </tr></thead><tbody>
       ${sorted.map(r=>`<tr class="border-t border-gray-800">
-        <td class="py-1">${r.strategy_name||r.name}</td>
-        <td class="text-right ${(r.monthly_return||0)>=0?'text-up':'text-dn'}">${(r.monthly_return||0)>=0?'+':''}${(r.monthly_return||0).toFixed(2)}%</td>
+        <td class="py-1">${r.account_name||r.strategy_name||r.name}</td>
+        <td class="text-right ${(r.monthly_return||0)>=0?'text-up':'text-dn'}">${(r.monthly_return||0)>=0?'+':''}${parseFloat(r.monthly_return||0).toFixed(2)}%</td>
         <td class="text-right font-bold ${(r.alpha_vs_0050||0)>=0?'text-up':'text-dn'}">${(r.alpha_vs_0050||0)>=0?'+':''}${(r.alpha_vs_0050||0).toFixed(2)}%</td>
         <td class="text-right">${r.trade_count||0}</td>
       </tr>`).join('')}
