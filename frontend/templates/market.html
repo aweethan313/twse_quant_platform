@@ -719,14 +719,14 @@ function showStockDetailLink(){
       if (existing) existing.remove();
       const card = document.createElement('div');
       card.id = 'v2-overnight-card';
-      card.style.cssText = 'margin-top:16px;background:#111418;border:1px solid rgba(255,255,255,0.07);border-radius:6px;padding:12px 14px;';
+      card.style.cssText = 'background:#111418;border:1px solid rgba(255,255,255,0.07);border-radius:6px;padding:12px 14px;';
       card.innerHTML = `
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
           <span style="font-size:0.82rem;font-weight:600;color:#bbb">🌙 美股夜盤 / 隔日偏向</span>
           <span style="font-size:0.72rem;color:#555">${bias.updated_at||''}</span>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
-          ${[['大盤',bias.overall],['半導體',bias.semi_score||bias.semi],['AI',bias.ai_score||bias.ai],['MU',bias.mu_ret?bias.mu_ret.toFixed(1)+'%':'—'],['綜合分',bias.score+'']]
+          ${[['大盤',bias.overall],['半導體',bias.semi_score!=null?bias.semi_score.toFixed(0):bias.semi],['AI',bias.ai_score!=null?bias.ai_score.toFixed(0):bias.ai],['綜合分',bias.score+'']]
             .map(([l,v])=>`<div style="background:rgba(255,255,255,0.05);border-radius:4px;padding:4px 10px;text-align:center">
               <div style="font-size:0.68rem;color:#666">${l}</div>
               <div style="font-size:0.85rem;font-weight:700;color:${biasColor(v)}">${v}</div></div>`).join('')}
@@ -893,7 +893,7 @@ document.addEventListener('DOMContentLoaded',function(){
   </div>
 </div>
 
-<div class="max-w-7xl mx-auto px-4 mt-4">
+<div class="max-w-7xl mx-auto px-4 mt-4" style="padding-left:1rem;padding-right:1rem">
   <div id="overnight_slot"></div>
   <div id="themes_slot" class="mt-2 mb-4"></div>
 </div>
