@@ -74,7 +74,8 @@ def simulate_paper_fills(execution_date: date = None) -> dict:
             acct = db.execute(text(
                 "SELECT cash, initial_cash FROM strategy_accounts WHERE id=:id"
             ), {"id": aid}).fetchone()
-            cash = float(acct[0] or acct[1] or 200000) if acct else 200000
+            _db_cash = float(acct[0] or acct[1] or 200000) if acct else 200000
+            cash = cash_tracker.get(aid, _db_cash)  # 用 tracker 追蹤本輪已扣現金
 
             if action == "BUY":
                 fill_price = round(base_price * (1 + SLIP_BUY), 2)
