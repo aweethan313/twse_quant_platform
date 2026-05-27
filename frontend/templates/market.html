@@ -744,8 +744,12 @@ function showStockDetailLink(){
           <span style="color:#555">廣度：</span><span style="color:#bbb">${rg.up_count}↑ ${rg.down_count}↓</span>`;
       }).catch(()=>{});
       // 附加到頁面主要區域（選股篩選器所在的 div 下方）
-      const mainContent = document.querySelector('.max-w-7xl, .container-fluid, main') || document.body;
-      mainContent.appendChild(card);
+      const slot = document.getElementById('overnight_slot') ||
+                   document.querySelector('.max-w-7xl') || document.body;
+      // 用固定容器
+      const fixedSlot = document.getElementById('overnight_slot');
+      if (fixedSlot) { fixedSlot.innerHTML = ''; fixedSlot.appendChild(card); }
+      else { (document.querySelector('.max-w-7xl')||document.body).appendChild(card); }
     } catch(e) { console.warn('overnight:', e); }
   }
   async function loadThemes(){
@@ -769,8 +773,9 @@ function showStockDetailLink(){
         </div>`;
       }).join('');
       card.innerHTML=`<div style="font-size:0.82rem;font-weight:600;color:#bbb;margin-bottom:8px">🔥 主線題材熱度</div>${rows}`;
-      const oc=document.getElementById('v2-overnight-card');
-      if(oc)oc.after(card);
+      const themesSlot = document.getElementById('themes_slot');
+      if (themesSlot) { themesSlot.innerHTML = ''; themesSlot.appendChild(card); }
+      else { const oc=document.getElementById('v2-overnight-card'); if(oc)oc.after(card); }
     }catch(e){}
   }
   document.addEventListener('DOMContentLoaded', loadOvernight);
@@ -884,6 +889,10 @@ document.addEventListener('DOMContentLoaded',function(){
   </button>
   <div id="updateLatestStatus"
        style="margin-top:8px;max-width:340px;font-size:12px;color:#c9d1d9;background:rgba(13,17,23,.94);border:1px solid #30363d;border-radius:12px;padding:8px;display:none;">
+
+      <!-- 夜盤區塊（固定位置） -->
+      <div id="overnight_slot" class="mt-3"></div>
+      <div id="themes_slot" class="mt-2"></div>
   </div>
 </div>
 
