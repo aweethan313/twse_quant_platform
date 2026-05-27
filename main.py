@@ -3387,3 +3387,7 @@ def page_data_health(request: Request):
 def page_leaderboard(request: Request):
     """別名：策略排行榜"""
     return templates.TemplateResponse("competition.html", {"request": request})
+
+@app.get("/lab", response_class=HTMLResponse)
+def page_lab(request: Request):
+    return templates.TemplateResponse("lab.html", {"request": request})

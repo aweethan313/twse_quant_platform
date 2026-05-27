@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}研究室 | TWSE Alpha Lab{% endblock %}
+
+{% block head %}
+<style>
+.lab-card{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:16px;margin-bottom:12px}
+.lab-section{border-left:3px solid var(--color-accent);padding-left:12px;margin-bottom:16px}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 py-5">
+  <div class="flex items-center justify-between mb-4">
+    <div>
+      <h1 class="text-xl font-bold">🔬 研究室</h1>
+      <div class="text-xs text-gray-500 mt-1">進階分析工具 — 不影響每日交易決策</div>
+    </div>
+  </div>
+
+  <!-- V6 研究工具 -->
+  <div class="lab-section">
+    <div class="text-xs text-gray-500 font-semibold uppercase mb-3">📊 策略驗證（V6）</div>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <a href="/v6/backtest" class="lab-card !mb-0 hover:border-accent transition-colors text-center">
+        <div class="text-2xl mb-1">📈</div>
+        <div class="text-sm font-medium">歷史回測</div>
+        <div class="text-xs text-gray-500">2025/1~今 六策略 vs 0050</div>
+      </a>
+      <a href="/v6/health" class="lab-card !mb-0 hover:border-accent transition-colors text-center">
+        <div class="text-2xl mb-1">🏥</div>
+        <div class="text-sm font-medium">策略健康分數</div>
+        <div class="text-xs text-gray-500">PROMOTE/KEEP/PAUSE 建議</div>
+      </a>
+      <a href="/v6/candidate-quality" class="lab-card !mb-0 hover:border-accent transition-colors text-center">
+        <div class="text-2xl mb-1">🎯</div>
+        <div class="text-sm font-medium">選股品質分析</div>
+        <div class="text-xs text-gray-500">分數區間 vs 實際報酬</div>
+      </a>
+      <a href="/v6/selection-heatmap" class="lab-card !mb-0 hover:border-accent transition-colors text-center">
+        <div class="text-2xl mb-1">🗺️</div>
+        <div class="text-sm font-medium">選股熱圖</div>
+        <div class="text-xs text-gray-500">WIN/LOSS 視覺化</div>
+      </a>
+      <a href="/v6/chip-alerts" class="lab-card !mb-0 hover:border-accent transition-colors text-center">
+        <div class="text-2xl mb-1">🔔</div>
+        <div class="text-sm font-medium">籌碼異動警報</div>
+        <div class="text-xs text-gray-500">外資/投信 STRONG/RISK</div>
+      </a>
+      <a href="/v6/strategy-vs-0050" class="lab-card !mb-0 hover:border-accent transition-colors text-center">
+        <div class="text-2xl mb-1">⚔️</div>
+        <div class="text-sm font-medium">策略 vs 0050</div>
+        <div class="text-xs text-gray-500">Alpha 曲線詳細比較</div>
+      </a>
+    </div>
+  </div>
+
+  <!-- V7 研究工具 -->
+  <div class="lab-section mt-4">
+    <div class="text-xs text-gray-500 font-semibold uppercase mb-3">🚀 進階分析（V7）</div>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <a href="/v7/market-timing" class="lab-card !mb-0 hover:border-accent transition-colors text-center">
+        <div class="text-2xl mb-1">📊</div>
+        <div class="text-sm font-medium">大盤擇時</div>
+        <div class="text-xs text-gray-500">MA20/MA60 部位乘數</div>
+      </a>
+      <a href="/v7/sector-rotation" class="lab-card !mb-0 hover:border-accent transition-colors text-center">
+        <div class="text-2xl mb-1">🔄</div>
+        <div class="text-sm font-medium">產業輪動</div>
+        <div class="text-xs text-gray-500">8主題強弱排名</div>
+      </a>
+      <a href="/v7" class="lab-card !mb-0 hover:border-accent transition-colors text-center">
+        <div class="text-2xl mb-1">🌐</div>
+        <div class="text-sm font-medium">美股事件影響</div>
+        <div class="text-xs text-gray-500">SOXX/NVDA → 台半連動</div>
+      </a>
+      <a href="/v7" class="lab-card !mb-0 hover:border-accent transition-colors text-center">
+        <div class="text-2xl mb-1">🎓</div>
+        <div class="text-sm font-medium">因子分析</div>
+        <div class="text-xs text-gray-500">IC 值、預測力分析</div>
+      </a>
+    </div>
+  </div>
+
+  <!-- V8 研究工具 -->
+  <div class="lab-section mt-4">
+    <div class="text-xs text-gray-500 font-semibold uppercase mb-3">⚡ 實驗性功能（V8）</div>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <a href="/v8" class="lab-card !mb-0 hover:border-accent transition-colors text-center">
+        <div class="text-2xl mb-1">🤖</div>
+        <div class="text-sm font-medium">ML 評分</div>
+        <div class="text-xs text-gray-500">Random Forest 預測報酬</div>
+      </a>
+      <a href="/v8" class="lab-card !mb-0 hover:border-accent transition-colors text-center">
+        <div class="text-2xl mb-1">📉</div>
+        <div class="text-sm font-medium">空頭壓力測試</div>
+        <div class="text-xs text-gray-500">2022/2025 模擬表現</div>
+      </a>
+      <a href="/v8" class="lab-card !mb-0 hover:border-accent transition-colors text-center">
+        <div class="text-2xl mb-1">🎯</div>
+        <div class="text-sm font-medium">選股集中度</div>
+        <div class="text-xs text-gray-500">多策略同選風險警示</div>
+      </a>
+      <a href="/v8" class="lab-card !mb-0 hover:border-accent transition-colors text-center">
+        <div class="text-2xl mb-1">📊</div>
+        <div class="text-sm font-medium">月營收查詢</div>
+        <div class="text-xs text-gray-500">個股 YoY/MoM 趨勢</div>
+      </a>
+    </div>
+  </div>
+
+  <!-- 個股研究 -->
+  <div class="lab-section mt-4">
+    <div class="text-xs text-gray-500 font-semibold uppercase mb-3">🔍 個股研究</div>
+    <div class="flex gap-2">
+      <input id="lab_code" class="bg-surface-2 border border-border rounded px-3 py-2 text-sm flex-1 max-w-xs"
+             placeholder="輸入股票代號，例如 2330" onkeydown="if(event.key==='Enter')goStock()">
+      <button onclick="goStock()" class="px-4 py-2 rounded bg-accent/20 text-accent border border-accent/40 text-sm">查看個股</button>
+    </div>
+    <div class="text-xs text-gray-600 mt-2">個股頁顯示：K線圖 / 技術指標 / 籌碼 / 評分 / 策略持倉 / 被選後歷史表現</div>
+  </div>
+
+  <!-- 每日工作流程 -->
+  <div class="lab-card mt-3">
+    <div class="text-xs text-gray-500 font-semibold uppercase mb-2">⚙️ 每日工作流程</div>
+    <div class="text-xs text-gray-400 font-mono bg-surface-1 rounded p-3">
+      python3 -m scripts.v4_3_run_daily_workflow
+    </div>
+    <div class="text-xs text-gray-600 mt-2">
+      包含：日K + 籌碼 → 評分 → 技術指標 → 決策 → V6籌碼異動 + 冷卻期 → V7擇時 + 輪動 → 每日報告
+    </div>
+  </div>
+</div>
+
+<script>
+function goStock() {
+  const code = document.getElementById('lab_code').value.trim();
+  if (code) window.location.href = '/stock/' + code;
+}
+</script>
+{% endblock %}
