@@ -37,35 +37,32 @@ tailwind.config = {
   .badge-sell{ background:#1a4a27; color:#33cc66; }
 </style>
 {% block head %}{% endblock %}
+  <script src="/static/ui_helpers.js"></script>
 </head>
 <body class="min-h-screen">
-<nav class="bg-surface-2 border-b border-border sticky top-0 z-50">
-  <div class="flex items-center gap-2 px-4 py-2">
-    <span class="text-accent font-bold text-base tracking-wider mr-4">▲ TWSE QUANT</span>
-    <a href="/"            class="nav-link px-3 py-1.5 rounded text-sm {% block nav_market %}text-gray-400 hover:text-white{% endblock %}">行情總覽</a>
-    <a href="/strategies"  class="nav-link px-3 py-1.5 rounded text-sm {% block nav_strat %}text-gray-400 hover:text-white{% endblock %}">策略帳戶</a>
-    <a href="/competition" class="nav-link px-3 py-1.5 rounded text-sm {% block nav_comp %}text-gray-400 hover:text-white{% endblock %}">月度競賽</a>
-    <a href="/candidates" class="nav-link px-3 py-1.5 rounded text-sm {% block nav_candidates %}text-gray-400 hover:text-white{% endblock %}">今日候選</a>
-    <a href="/paper" class="nav-link {% block nav_paper %}text-gray-400{% endblock %}">📋 Paper</a>
-    <a href="/v8" class="nav-link {% block nav_v8 %}text-gray-400{% endblock %}">⚡ V8</a>
-    <a href="/v7" class="nav-link {% block nav_v7 %}text-gray-400{% endblock %}">🚀 V7</a>
-    <a href="/v6" class="nav-link {% block nav_v6 %}text-gray-400{% endblock %}">🔬 V6驗證</a>
-    <a href="/v3" class="nav-link px-3 py-1.5 rounded text-sm {% block nav_v3 %}text-gray-400 hover:text-white{% endblock %}">V3 總覽</a>
-    <div class="ml-auto flex items-center gap-3 text-xs text-gray-500">
-      <div id="v2bell" style="position:relative;cursor:pointer" onclick="toggleAlerts(event)">
-        <span style="font-size:1rem">🔔</span>
-        <span id="v2bell-badge" style="display:none;position:absolute;top:-4px;right:-6px;background:#ff4444;color:#fff;font-size:9px;font-weight:700;border-radius:8px;padding:1px 4px;min-width:14px;text-align:center"></span>
+    <nav class="bg-surface-1 border-b border-border px-4 py-2 flex items-center justify-between sticky top-0 z-50">
+      <div class="flex items-center gap-6">
+        <a href="/" class="text-accent font-bold text-base tracking-wide">⚡ TWSE Alpha Lab</a>
+        <div class="hidden md:flex items-center gap-1 text-sm">
+          <a href="/v3" class="nav-link px-3 py-1.5 rounded hover:bg-surface-3 transition-colors {% block nav_warroom %}text-gray-400{% endblock %}">每日作戰室</a>
+          <a href="/" class="nav-link px-3 py-1.5 rounded hover:bg-surface-3 transition-colors {% block nav_market %}text-gray-400{% endblock %}">市場總覽</a>
+          <a href="/candidates" class="nav-link px-3 py-1.5 rounded hover:bg-surface-3 transition-colors {% block nav_candidates %}text-gray-400{% endblock %}">今日選股</a>
+          <a href="/paper" class="nav-link px-3 py-1.5 rounded hover:bg-surface-3 transition-colors {% block nav_paper %}text-gray-400{% endblock %}">模擬交易</a>
+          <a href="/competition" class="nav-link px-3 py-1.5 rounded hover:bg-surface-3 transition-colors {% block nav_competition %}text-gray-400{% endblock %}">策略排行榜</a>
+          <a href="/data-health" class="nav-link px-3 py-1.5 rounded hover:bg-surface-3 transition-colors {% block nav_health %}text-gray-400{% endblock %}">資料健康</a>
+        </div>
       </div>
-      <div id="v2alert-panel" style="display:none;position:fixed;top:44px;right:12px;width:300px;max-height:400px;overflow-y:auto;background:#1a1e24;border:1px solid rgba(255,255,255,0.1);border-radius:8px;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,0.5)">
-        <div style="padding:8px 12px;font-size:0.78rem;font-weight:600;color:#aaa;border-bottom:1px solid rgba(255,255,255,0.07)">&#128276; 今日警示</div>
-        <div id="v2alert-list"></div>
+      <div class="flex items-center gap-3 text-xs text-gray-500">
+        <span id="nav_clock"></span>
+        <span class="px-2 py-0.5 rounded border border-gray-700">模擬盤</span>
       </div>
-      <span id="nav_time" class="font-mono"></span>
-      <span class="w-1.5 h-1.5 rounded-full bg-up animate-pulse"></span>
-      <span>模擬盤</span>
-    </div>
-  </div>
-</nav>
+    </nav>
+    <script>
+      (function(){
+        var clk=document.getElementById("nav_clock");
+        setInterval(function(){if(clk)clk.textContent=new Date().toLocaleTimeString("zh-TW",{hour12:false});},1000);
+      })();
+    </script>
 {% block content %}{% endblock %}
 <script>
 var _ao=false;

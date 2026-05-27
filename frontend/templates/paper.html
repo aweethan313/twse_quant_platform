@@ -1,5 +1,6 @@
 {% extends "base.html" %}
-{% block title %}Paper Trading | TWSE QUANT{% endblock %}
+{% block nav_paper %}bg-surface-3 text-white font-medium{% endblock %}
+{% block title %}模擬交易 | TWSE QUANT{% endblock %}
 
 {% block head %}
 <style>
@@ -16,7 +17,7 @@
 {% block content %}
 <div class="max-w-6xl mx-auto px-4 py-5">
   <div class="flex items-center justify-between mb-4">
-    <h1 class="text-xl font-bold">📋 Paper Trading</h1>
+    <h1 class="text-xl font-bold">💹 模擬交易</h1>
     <button onclick="runV5Pipeline()" class="text-xs px-4 py-2 rounded bg-blue-900/40 text-blue-400 border border-blue-800 hover:text-white">
       ▶ 執行今日 V5 Pipeline
     </button>

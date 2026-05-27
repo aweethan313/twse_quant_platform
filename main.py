@@ -3281,3 +3281,109 @@ def api_v8_fetch_revenue():
     from scripts.v8_fetch_monthly_revenue import run
     run(3)
     return {'ok': True}
+
+# ═══════════════════════════════════════
+# 整合重構 APIs
+# ═══════════════════════════════════════
+
+@app.get("/api/strategy-accounts/{account_id}/metrics")
+def api_strategy_account_metrics(account_id: int):
+    """統一策略帳戶績效指標"""
+    from backend.models.database import SessionLocal
+    from sqlalchemy import text as _t
+    db = SessionLocal()
+    try:
+        # 基本資訊
+        acct = db.execute(_t(
+            "SELECT id, name, cash, initial_cash FROM strategy_accounts WHERE id=:id"
+        ), {"id": account_id}).fetchone()
+        if not acct:
+            return {"error": "帳戶不存在"}
+
+        # 最新估值
+        eq = db.execute(_t("""
+            SELECT total_equity, market_value, daily_return
+            FROM equity_curve WHERE account_id=:id ORDER BY snap_date DESC LIMIT 1
+        """), {"id": account_id}).fetchone()
+
+        total_equity = float(eq[0] if eq else acct[2] or 200000)
+        initial_cash = float(acct[3] or 200000)
+        total_return = (total_equity / initial_cash - 1) * 100 if initial_cash else 0
+
+        # 0050 benchmark
+        bench = db.execute(_t("""
+            SELECT cumulative_return FROM benchmark_daily_equity
+            WHERE benchmark_code='0050' ORDER BY snap_date DESC LIMIT 1
+        """)).scalar() or 0
+        alpha = total_return - float(bench)
+
+        # 成交統計
+        fills = db.execute(_t("""
+            SELECT action, fill_price, shares,
+                   (SELECT AVG(avg_cost) FROM positions WHERE account_id=:id AND code=pf.code) as avg_cost
+            FROM paper_fills pf WHERE account_id=:id AND action='SELL'
+        """), {"id": account_id}).fetchall()
+
+        trade_count = len(fills)
+        wins = losses = 0
+        win_pnl = loss_pnl = 0
+        for _, fp, shares, avg_cost in fills:
+            if avg_cost and avg_cost > 0:
+                pnl = (float(fp) - float(avg_cost)) * float(shares)
+                if pnl > 0: wins += 1; win_pnl += pnl
+                else: losses += 1; loss_pnl += abs(pnl)
+
+        win_rate = wins / trade_count * 100 if trade_count > 0 else 0
+        profit_factor = win_pnl / loss_pnl if loss_pnl > 0 else (99.0 if win_pnl > 0 else 0)
+
+        # 最大回撤
+        eq_rows = db.execute(_t("""
+            SELECT total_equity FROM equity_curve WHERE account_id=:id ORDER BY snap_date
+        """), {"id": account_id}).fetchall()
+        peak = initial_cash; max_dd = 0
+        for (e,) in eq_rows:
+            ef = float(e or peak)
+            if ef > peak: peak = ef
+            dd = (peak - ef) / peak * 100 if peak else 0
+            if dd > max_dd: max_dd = dd
+
+        # 持倉
+        positions = db.execute(_t("""
+            SELECT p.code, p.lots, p.avg_cost, o.close
+            FROM positions p
+            LEFT JOIN ohlcv_daily o ON o.code=p.code
+              AND o.trade_date=(SELECT MAX(trade_date) FROM ohlcv_daily)
+            WHERE p.account_id=:id AND p.lots > 0
+        """), {"id": account_id}).fetchall()
+
+        market_value = sum(float(p[3] or p[2]) * float(p[1]) for p in positions)
+        unrealized = sum((float(p[3] or p[2]) - float(p[2])) * float(p[1]) for p in positions)
+
+        return {
+            "account_id": account_id,
+            "name": acct[1],
+            "total_equity": round(total_equity, 2),
+            "cash": round(float(acct[2] or 0), 2),
+            "market_value": round(market_value, 2),
+            "total_return": round(total_return, 3),
+            "alpha_vs_0050": round(alpha, 3),
+            "max_drawdown": round(max_dd, 3),
+            "win_rate": round(win_rate, 1),
+            "trade_count": trade_count,
+            "profit_factor": round(min(profit_factor, 99.0), 3),
+            "realized_pnl": round(win_pnl - loss_pnl, 0),
+            "unrealized_pnl": round(unrealized, 0),
+        }
+    finally:
+        db.close()
+
+
+@app.get("/data-health", response_class=HTMLResponse)
+def page_data_health(request: Request):
+    return templates.TemplateResponse("data_health.html", {"request": request})
+
+
+@app.get("/leaderboard", response_class=HTMLResponse)
+def page_leaderboard(request: Request):
+    """別名：策略排行榜"""
+    return templates.TemplateResponse("competition.html", {"request": request})

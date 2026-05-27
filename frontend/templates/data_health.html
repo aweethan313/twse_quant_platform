@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}資料健康檢查 | TWSE Alpha Lab{% endblock %}
+{% block nav_health %}bg-surface-3 text-white font-medium{% endblock %}
+
+{% block head %}
+<style>.hc-card{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:14px;margin-bottom:10px}</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto px-4 py-5">
+  <div class="flex items-center justify-between mb-4">
+    <h1 class="text-xl font-bold">🔍 資料健康檢查</h1>
+    <button onclick="runAllChecks()" class="text-xs px-3 py-1.5 rounded bg-blue-900/40 text-blue-400 border border-blue-800">▶ 重新檢查</button>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4" id="status_cards">載入中...</div>
+
+  <div class="hc-card">
+    <div class="text-xs text-gray-500 font-semibold uppercase mb-3">📋 詳細檢查結果</div>
+    <div id="check_details">載入中...</div>
+  </div>
+
+  <div class="hc-card">
+    <div class="text-xs text-gray-500 font-semibold uppercase mb-3">✅ No-Lookahead 審計</div>
+    <div id="nla_result">載入中...</div>
+  </div>
+
+  <div class="hc-card">
+    <div class="text-xs text-gray-500 font-semibold uppercase mb-2">🕐 最近更新時間</div>
+    <div id="last_update" class="text-xs text-gray-500"></div>
+  </div>
+</div>
+
+<script>
+function setError(id,msg){ document.getElementById(id).innerHTML='<div class="text-dn text-xs">⚠️ '+msg+'</div>'; }
+
+async function runAllChecks() {
+  document.getElementById('status_cards').innerHTML = '<div class="col-span-2 text-gray-500 text-xs animate-pulse">檢查中...</div>';
+  await loadChecks();
+}
+
+async function loadChecks() {
+  try {
+    // V6 資料品質
+    const dq = await fetch('/api/data-quality/v6').then(r=>r.json()).catch(()=>null);
+    const bench = await fetch('/api/v6/benchmark/status').then(r=>r.json()).catch(()=>null);
+    const cal = await fetch('/api/v6/trading-calendar/latest').then(r=>r.json()).catch(()=>null);
+    const nla = await fetch('/api/v6/no-lookahead-audit').then(r=>r.json()).catch(()=>null);
+
+    // 狀態卡片
+    const cards = [
+      { title:'0050 Benchmark', ok:!bench?.has_anomaly, value:`${bench?.valid||0}/${bench?.total||0} 有效`, sub:`異常 ${bench?.anomaly||0} 筆` },
+      { title:'Trading Calendar', ok:(cal?.latest_trading_date!=null), value:cal?.latest_trading_date||'N/A', sub:'最新交易日' },
+      { title:'No-Lookahead', ok:nla?.pass, value:nla?.pass?'✅ PASS':'❌ FAIL', sub:`決策異常 ${nla?.strategy_decisions_future||0} 筆` },
+      { title:'資料品質', ok:(dq?.pass||0)==(dq?.total||0), value:`${dq?.pass||0}/${dq?.total||0}`, sub:'項目通過' },
+    ];
+    document.getElementById('status_cards').innerHTML = cards.map(c=>`
+      <div class="hc-card !mb-0 text-center">
+        <div class="text-xs text-gray-500 mb-1">${c.title}</div>
+        <div class="text-lg font-bold ${c.ok?'text-up':'text-dn'}">${c.value}</div>
+        <div class="text-xs text-gray-600">${c.sub}</div>
+      </div>`).join('');
+
+    // 詳細檢查
+    if (dq?.checks) {
+      document.getElementById('check_details').innerHTML = `
+        <table class="w-full text-xs"><thead><tr class="text-gray-500 border-b border-gray-700">
+          <th class="text-left py-1">檢查項目</th><th>狀態</th><th>說明</th>
+        </tr></thead><tbody>
+        ${dq.checks.map(c=>`<tr class="border-t border-gray-800">
+          <td class="py-1">${c.name}</td>
+          <td><span class="text-xs font-bold ${c.status==='PASS'?'text-up':'text-dn'}">${c.status}</span></td>
+          <td class="text-gray-500">${c.message||''}</td>
+        </tr>`).join('')}
+        </tbody></table>`;
+    }
+
+    // No-lookahead 詳情
+    if (nla) {
+      const sources = Object.entries(nla.data_sources||{});
+      document.getElementById('nla_result').innerHTML = `
+        <div class="mb-2 text-sm font-bold ${nla.pass?'text-up':'text-dn'}">${nla.pass?'✅ 全部通過':'❌ 有問題'}</div>
+        <table class="w-full text-xs"><tbody>
+        ${sources.map(([k,v])=>`<tr class="border-t border-gray-800">
+          <td class="py-1 text-gray-400">${k}</td>
+          <td class="text-xs ${v.includes('NOT_USED')||v.includes('SAFE')?'text-up':v.includes('ESTIMATED')?'text-yellow-400':'text-gray-400'}">${v}</td>
+        </tr>`).join('')}
+        </tbody></table>`;
+    }
+
+    document.getElementById('last_update').textContent = '最後檢查：' + new Date().toLocaleString('zh-TW');
+  } catch(e) {
+    setError('check_details', e.message);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', loadChecks);
+</script>
+{% endblock %}
