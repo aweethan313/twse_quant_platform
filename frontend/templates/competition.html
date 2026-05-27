@@ -15,9 +15,9 @@ async function loadCharts() {
       curves.forEach(a=>(a.curve||[]).forEach(p=>allDates.add(p.date)));
       const labels = [...allDates].sort().slice(-60); // 近60天
 
-      const datasets = curves.filter(c=>!c.is_benchmark).map((a,i)=>({
+      const datasets = curves.filter(a=>a.account_id!='benchmark'&&a.account_id!==0).map((a,i)=>({
         label: a.name,
-        data: labels.map(d=>{ const p=(a.curve||[]).find(c=>c.date===d); return p?parseFloat(p.return_pct||0):null; }),
+        data: labels.map(d=>{ const p=(a.curve||[]).find(c=>(c.date||c.snap_date)===d); return p!=null?parseFloat(p.return_pct||p.cumulative_return||0):null; }),
         borderColor: COLORS[i%COLORS.length],
         backgroundColor: 'transparent',
         borderWidth: 1.5, pointRadius: 0, tension: 0.3, spanGaps: true,
@@ -25,7 +25,8 @@ async function loadCharts() {
       // 0050 基準線
       if (bench) {
         const bMap = {};
-        (bench.data||bench).forEach&&(bench.data||bench).forEach(b=>bMap[b.date]=b.cumulative_return);
+        const bArr = Array.isArray(bench) ? bench : (bench.data||[]);
+        bArr.forEach(b=>bMap[b.date||b.snap_date]=b.cumulative_return||b.return_pct||0);
         datasets.push({
           label:'0050',
           data: labels.map(d=>parseFloat(bMap[d]||0)),
