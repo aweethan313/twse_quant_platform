@@ -152,9 +152,16 @@ class TWSEClient:
         code_col = find_col(["證券", "代號"]) or find_col(["代號"])
         name_col = find_col(["證券", "名稱"]) or find_col(["名稱"])
 
-        foreign_col = find_col(["外資", "買賣超"], exclude_keywords=["外資自營商"])
+        foreign_col = (
+            find_col(["外陸資買賣超股數"], exclude_keywords=["不含", "自營商"]) or
+            find_col(["外資買賣超股數"], exclude_keywords=["自營商"]) or
+            find_col(["外陸資", "買賣超"], exclude_keywords=["不含", "自營商"])
+        )
         trust_col = find_col(["投信", "買賣超"])
-        dealer_col = find_col(["自營商", "買賣超"], exclude_keywords=["自行", "避險"])
+        dealer_col = (
+            find_col(["自營商買賣超股數"], exclude_keywords=["自行", "避險", "外陸資", "外資"]) or
+            find_col(["自營商", "買賣超"], exclude_keywords=["自行", "避險", "外陸資", "外資"])
+        )
 
         if code_col is None:
             logger.warning(f"[T86] cannot find code column: {trade_date}, fields={fields}")
