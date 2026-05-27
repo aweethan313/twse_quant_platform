@@ -150,6 +150,20 @@ def run_daily_workflow(target_date: date = None) -> dict:
                 "message": f"檢討書: {path or '無前日資料'}"}
     step("10b_daily_review", review)
 
+    # Step 10d: V6 每日
+    def _v6_daily():
+        try:
+            from scripts.v6_detect_chip_anomalies import detect_chip_anomalies
+            from scripts.v6_update_cooldowns import update_cooldowns
+            from scripts.v6_update_strategy_health_scores import update_health_scores
+            n = detect_chip_anomalies(target_date)
+            update_cooldowns(target_date)
+            update_health_scores()
+            return {"status": "PASS", "message": f"V6: {n}個籌碼異動"}
+        except Exception as e:
+            return {"status": "WARN", "message": f"V6: {e}"}
+    step("10d_v6_daily", _v6_daily)
+
     # Step 10c: V5 Paper Pipeline
     def _v5_pipeline():
         try:
