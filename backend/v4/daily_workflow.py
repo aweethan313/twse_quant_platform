@@ -192,6 +192,16 @@ def run_daily_workflow(target_date: date = None) -> dict:
             return {"status": "WARN", "message": f"V5 pipeline 失敗: {e}"}
     step("10c_v5_pipeline", _v5_pipeline)
 
+    # Step 10f: V6 每日報告
+    def _v6_report():
+        try:
+            from backend.v6.daily_report_v6 import generate_daily_report_v6
+            generate_daily_report_v6(target_date)
+            return {"status":"PASS","message":f"V6每日報告輸出"}
+        except Exception as e:
+            return {"status":"WARN","message":f"V6報告失敗: {e}"}
+    step("10f_v6_report", _v6_report)
+
     # Step 11: 輸出日報告
     def export_report():
         path = export_daily_report(target_date, step_results)

@@ -77,6 +77,7 @@
   <div class="p-card mt-4">
     <div class="flex items-center justify-between mb-3">
       <div class="text-xs text-gray-500 font-semibold uppercase tracking-wide">📜 最近成交記錄</div>
+      <div id="fills_source_summary" class="text-xs text-gray-600 mt-1"></div>
       <select id="fills_account" onchange="loadFills()" class="input-sm">
         <option value="">所有帳戶</option>
       </select>
@@ -156,6 +157,7 @@ async function loadFills() {
           <td class="text-blue-400">${r.code}</td>
           <td class="text-right font-mono">${r.shares}</td>
           <td class="text-right font-mono">${r.fill_price}</td>
+          <td class="text-right"><span class="text-xs px-1 rounded ${r.fill_source==='manual'?'bg-blue-900/40 text-blue-400':'bg-gray-800 text-gray-500'}">${r.fill_source==='manual'?'手動':'估算'}</span></td>
           <td class="text-right text-gray-500">${Math.round(r.fee||0)}</td>
           <td class="text-right font-mono ${r.action==='BUY'?'text-red-400':'text-green-400'}">${Math.round(r.net_amount||0).toLocaleString()}</td>
         </tr>`).join('')}
@@ -239,8 +241,44 @@ async function runV5Pipeline() {
   } catch(e) { alert('執行失敗'); }
 }
 
+
+// 快速手動成交
+async function quickFill(aid, code, action, shares, refPrice) {
+  const price = prompt(`手動輸入成交價（參考：${refPrice}）：`, refPrice);
+  if (!price || isNaN(parseFloat(price))) return;
+  const note = `手動成交 signal_date=${new Date().toISOString().slice(0,10)}`;
+  const r = await fetch('/api/paper/manual-fill-v6', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      account_id: aid, code, action,
+      shares: shares||1, fill_price: parseFloat(price), note,
+      fill_date: new Date().toISOString().slice(0,10),
+    })
+  }).then(r=>r.json());
+  if (r.ok) {
+    alert(`✅ 手動成交
+${action} ${code} ${r.shares}股 @${r.fill_price}
+費用：${Math.round(r.fee)}`);
+    loadFills(); loadPositions(); loadPending();
+  } else {
+    alert('❌ ' + (r.error || '成交失敗'));
+  }
+}
+
+// 成交來源統計
+async function loadFillsSourceSummary() {
+  try {
+    const d = await fetch('/api/paper/fills?limit=100').then(r=>r.json());
+    const manual = d.filter(r=>r.fill_source==='manual').length;
+    const simulated = d.filter(r=>r.fill_source!=='manual').length;
+    const el = document.getElementById('fills_source_summary');
+    if (el) el.innerHTML = `<span class="text-blue-400">手動成交 ${manual} 筆</span> | <span class="text-gray-500">估算成交 ${simulated} 筆</span>`;
+  } catch(e) {}
+}
+
 document.addEventListener('DOMContentLoaded', () => {
-  loadAccounts().then(() => { loadPending(); loadFills(); });
+  loadAccounts().then(() => { loadPending(); loadFills(); loadFillsSourceSummary(); });
 });
 </script>
 {% endblock %}

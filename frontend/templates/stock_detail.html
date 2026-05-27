@@ -1,423 +1,195 @@
 {% extends "base.html" %}
-{% block title %}{{ code }} 個股詳情 | TWSE Quant{% endblock %}
-{% block nav_market %}text-gray-400 hover:text-white{% endblock %}
+{% block title %}個股分析 | TWSE QUANT{% endblock %}
 
-{% block content %}
-<div class="p-4 space-y-4">
-
-  <!-- 報價列 -->
-  <div class="bg-surface-2 border border-border rounded-lg px-4 py-3 flex flex-wrap items-center gap-5">
-    <div>
-      <div class="font-mono text-blue text-sm font-bold">{{ code }}</div>
-      <div class="text-xl font-bold" id="sd_name">—</div>
-    </div>
-    <div class="font-mono text-3xl font-bold" id="sd_price">—</div>
-    <div class="font-mono text-sm" id="sd_chg">—</div>
-    <div class="flex gap-5 ml-4">
-      <div class="text-center">
-        <div class="text-xs text-gray-500">開盤</div>
-        <div class="font-mono text-sm" id="sd_open">—</div>
-      </div>
-      <div class="text-center">
-        <div class="text-xs text-gray-500">最高</div>
-        <div class="font-mono text-sm text-up" id="sd_high">—</div>
-      </div>
-      <div class="text-center">
-        <div class="text-xs text-gray-500">最低</div>
-        <div class="font-mono text-sm text-dn" id="sd_low">—</div>
-      </div>
-      <div class="text-center">
-        <div class="text-xs text-gray-500">成交量(張)</div>
-        <div class="font-mono text-sm" id="sd_vol">—</div>
-      </div>
-    </div>
-    <div class="ml-auto text-right">
-      <div id="sd_signal" class="mb-1"></div>
-      <div class="text-xs text-gray-500">綜合分</div>
-      <div class="font-mono text-2xl font-bold text-accent" id="sd_composite">—</div>
-    </div>
-  </div>
-
-  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-    <!-- K 線 -->
-    <div class="lg:col-span-2 space-y-3">
-      <div class="bg-surface-2 border border-border rounded-lg p-4">
-        <div class="flex items-center gap-2 mb-3">
-          <span class="text-sm font-medium" id="chart_title">日K線圖</span>
-          <div class="flex gap-1 ml-auto">
-            <button class="range-btn text-xs px-2 py-1 rounded text-gray-400" onclick="setRange('1M',this)">月</button>
-            <button class="range-btn active text-xs px-2 py-1 rounded bg-surface-4 text-white" onclick="setRange('3M',this)">季</button>
-            <button class="range-btn text-xs px-2 py-1 rounded text-gray-400" onclick="setRange('1Y',this)">年</button>
-          </div>
-        </div>
-        <div class="h-56"><canvas id="kline_chart"></canvas></div>
-      </div>
-
-      <div class="bg-surface-2 border border-border rounded-lg p-4">
-        <div class="text-sm font-medium mb-3">分數歷史趨勢（近 30 日）</div>
-        <div class="flex items-center justify-between mb-1 px-1">
-          <span class="text-xs text-gray-500">分數趨勢</span>
-          <div class="flex gap-1">
-            <button onclick="toggleScoreView('s8')"  id="sv_s8"  class="sv-btn active-sv text-xs px-2 py-0.5 rounded">S8新版</button>
-            <button onclick="toggleScoreView('old')" id="sv_old" class="sv-btn text-xs px-2 py-0.5 rounded">七維</button>
-          </div>
-        </div>
-        <div class="h-44"><canvas id="score_trend_chart"></canvas></div>
-      </div>
-    </div>
-
-    <!-- 右側 -->
-    <div class="space-y-3">
-      <div class="bg-surface-2 border border-border rounded-lg p-4">
-        <div class="text-sm font-medium mb-2">七維分數雷達</div>
-        <div class="h-52"><canvas id="radar_chart"></canvas></div>
-      </div>
-
-      <div class="bg-surface-2 border border-border rounded-lg p-4">
-        <div class="text-sm font-medium mb-3">分數明細</div>
-        <div id="score_detail" class="space-y-2"></div>
-      </div>
-    </div>
-  </div>
-
-</div>
+{% block head %}
+<style>
+.s-card { background:#161b22; border:1px solid #30363d; border-radius:10px; padding:14px; margin-bottom:10px; }
+.tag { padding:2px 8px; border-radius:12px; font-size:11px; }
+</style>
 {% endblock %}
 
-{% block scripts %}
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 py-5">
+  <!-- 搜尋 -->
+  <div class="flex gap-2 mb-4">
+    <input id="code_input" class="bg-surface-2 border border-border rounded px-3 py-2 text-sm flex-1 max-w-xs"
+           placeholder="輸入股票代號，例如 2330" onkeydown="if(event.key==='Enter')loadStock()">
+    <button onclick="loadStock()" class="px-4 py-2 rounded bg-blue-900/40 text-blue-400 border border-blue-800 text-sm">查詢</button>
+  </div>
+
+  <div id="stock_content" class="hidden">
+    <!-- 基本資訊 -->
+    <div class="s-card mb-3">
+      <div class="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <span class="text-2xl font-bold" id="s_name">—</span>
+          <span class="text-gray-500 ml-2 text-sm" id="s_code">—</span>
+          <span class="tag bg-blue-900/40 text-blue-400 ml-2" id="s_class">—</span>
+        </div>
+        <div class="text-right">
+          <div class="text-2xl font-bold font-mono" id="s_price">—</div>
+          <div class="text-sm" id="s_change">—</div>
+        </div>
+      </div>
+      <div class="mt-2 text-xs text-gray-500" id="s_meta_row"></div>
+    </div>
+
+    <!-- 技術指標 -->
+    <div class="s-card">
+      <div class="text-xs text-gray-500 font-semibold uppercase mb-2">📊 技術指標</div>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs" id="s_tech"></div>
+    </div>
+
+    <!-- 分數歷史 -->
+    <div class="s-card">
+      <div class="text-xs text-gray-500 font-semibold uppercase mb-2">🎯 最新評分</div>
+      <div id="s_score"></div>
+    </div>
+
+    <!-- 籌碼 -->
+    <div class="s-card">
+      <div class="text-xs text-gray-500 font-semibold uppercase mb-2">🏦 最新籌碼</div>
+      <div id="s_chip"></div>
+    </div>
+
+    <!-- 策略活動 -->
+    <div class="s-card">
+      <div class="text-xs text-gray-500 font-semibold uppercase mb-2">⚡ 策略持倉 / 活動</div>
+      <div id="s_strategy"></div>
+    </div>
+
+    <!-- 冷卻期 -->
+    <div class="s-card" id="s_cooldown_card">
+      <div class="text-xs text-gray-500 font-semibold uppercase mb-2">❄️ 停損冷卻期</div>
+      <div id="s_cooldown"></div>
+    </div>
+
+    <!-- 被選後表現 -->
+    <div class="s-card">
+      <div class="text-xs text-gray-500 font-semibold uppercase mb-2">📈 被選後表現（歷史）</div>
+      <div id="s_forward"></div>
+    </div>
+  </div>
+</div>
+
 <script>
-const CODE = '{{ code }}';
-let kChart = null;
-let radarChart = null;
-let trendChart = null;
-let currentRange = '3M';
+async function loadStock() {
+  const code = document.getElementById('code_input').value.trim();
+  if (!code) return;
+  document.getElementById('stock_content').classList.remove('hidden');
 
-const SCORE_LABELS = {
-  fundamental: '基本面',
-  valuation: '估值',
-  chip: '籌碼',
-  momentum: '量價動能',
-  macro: '總經',
-  news: '新聞事件',
-  volume_score: '量能'
-};
-
-function volumeToLots(volumeShares) {
-  return Math.round((Number(volumeShares) || 0) / 1000);
-}
-
-async function loadQuote() {
+  // 基本資訊
   try {
-    const { data } = await api(`/stock/${CODE}/kline?days=2`);
-    if (!data || !data.length) return;
+    const [score, kline, chip, tech] = await Promise.all([
+      fetch(`/api/stock/${code}/latest_score`).then(r=>r.json()),
+      fetch(`/api/stock/${code}/kline?days=2`).then(r=>r.json()),
+      fetch(`/api/stock/${code}/chip`).then(r=>r.json()),
+      fetch(`/api/stock/${code}/technical?days=1`).then(r=>r.json()),
+    ]);
 
-    const last = data[data.length - 1];
-    const prev = data.length > 1 ? data[data.length - 2] : last;
-    const chg = last.close - prev.close;
-    const chgP = prev.close ? chg / prev.close * 100 : 0;
-    const cls = chg >= 0 ? 'text-up' : 'text-dn';
+    // 基本
+    const kd = (kline.data||[]);
+    const last = kd[kd.length-1]||{};
+    document.getElementById('s_name').textContent = kline.name || code;
+    document.getElementById('s_code').textContent = code;
+    document.getElementById('s_class').textContent = score.stock_class || '—';
+    document.getElementById('s_price').textContent = last.close || '—';
+    const chg = last.change_pct;
+    document.getElementById('s_change').innerHTML = chg != null ?
+      `<span class="${chg>=0?'text-up':'text-dn'}">${chg>=0?'+':''}${parseFloat(chg).toFixed(2)}%</span>` : '—';
 
-    document.getElementById('sd_name').textContent = stockNameOnly(CODE) + ' (' + CODE + ')';
-    document.getElementById('sd_price').textContent = fmtP(last.close);
-    document.getElementById('sd_price').className = `font-mono text-3xl font-bold ${cls}`;
+    // 技術指標
+    const t = Array.isArray(tech) ? tech[0] : tech;
+    document.getElementById('s_tech').innerHTML = t ? [
+      ['RSI14', (t.rsi14||0).toFixed(1), t.rsi14>=70?'text-red-400':t.rsi14<=30?'text-green-400':''],
+      ['MA20距離', `${(t.distance_ma20||0).toFixed(2)}%`, (t.distance_ma20||0)>=0?'text-up':'text-dn'],
+      ['5日報酬', `${(t.return_5d||0).toFixed(2)}%`, (t.return_5d||0)>=0?'text-up':'text-dn'],
+      ['MA20', t.ma20||'—', ''],
+    ].map(([label, val, cls]) => `<div class="bg-surface-1 rounded p-2 text-center">
+      <div class="text-gray-500 mb-1">${label}</div>
+      <div class="font-bold ${cls}">${val}</div>
+    </div>`).join('') : '<div class="text-gray-600 text-xs">無技術指標資料</div>';
 
-    document.getElementById('sd_chg').textContent =
-      `${chg >= 0 ? '▲' : '▼'} ${Math.abs(chg).toFixed(2)} (${fmtP(chgP, 2)}%)`;
-    document.getElementById('sd_chg').className = `font-mono text-sm ${cls}`;
+    // 評分
+    document.getElementById('s_score').innerHTML = score.composite_score != null ? `
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+        ${[['綜合', score.composite_score],['動能', score.momentum_score],
+           ['籌碼', score.chip_score],['風險', score.risk_score]].map(([l,v])=>`
+          <div class="bg-surface-1 rounded p-2 text-center">
+            <div class="text-gray-500 mb-1">${l}</div>
+            <div class="font-bold ${v>=70?'text-up':v<=30?'text-dn':''}">${(v||0).toFixed(1)}</div>
+          </div>`).join('')}
+      </div>
+      <div class="mt-2 text-xs"><span class="text-gray-500">訊號：</span><span class="text-accent">${score.signal||'—'}</span>
+      <span class="text-gray-500 ml-3">動作：</span><span class="text-white">${score.final_action||'—'}</span></div>
+    ` : '<div class="text-gray-600 text-xs">無評分資料</div>';
 
-    document.getElementById('sd_open').textContent = fmtP(last.open);
-    document.getElementById('sd_high').textContent = fmtP(last.high);
-    document.getElementById('sd_low').textContent = fmtP(last.low);
-
-    // DB volume 是「股數」，畫面標示「張」，所以顯示時 /1000
-    document.getElementById('sd_vol').textContent = fmt(volumeToLots(last.volume));
-  } catch (e) {
-    console.error('loadQuote failed', e);
-  }
-}
-
-async function loadKline() {
-  const days = { '1M': 30, '3M': 90, '1Y': 252 }[currentRange] || 90;
-  try {
-    const { data } = await api(`/stock/${CODE}/kline?days=${days}`);
-    drawKline(data || []);
-  } catch (e) {
-    console.error('loadKline failed', e);
-  }
-}
-
-function drawKline(data) {
-  const ctx = document.getElementById('kline_chart').getContext('2d');
-  if (kChart) kChart.destroy();
-
-  const colors = data.map(d => d.close >= d.open ? UP_C : DN_C);
-  const borders = data.map(d => d.close >= d.open ? UP_B : DN_B);
-
-  kChart = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: data.map(d => d.date.slice(5)),
-      datasets: [
-        {
-          label: '蠟燭體',
-          data: data.map(d => [Math.min(d.open, d.close), Math.max(d.open, d.close)]),
-          backgroundColor: colors,
-          borderColor: borders,
-          borderWidth: 1,
-          borderSkipped: false,
-          barPercentage: 0.6,
-          categoryPercentage: 0.8,
-          order: 2
-        },
-        {
-          label: '上影線',
-          type: 'bar',
-          data: data.map(d => [Math.max(d.open, d.close), d.high]),
-          backgroundColor: borders,
-          borderWidth: 0,
-          barPercentage: 0.08,
-          categoryPercentage: 0.8,
-          borderSkipped: false,
-          order: 1
-        },
-        {
-          label: '下影線',
-          type: 'bar',
-          data: data.map(d => [d.low, Math.min(d.open, d.close)]),
-          backgroundColor: borders,
-          borderWidth: 0,
-          barPercentage: 0.08,
-          categoryPercentage: 0.8,
-          borderSkipped: false,
-          order: 1
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: {
-            title: ctx => [`${CODE} ${stockNameOnly(CODE)}`, data[ctx[0].dataIndex].date],
-            label: ctx => {
-              if (ctx.datasetIndex !== 0) return null;
-              const d = data[ctx.dataIndex];
-              return [
-                `開:${d.open}  收:${d.close}`,
-                `高:${d.high}  低:${d.low}`,
-                `量:${fmt(volumeToLots(d.volume))}張`
-              ];
-            }
-          },
-          filter: item => item.datasetIndex === 0,
-          backgroundColor: '#1c2128',
-          borderColor: '#30363d',
-          borderWidth: 1,
-          titleColor: '#e6edf3',
-          bodyColor: '#adbac7'
-        }
-      },
-      scales: {
-        x: {
-          stacked: false,
-          grid: { color: 'rgba(48,54,61,.4)' },
-          ticks: { color: '#7d8590', font: { size: 9 }, maxTicksLimit: 12 }
-        },
-        y: {
-          grid: { color: 'rgba(48,54,61,.4)' },
-          ticks: { color: '#7d8590', font: { size: 9 } },
-          position: 'right'
-        }
-      }
-    }
-  });
-}
-
-async function loadScores() {
-  try {
-    const s = await api(`/stock/${CODE}/latest_score`);
-
-    const ctx = document.getElementById('radar_chart').getContext('2d');
-    if (radarChart) radarChart.destroy();
-
-    radarChart = new Chart(ctx, {
-      type: 'radar',
-      data: {
-        labels: ['基本面', '估值', '籌碼', '動能', '總經', '新聞', '量能'],
-        datasets: [{
-          data: [s.fundamental, s.valuation, s.chip, s.momentum, s.macro, s.news, s.volume_score??0],
-          backgroundColor: 'rgba(88,166,255,.12)',
-          borderColor: '#58a6ff',
-          pointBackgroundColor: '#58a6ff',
-          pointRadius: 4,
-          borderWidth: 2
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: {
-          r: {
-            min: 0,
-            max: 100,
-            grid: { color: 'rgba(48,54,61,.6)' },
-            angleLines: { color: 'rgba(48,54,61,.6)' },
-            ticks: {
-              color: '#7d8590',
-              stepSize: 25,
-              backdropColor: 'transparent',
-              font: { size: 9 }
-            },
-            pointLabels: { color: '#e6edf3', font: { size: 10 } }
-          }
-        },
-        plugins: { legend: { display: false } }
-      }
-    });
-
-    const keys = ['fundamental', 'valuation', 'chip', 'momentum', 'macro', 'news', 'volume_score'];
-
-    document.getElementById('score_detail').innerHTML = keys.map(k => {
-      const v = +(s[k] || 0);
-      const col = v >= 65 ? 'bg-up' : v >= 40 ? 'bg-accent' : 'bg-dn';
-      return `<div>
-        <div class="flex justify-between text-xs mb-1">
-          <span class="text-gray-400">${SCORE_LABELS[k]}</span>
-          <span class="font-mono font-bold">${fmtP(v, 1)}</span>
+    // 籌碼
+    const chipData = Array.isArray(chip) ? chip[0] : chip;
+    document.getElementById('s_chip').innerHTML = chipData ? `
+      <div class="grid grid-cols-3 gap-2 text-xs">
+        <div class="bg-surface-1 rounded p-2 text-center">
+          <div class="text-gray-500">外資淨買</div>
+          <div class="font-bold ${(chipData.foreign_net||0)>=0?'text-up':'text-dn'}">${(chipData.foreign_net||0).toFixed(0)} 張</div>
         </div>
-        <div class="h-1.5 bg-surface-4 rounded-full overflow-hidden">
-          <div class="h-full ${col} rounded-full" style="width:${v}%"></div>
+        <div class="bg-surface-1 rounded p-2 text-center">
+          <div class="text-gray-500">投信淨買</div>
+          <div class="font-bold ${(chipData.trust_net||0)>=0?'text-up':'text-dn'}">${(chipData.trust_net||0).toFixed(0)} 張</div>
         </div>
-      </div>`;
-    }).join('');
+        <div class="bg-surface-1 rounded p-2 text-center">
+          <div class="text-gray-500">自營商</div>
+          <div class="font-bold ${(chipData.dealer_net||0)>=0?'text-up':'text-dn'}">${(chipData.dealer_net||0).toFixed(0)} 張</div>
+        </div>
+      </div>
+    ` : '<div class="text-gray-600 text-xs">無籌碼資料</div>';
 
-    document.getElementById('sd_signal').innerHTML = badgeSig(s.signal);
-    document.getElementById('sd_composite').textContent = fmtP(s.composite, 1);
+  } catch(e) { console.error(e); }
 
-    const { scores } = await api(`/stock/${CODE}/scores?days=30`);
-    _allScores = scores || []; drawScoreTrend(_allScores);
-  } catch (e) {
-    console.error('loadScores failed', e);
-  }
+  // 策略持倉
+  try {
+    const positions = await fetch(`/api/v6/stock-positions?code=${code}`).then(r=>r.json());
+    document.getElementById('s_strategy').innerHTML = positions.length ?
+      positions.map(p=>`<div class="text-xs border-b border-gray-800 py-1">
+        <span class="text-accent">A${p.account_id}</span> 持有 <span class="font-bold">${p.lots}</span> 股
+        均成本 ${p.avg_cost} | 未實現 <span class="${(p.pnl_pct||0)>=0?'text-up':'text-dn'}">${(p.pnl_pct||0)>=0?'+':''}${(p.pnl_pct||0).toFixed(2)}%</span>
+      </div>`).join('') :
+      '<div class="text-gray-600 text-xs">目前無策略持倉</div>';
+  } catch(e) {}
+
+  // 冷卻期
+  try {
+    const cds = await fetch(`/api/v6/cooldowns?active_only=true`).then(r=>r.json());
+    const mine = cds.filter(c=>c.code===code);
+    document.getElementById('s_cooldown').innerHTML = mine.length ?
+      mine.map(c=>`<div class="text-xs text-yellow-400">❄️ ${c.strategy_name} 冷卻至 ${c.cooldown_until}（${c.reason}）</div>`).join('') :
+      '<div class="text-gray-600 text-xs">無冷卻期</div>';
+  } catch(e) {}
+
+  // 歷史被選後表現
+  try {
+    const fwd = await fetch(`/api/v6/candidate-forward-returns?signal_date=latest&limit=100`).then(r=>r.json());
+    const myFwd = fwd.filter(f=>f.code===code);
+    document.getElementById('s_forward').innerHTML = myFwd.length ?
+      `<table class="w-full text-xs">
+        <thead><tr class="text-gray-500"><th class="text-left py-1">信號日</th><th class="text-right">分數</th><th class="text-right">1日</th><th class="text-right">5日</th><th class="text-right">10日</th><th class="text-right">Alpha5</th></tr></thead><tbody>
+        ${myFwd.slice(0,10).map(f=>`<tr class="border-t border-gray-800">
+          <td class="py-1">${f.signal_date}</td>
+          <td class="text-right">${(f.candidate_score||0).toFixed(1)}</td>
+          <td class="text-right ${(f.return_1d||0)>=0?'text-up':'text-dn'}">${f.return_1d!=null?(f.return_1d>=0?'+':'')+f.return_1d.toFixed(2)+'%':'—'}</td>
+          <td class="text-right ${(f.return_5d||0)>=0?'text-up':'text-dn'}">${f.return_5d!=null?(f.return_5d>=0?'+':'')+f.return_5d.toFixed(2)+'%':'—'}</td>
+          <td class="text-right ${(f.return_10d||0)>=0?'text-up':'text-dn'}">${f.return_10d!=null?(f.return_10d>=0?'+':'')+f.return_10d.toFixed(2)+'%':'—'}</td>
+          <td class="text-right ${(f.alpha_5d_vs_0050||0)>=0?'text-green-400':'text-red-400'}">${f.alpha_5d_vs_0050!=null?(f.alpha_5d_vs_0050>=0?'+':'')+f.alpha_5d_vs_0050.toFixed(2)+'%':'—'}</td>
+        </tr>`).join('')}
+        </tbody></table>` :
+      '<div class="text-gray-600 text-xs">無歷史選股記錄</div>';
+  } catch(e) {}
 }
 
-
-let _allScores = [];
-
-function toggleScoreView(mode) {
-  document.querySelectorAll('.sv-btn').forEach(b => b.classList.remove('active-sv'));
-  const el = document.getElementById('sv_' + mode);
-  if (el) el.classList.add('active-sv');
-  if (mode === 'old') drawScoreTrendOld(_allScores);
-  else drawScoreTrend(_allScores);
+// URL 直接帶代號
+const urlCode = window.location.pathname.split('/').pop();
+if (urlCode && urlCode !== 'stock') {
+  document.getElementById('code_input').value = urlCode;
+  loadStock();
 }
-
-function drawScoreTrendOld(scores) {
-  if (!scores || !scores.length) return;
-  const ctx = document.getElementById('score_trend_chart').getContext('2d');
-  if (window._scoreTrendChart) window._scoreTrendChart.destroy();
-  const KEYS = [
-    {k:'composite',  l:'綜合',  c:'#63b3ed'},
-    {k:'chip',       l:'籌碼',  c:'#44ff88'},
-    {k:'momentum',   l:'動能',  c:'#ffcc00'},
-    {k:'fundamental',l:'基本面',c:'#f6ad55'},
-    {k:'valuation',  l:'估值',  c:'#fc8181'},
-    {k:'news',       l:'新聞',  c:'#b794f4'},
-    {k:'volume',     l:'量能',  c:'#76e4f7'},
-  ];
-  window._scoreTrendChart = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: scores.map(s => s.date.slice(5)),
-      datasets: KEYS.map(({k,l,c:col}) => ({
-        label: l, data: scores.map(s => s[k] ?? 0),
-        borderColor: col, backgroundColor: col+'18',
-        tension: 0.3, pointRadius: 1, borderWidth: 1.5
-      }))
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false, animation: false,
-      plugins: { legend: { labels: { color:'#9ca3af', font:{size:10}, boxWidth:12, padding:6 } } },
-      scales: {
-        x: { ticks:{color:'#6b7280',font:{size:9},maxRotation:0}, grid:{color:'rgba(255,255,255,0.05)'} },
-        y: { min:0, max:100, ticks:{color:'#6b7280',font:{size:9},stepSize:20}, grid:{color:'rgba(255,255,255,0.05)'} }
-      }
-    }
-  });
-}
-
-function drawScoreTrend(scores) {
-  if (!scores || !scores.length) return;
-  const ctx = document.getElementById('score_trend_chart').getContext('2d');
-  if (window._scoreTrendChart) window._scoreTrendChart.destroy();
-
-  // 預設顯示 S8 新分數；若新分數都是0則 fallback 到舊版
-  const hasNew = scores.some(s => (s.candidate||0) > 0);
-
-  const labels = scores.map(s => s.date.slice(5));
-
-  const datasets = hasNew ? [
-    { label: '最終分',  data: scores.map(s => s.final),     borderColor: '#44ff88', backgroundColor: 'rgba(68,255,136,0.08)', tension: 0.3, pointRadius: 2 },
-    { label: '候選分',  data: scores.map(s => s.candidate), borderColor: '#63b3ed', backgroundColor: 'rgba(99,179,237,0.08)', tension: 0.3, pointRadius: 2 },
-    { label: '進場分',  data: scores.map(s => s.entry),     borderColor: '#ffcc00', backgroundColor: 'rgba(255,204,0,0.08)',   tension: 0.3, pointRadius: 2, borderDash: [4,2] },
-    { label: '風險分',  data: scores.map(s => s.risk),      borderColor: '#ff6b6b', backgroundColor: 'rgba(255,107,107,0.08)', tension: 0.3, pointRadius: 2, borderDash: [2,3] },
-  ] : [
-    { label: '綜合分',  data: scores.map(s => s.composite), borderColor: '#63b3ed', backgroundColor: 'rgba(99,179,237,0.1)', tension: 0.3, pointRadius: 2 },
-    { label: '籌碼',    data: scores.map(s => s.chip),      borderColor: '#44ff88', tension: 0.3, pointRadius: 1 },
-    { label: '動能',    data: scores.map(s => s.momentum),  borderColor: '#ffcc00', tension: 0.3, pointRadius: 1 },
-  ];
-
-  window._scoreTrendChart = new Chart(ctx, {
-    type: 'line',
-    data: { labels, datasets },
-    options: {
-      responsive: true, maintainAspectRatio: false, animation: false,
-      interaction: { mode: 'index', intersect: false },
-      plugins: {
-        legend: { labels: { color: '#9ca3af', font: { size: 10 }, boxWidth: 12, padding: 8 } },
-        tooltip: {
-          callbacks: {
-            afterBody(items) {
-              const s = scores[items[0].dataIndex];
-              const fa = s.final_action || s.signal || '';
-              const AZ = {BUY:'✅買入',WATCH:'👀觀察',AVOID_CHASE:'⚠️不可追',HOLD:'⏸持有',SELL:'🔴賣出'};
-              return fa ? ['訊號: ' + (AZ[fa]||fa)] : [];
-            }
-          }
-        }
-      },
-      scales: {
-        x: { ticks: { color:'#6b7280', font:{size:9}, maxRotation:0 }, grid: { color:'rgba(255,255,255,0.05)' } },
-        y: { min:0, max:100, ticks: { color:'#6b7280', font:{size:9}, stepSize:20 },
-             grid: { color:'rgba(255,255,255,0.05)' },
-             afterDataLimits(scale) {
-               // 加一條 60 基準線
-             }
-           }
-      }
-    }
-  });
-
-  // 60分基準線標示
-  const meta = window._scoreTrendChart.getDatasetMeta(0);
-}
-
-function setRange(r, btn) {
-  currentRange = r;
-
-  document.querySelectorAll('.range-btn').forEach(b => {
-    b.className = 'range-btn text-xs px-2 py-1 rounded text-gray-400';
-  });
-
-  btn.className = 'range-btn active text-xs px-2 py-1 rounded bg-surface-4 text-white';
-  loadKline();
-}
-
-loadQuote();
-loadKline();
-loadScores();
-
-setInterval(loadQuote, 10000);
 </script>
 {% endblock %}

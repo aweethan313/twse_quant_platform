@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}選股回顧熱圖 | TWSE QUANT{% endblock %}
+
+{% block head %}
+<style>
+.v6-card { background:#161b22; border:1px solid #30363d; border-radius:10px; padding:16px; margin-bottom:12px; }
+.cell-win  { background:rgba(68,255,136,.35); }
+.cell-loss { background:rgba(255,68,68,.35); }
+.cell-flat { background:rgba(255,255,255,.05); }
+.cell-pend { background:rgba(255,204,0,.1); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 py-5">
+  <div class="flex items-center justify-between mb-4">
+    <h1 class="text-xl font-bold">🗺️ 選股回顧熱圖</h1>
+    <div class="flex gap-2 items-center text-xs text-gray-500">
+      <span class="cell-win px-2 py-0.5 rounded">WIN</span>
+      <span class="cell-loss px-2 py-0.5 rounded">LOSS</span>
+      <span class="cell-flat px-2 py-0.5 rounded">FLAT</span>
+      <span class="cell-pend px-2 py-0.5 rounded">PENDING</span>
+    </div>
+  </div>
+
+  <!-- 統計摘要 -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4" id="heatmap_stats"></div>
+
+  <!-- 熱圖 -->
+  <div class="v6-card">
+    <div class="text-xs text-gray-500 font-semibold uppercase mb-3">📅 最近30天選股（橫=日期，縱=股票）</div>
+    <div id="heatmap_container" class="overflow-x-auto">
+      <div id="heatmap_grid">載入中...</div>
+    </div>
+  </div>
+
+  <!-- 股票績效排名 -->
+  <div class="v6-card">
+    <div class="text-xs text-gray-500 font-semibold uppercase mb-3">📊 被選股票績效排名</div>
+    <div id="stock_ranking">載入中...</div>
+  </div>
+</div>
+
+<script>
+async function loadHeatmap() {
+  try {
+    const d = await fetch('/api/v6/selection-heatmap').then(r=>r.json());
+    const dates = d.dates || [];
+    const stocks = d.stocks || [];
+    const matrix = d.matrix || {};
+
+    // 統計
+    let win=0, loss=0, flat=0, pend=0;
+    stocks.forEach(code => dates.forEach(date => {
+      const v = matrix[code]?.[date];
+      if (!v) return;
+      if (v.result==='WIN') win++;
+      else if (v.result==='LOSS') loss++;
+      else if (v.result==='PENDING') pend++;
+      else flat++;
+    }));
+    const total = win+loss+flat+pend;
+    const wr = total ? (win/(win+loss)*100).toFixed(1) : 0;
+
+    document.getElementById('heatmap_stats').innerHTML = `
+      <div class="bg-surface-2 border border-border rounded p-3 text-center">
+        <div class="text-xs text-gray-500">勝率（已結算）</div>
+        <div class="text-2xl font-bold ${parseFloat(wr)>=50?'text-up':'text-dn'}">${wr}%</div>
+      </div>
+      <div class="bg-surface-2 border border-border rounded p-3 text-center">
+        <div class="text-xs text-gray-500">WIN / LOSS</div>
+        <div class="text-xl font-bold"><span class="text-up">${win}</span> / <span class="text-dn">${loss}</span></div>
+      </div>
+      <div class="bg-surface-2 border border-border rounded p-3 text-center">
+        <div class="text-xs text-gray-500">選股次數</div>
+        <div class="text-2xl font-bold text-accent">${total}</div>
+      </div>
+      <div class="bg-surface-2 border border-border rounded p-3 text-center">
+        <div class="text-xs text-gray-500">追蹤中</div>
+        <div class="text-2xl font-bold text-yellow-400">${pend}</div>
+      </div>`;
+
+    if (!stocks.length) {
+      document.getElementById('heatmap_grid').innerHTML = '<div class="text-gray-600 text-xs py-4">尚無選股記錄</div>';
+      return;
+    }
+
+    // 熱圖表格
+    const shortDates = dates.map(d => d.slice(5)); // MM-DD
+    let html = `<table class="text-xs border-collapse">
+      <thead><tr>
+        <th class="px-2 py-1 text-gray-500 sticky left-0 bg-surface-1">股票</th>
+        ${shortDates.map(d=>`<th class="px-1 py-1 text-gray-600 min-w-[36px] text-center">${d}</th>`).join('')}
+      </tr></thead><tbody>`;
+
+    stocks.forEach(({code, name}) => {
+      html += `<tr><td class="px-2 py-1 text-blue-400 font-mono sticky left-0 bg-surface-1">${code}<br><span class="text-gray-600">${(name||'').slice(0,4)}</span></td>`;
+      dates.forEach(date => {
+        const v = matrix[code]?.[date];
+        if (!v) { html += `<td class="px-1 py-1"></td>`; return; }
+        const cls = v.result==='WIN'?'cell-win':v.result==='LOSS'?'cell-loss':v.result==='PENDING'?'cell-pend':'cell-flat';
+        const ret = v.ret != null ? (v.ret>=0?'+':'')+v.ret.toFixed(1)+'%' : '?';
+        html += `<td class="px-1 py-1 text-center ${cls} cursor-pointer rounded text-xs" title="${code} ${date}: ${ret}">${ret}</td>`;
+      });
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById('heatmap_grid').innerHTML = html;
+
+    // 股票績效排名
+    const stockStats = d.stock_stats || [];
+    document.getElementById('stock_ranking').innerHTML = stockStats.length ?
+      `<table class="w-full text-xs">
+        <thead><tr class="text-gray-500 border-b border-gray-700">
+          <th class="text-left py-2">代號</th><th>名稱</th>
+          <th class="text-right">被選次數</th><th class="text-right">勝率</th>
+          <th class="text-right">均5日報酬</th><th class="text-right">Alpha</th>
+        </tr></thead><tbody>
+        ${stockStats.map(s=>`<tr class="border-t border-gray-800">
+          <td class="py-1 text-blue-400 font-mono">${s.code}</td>
+          <td>${s.name||''}</td>
+          <td class="text-right">${s.count}</td>
+          <td class="text-right ${(s.win_rate||0)>=50?'text-up':'text-dn'}">${(s.win_rate||0).toFixed(1)}%</td>
+          <td class="text-right font-mono ${(s.avg_5d||0)>=0?'text-up':'text-dn'}">${(s.avg_5d||0)>=0?'+':''}${(s.avg_5d||0).toFixed(2)}%</td>
+          <td class="text-right ${(s.avg_alpha||0)>=0?'text-green-400':'text-red-400'}">${(s.avg_alpha||0)>=0?'+':''}${(s.avg_alpha||0).toFixed(2)}%</td>
+        </tr>`).join('')}
+        </tbody></table>` :
+      '<div class="text-gray-600 text-xs">尚無統計資料</div>';
+
+  } catch(e) {
+    document.getElementById('heatmap_grid').innerHTML = '<div class="text-red-400 text-xs">載入失敗：'+e.message+'</div>';
+  }
+}
+document.addEventListener('DOMContentLoaded', loadHeatmap);
+</script>
+{% endblock %}
