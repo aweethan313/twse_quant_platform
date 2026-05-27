@@ -50,6 +50,9 @@ def simulate_paper_fills(execution_date: date = None) -> dict:
             logger.info(f"[PAPER] {execution_date} 無待成交決策")
             return {"ok": True, "filled": 0, "message": "無待成交決策"}
 
+        # 內存現金追蹤（避免同批次超額買入）
+        cash_tracker = {}
+
         for dec in decisions:
             dec_id, aid, sname, sig_date, exec_date, code, action, shares, exp_fill, sl, tp = dec
 
@@ -100,6 +103,7 @@ def simulate_paper_fills(execution_date: date = None) -> dict:
                 db.execute(text(
                     "UPDATE strategy_accounts SET cash=cash-:cost WHERE id=:id"
                 ), {"cost": total_cost, "id": aid})
+                cash_tracker[aid] = cash_tracker.get(aid, db_cash) - total_cost
 
                 # 更新持倉
                 existing_pos = db.execute(text(
@@ -162,6 +166,7 @@ def simulate_paper_fills(execution_date: date = None) -> dict:
                 db.execute(text(
                     "UPDATE strategy_accounts SET cash=cash+:proc WHERE id=:id"
                 ), {"proc": net_proceeds, "id": aid})
+                cash_tracker[aid] = cash_tracker.get(aid, db_cash) + net_proceeds
 
                 # 移除持倉
                 db.execute(text(
