@@ -80,26 +80,28 @@ async function loadStock() {
 
   // 基本資訊
   try {
-    const [score, kline, chip, tech] = await Promise.all([
-      fetch(`/api/stock/${code}/latest_score`).then(r=>r.json()),
-      fetch(`/api/stock/${code}/kline?days=2`).then(r=>r.json()),
-      fetch(`/api/stock/${code}/chip`).then(r=>r.json()),
-      fetch(`/api/stock/${code}/technical?days=1`).then(r=>r.json()),
+    const [score, kline, chip, tech, techFeature] = await Promise.all([
+      fetch(`/api/stock/${code}/latest_score`).then(r=>r.json()).catch(()=>({})),
+      fetch(`/api/stock/${code}/kline?days=3`).then(r=>r.json()).catch(()=>({})),
+      fetch(`/api/stock/${code}/chip`).then(r=>r.json()).catch(()=>[]),
+      fetch(`/api/stock/${code}/technical?days=1`).then(r=>r.json()).catch(()=>[]),
+      fetch(`/api/stock-tech?code=${code}`).then(r=>r.json()).catch(()=>({})),
     ]);
 
     // 基本
-    const kd = (kline.data||[]);
+    const kd = Array.isArray(kline) ? kline : (kline.data||[]);
     const last = kd[kd.length-1]||{};
     document.getElementById('s_name').textContent = kline.name || code;
     document.getElementById('s_code').textContent = code;
-    document.getElementById('s_class').textContent = score.stock_class || '—';
+    document.getElementById('s_class').textContent = (score.stock_class||score.class_) || '—';
     document.getElementById('s_price').textContent = last.close || '—';
     const chg = last.change_pct;
     document.getElementById('s_change').innerHTML = chg != null ?
       `<span class="${chg>=0?'text-up':'text-dn'}">${chg>=0?'+':''}${parseFloat(chg).toFixed(2)}%</span>` : '—';
 
-    // 技術指標
-    const t = Array.isArray(tech) ? tech[0] : tech;
+    // 技術指標（支援多種 API 格式）
+    const techArr = Array.isArray(tech) ? tech : (tech.data||[tech]);
+    const t = techArr[0] || techFeature || {};
     document.getElementById('s_tech').innerHTML = t ? [
       ['RSI14', (t.rsi14||0).toFixed(1), t.rsi14>=70?'text-red-400':t.rsi14<=30?'text-green-400':''],
       ['MA20距離', `${(t.distance_ma20||0).toFixed(2)}%`, (t.distance_ma20||0)>=0?'text-up':'text-dn'],
@@ -111,10 +113,11 @@ async function loadStock() {
     </div>`).join('') : '<div class="text-gray-600 text-xs">無技術指標資料</div>';
 
     // 評分
-    document.getElementById('s_score').innerHTML = score.composite_score != null ? `
+    const finalScore = score.composite_score ?? score.final_score;
+    document.getElementById('s_score').innerHTML = finalScore != null ? `
       <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-        ${[['綜合', score.composite_score],['動能', score.momentum_score],
-           ['籌碼', score.chip_score],['風險', score.risk_score]].map(([l,v])=>`
+        ${[['綜合', finalScore],['動能', score.momentum_score??score.momentum],
+           ['籌碼', score.chip_score??score.chip],['風險', score.risk_score??score.risk]].map(([l,v])=>`
           <div class="bg-surface-1 rounded p-2 text-center">
             <div class="text-gray-500 mb-1">${l}</div>
             <div class="font-bold ${v>=70?'text-up':v<=30?'text-dn':''}">${(v||0).toFixed(1)}</div>

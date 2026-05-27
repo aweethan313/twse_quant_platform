@@ -121,6 +121,15 @@
   </div>
 
 
+
+  <!-- V3 作戰室：Paper 狀態 -->
+  <div class="dc-card mb-3" id="dc_paper_status_card">
+    <div class="flex justify-between mb-2">
+      <div class="text-xs text-gray-500 font-semibold uppercase">💼 Paper Trading 狀態</div>
+      <a href="/paper" class="text-xs text-blue-400 hover:underline">手動成交 →</a>
+    </div>
+    <div id="dc_paper_status">載入中...</div>
+  </div>
   <!-- V5 帳戶狀況 -->
   <div class="dc-card mb-4">
     <div class="flex items-center justify-between mb-2">
@@ -499,6 +508,35 @@ async function loadV5Summary() {
   }
 }
 
+
+async function loadPaperStatus() {
+  try {
+    const [fills, accts] = await Promise.all([
+      fetch('/api/paper/fills?limit=5').then(r=>r.json()),
+      fetch('/api/strategy-accounts').then(r=>r.json()),
+    ]);
+    const totalAsset = accts.reduce((s,a)=>s+(a.total_equity||200000),0);
+    const totalCash  = accts.reduce((s,a)=>s+(a.cash||200000),0);
+    const totalMkt   = accts.reduce((s,a)=>s+(a.market_value||0),0);
+    const manual = fills.filter(f=>f.fill_source==='manual').length;
+    const simulated = fills.filter(f=>f.fill_source!=='manual').length;
+    const el = document.getElementById('dc_paper_status');
+    if (!el) return;
+    el.innerHTML = `<div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs mb-2">
+      <div class="bg-surface-1 rounded p-2 text-center"><div class="text-gray-500">總資產</div><div class="font-bold font-mono">${Math.round(totalAsset).toLocaleString()}</div></div>
+      <div class="bg-surface-1 rounded p-2 text-center"><div class="text-gray-500">現金</div><div class="font-mono">${Math.round(totalCash).toLocaleString()}</div></div>
+      <div class="bg-surface-1 rounded p-2 text-center"><div class="text-gray-500">手動成交</div><div class="text-blue-400 font-bold">${manual}筆</div></div>
+      <div class="bg-surface-1 rounded p-2 text-center"><div class="text-gray-500">估算成交</div><div class="text-gray-400">${simulated}筆</div></div>
+    </div>
+    ${fills.slice(0,3).map(f=>`<div class="text-xs border-t border-gray-800 py-1">
+      <span class="${f.action==='BUY'?'text-up':'text-dn'} font-bold">${f.action}</span>
+      <span class="text-blue-400 ml-1">${f.code}</span>
+      <span class="ml-1">@${f.fill_price}</span>
+      <span class="ml-1 px-1 rounded text-xs ${f.fill_source==='manual'?'bg-blue-900/40 text-blue-400':'bg-gray-800 text-gray-500'}">${f.fill_source==='manual'?'手動':'估算'}</span>
+    </div>`).join('')}`;
+  } catch(e) {}
+}
+
 async function loadRestrictions() {
   var items = [];
 
@@ -590,6 +628,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadSignals();
   loadAccounts();
   loadRestrictions();
+  loadPaperStatus();
   loadV5Summary();
 });
 </script>

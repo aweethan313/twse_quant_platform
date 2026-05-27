@@ -291,6 +291,41 @@ async function loadV5Accounts() {
   }
 }
 
+
+// V6 健康分數 + Cooldown
+async function loadV6HealthOnStrategies() {
+  try {
+    const [health, cooldowns] = await Promise.all([
+      fetch('/api/v6/strategy-health').then(r=>r.json()),
+      fetch('/api/v6/cooldowns?active_only=true').then(r=>r.json()),
+    ]);
+    const healthMap = {};
+    health.forEach(h => { if (!healthMap[h.account_id]) healthMap[h.account_id] = h; });
+    const cdMap = {};
+    cooldowns.forEach(c => {
+      if (!cdMap[c.account_id]) cdMap[c.account_id] = [];
+      cdMap[c.account_id].push(c);
+    });
+
+    // 在 V5 帳戶卡片裡插入健康分數
+    document.querySelectorAll('[data-account-id]').forEach(card => {
+      const aid = parseInt(card.dataset.accountId);
+      const h = healthMap[aid];
+      const cds = cdMap[aid] || [];
+      if (!h) return;
+      const recColor = {PROMOTE:'text-green-400',KEEP:'text-blue-400',REDUCE:'text-yellow-400',PAUSE:'text-red-400'}[h.recommendation]||'text-gray-400';
+      const existing = card.querySelector('.v6-health-badge');
+      if (!existing) {
+        const div = document.createElement('div');
+        div.className = 'v6-health-badge mt-1 text-xs flex gap-2';
+        div.innerHTML = `<span class="${recColor} font-bold">${h.recommendation}</span><span class="text-gray-500">健康${h.health_score}</span>` +
+          (cds.length ? `<span class="text-yellow-400">❄️ ${cds.length}檔冷卻中</span>` : '');
+        card.appendChild(div);
+      }
+    });
+  } catch(e) {}
+}
+
 </script>
 {% endblock %}
 

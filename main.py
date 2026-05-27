@@ -2938,3 +2938,72 @@ def api_no_lookahead_audit():
         }
     finally:
         db.close()
+
+@app.get("/api/stock-tech")
+def api_stock_tech_simple(code: str):
+    """個股最新技術指標（簡易版）"""
+    from backend.models.database import SessionLocal
+    from sqlalchemy import text as _t
+    db = SessionLocal()
+    try:
+        row = db.execute(_t("""
+            SELECT trade_date, rsi14, distance_ma20, return_5d, ma5, ma20, ma60,
+                   macd, macd_signal, atr14
+            FROM technical_daily_features
+            WHERE code=:c ORDER BY trade_date DESC LIMIT 1
+        """), {"c": code}).fetchone()
+        if not row:
+            return {}
+        return {"trade_date":row[0],"rsi14":row[1],"distance_ma20":row[2],
+                "return_5d":row[3],"ma5":row[4],"ma20":row[5],"ma60":row[6],
+                "macd":row[7],"macd_signal":row[8],"atr14":row[9]}
+    finally:
+        db.close()
+
+@app.get("/api/data-quality/v6")
+def api_v6_data_quality():
+    """V6 資料品質總覽"""
+    from backend.models.database import SessionLocal
+    from sqlalchemy import text as _t
+    from datetime import date as ddate, timedelta as td
+    db = SessionLocal()
+    try:
+        today = str(ddate.today())
+        three_days_ago = str(ddate.today() - td(days=3))
+        checks = []
+        def chk(name, ok, msg):
+            checks.append({"name": name, "status": "PASS" if ok else "FAIL", "message": msg})
+
+        # trading_calendar
+        n = db.execute(_t("SELECT COUNT(*) FROM trading_calendar WHERE is_open=1")).scalar() or 0
+        chk("trading_calendar", n > 300, f"有效交易日 {n} 筆")
+
+        # 0050 benchmark 異常
+        anom = db.execute(_t("SELECT COUNT(*) FROM benchmark_daily_equity WHERE is_valid=0")).scalar() or 0
+        chk("0050 benchmark", anom < 20, f"異常筆數 {anom}")
+
+        # candidate_forward_returns
+        cfr = db.execute(_t("SELECT COUNT(*) FROM candidate_forward_returns")).scalar() or 0
+        chk("candidate_forward_returns", cfr > 100, f"{cfr} 筆")
+
+        # strategy_health_scores
+        hs = db.execute(_t("SELECT COUNT(*) FROM strategy_health_scores")).scalar() or 0
+        chk("strategy_health_scores", hs > 0, f"{hs} 筆")
+
+        # strategy_cooldowns
+        cd = db.execute(_t("SELECT COUNT(*) FROM strategy_cooldowns WHERE is_active=1")).scalar() or 0
+        chk("strategy_cooldowns（主動）", True, f"冷卻中 {cd} 筆")
+
+        # chip_anomaly_alerts
+        ca = db.execute(_t(f"SELECT COUNT(*) FROM chip_anomaly_alerts WHERE trade_date >= '{three_days_ago}'")).scalar() or 0
+        chk("chip_anomaly_alerts（3天）", True, f"近3天 {ca} 筆")
+
+        # paper_fills fill_source
+        manual = db.execute(_t("SELECT COUNT(*) FROM paper_fills WHERE fill_source='manual'")).scalar() or 0
+        simulated = db.execute(_t("SELECT COUNT(*) FROM paper_fills WHERE fill_source!='manual'")).scalar() or 0
+        chk("paper_fills 成交來源", True, f"手動 {manual}筆 估算 {simulated}筆")
+
+        pass_n = sum(1 for c in checks if c["status"]=="PASS")
+        return {"pass": pass_n, "total": len(checks), "checks": checks}
+    finally:
+        db.close()

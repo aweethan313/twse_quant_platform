@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}V6 籌碼異動 | TWSE QUANT{% endblock %}
+{% block head %}
+<style>.v6-card{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:16px;margin-bottom:12px}
+.sev-RISK{color:#ff4444;background:rgba(255,68,68,.1);border:1px solid #ff444433}
+.sev-STRONG{color:#f6ad55;background:rgba(246,173,85,.1);border:1px solid #f6ad5533}
+.sev-WATCH{color:#63b3ed;background:rgba(99,179,237,.1);border:1px solid #63b3ed33}
+.sev-INFO{color:#8b949e;background:rgba(139,148,158,.1);border:1px solid #8b949e33}
+.sev-badge{padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700}
+</style>
+{% endblock %}
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 py-5">
+  <div class="flex justify-between items-center mb-4">
+    <h1 class="text-xl font-bold">🔔 籌碼異動警報</h1>
+    <div class="flex gap-2">
+      <button onclick="detectChip()" class="text-xs px-3 py-1.5 rounded bg-blue-900/40 text-blue-400 border border-blue-800">🔍 重新偵測</button>
+      <span id="chip_date" class="text-xs text-gray-500 self-center"></span>
+    </div>
+  </div>
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4" id="chip_stats"></div>
+  <div class="v6-card">
+    <div class="flex gap-2 mb-3 flex-wrap">
+      <button onclick="filterChip('all',this)" class="text-xs px-3 py-1 rounded border border-gray-700 text-white active-filter">全部</button>
+      <button onclick="filterChip('RISK',this)" class="text-xs px-3 py-1 rounded sev-RISK sev-badge">🚨 RISK</button>
+      <button onclick="filterChip('STRONG',this)" class="text-xs px-3 py-1 rounded sev-STRONG sev-badge">🔥 STRONG</button>
+      <button onclick="filterChip('WATCH',this)" class="text-xs px-3 py-1 rounded sev-WATCH sev-badge">👁 WATCH</button>
+    </div>
+    <div id="chip_list">載入中...</div>
+  </div>
+</div>
+<script>
+let _allChips = [];
+async function loadChip() {
+  const d = await fetch('/api/v6/chip-alerts?limit=100').then(r=>r.json());
+  _allChips = d;
+  if (d.length) document.getElementById('chip_date').textContent = '資料日：' + d[0].trade_date;
+  const risk=d.filter(r=>r.severity==='RISK').length, strong=d.filter(r=>r.severity==='STRONG').length,
+        watch=d.filter(r=>r.severity==='WATCH').length;
+  document.getElementById('chip_stats').innerHTML = [
+    ['🚨 RISK', risk, 'text-red-400'],['🔥 STRONG', strong, 'text-yellow-400'],
+    ['👁 WATCH', watch, 'text-blue-400'],['📊 總計', d.length, 'text-gray-400']
+  ].map(([l,n,cls])=>`<div class="bg-surface-2 border border-border rounded p-3 text-center">
+    <div class="text-xs text-gray-500">${l}</div><div class="text-2xl font-bold ${cls}">${n}</div></div>`).join('');
+  renderChip(d);
+}
+function renderChip(data) {
+  document.getElementById('chip_list').innerHTML = data.length ?
+    `<table class="w-full text-xs"><thead><tr class="text-gray-500 border-b border-gray-700">
+      <th class="text-left py-2">嚴重度</th><th>代號</th><th>名稱</th><th>類型</th>
+      <th class="text-right">法人</th><th class="text-right">淨買</th><th class="text-right">連續</th><th>說明</th>
+    </tr></thead><tbody>
+    ${data.map(r=>`<tr class="border-t border-gray-800">
+      <td class="py-1"><span class="sev-badge sev-${r.severity} px-2 py-0.5 rounded">${r.severity}</span></td>
+      <td><a href="/stock/${r.code}" class="text-blue-400 font-mono hover:underline">${r.code}</a></td>
+      <td>${r.stock_name||''}</td><td class="text-xs text-gray-500">${r.alert_type}</td>
+      <td class="text-right">${r.investor_type||''}</td>
+      <td class="text-right font-mono ${(r.buy_sell_value||0)>=0?'text-up':'text-dn'}">${(r.buy_sell_value||0).toFixed(0)}</td>
+      <td class="text-right">${r.streak_days||0}天</td>
+      <td class="text-xs text-gray-400">${r.reason_summary||''}</td>
+    </tr>`).join('')}
+    </tbody></table>` :
+    '<div class="text-gray-600 text-xs py-4 text-center">今日無籌碼異動警報（籌碼資料通常 T+1 更新）</div>';
+}
+function filterChip(sev, btn) {
+  document.querySelectorAll('.active-filter').forEach(b=>b.classList.remove('active-filter','text-white'));
+  btn.classList.add('active-filter','text-white');
+  renderChip(sev==='all' ? _allChips : _allChips.filter(r=>r.severity===sev));
+}
+async function detectChip() {
+  document.getElementById('chip_list').textContent = '偵測中...';
+  await fetch('/api/v6/chip-alerts/detect', {method:'POST'});
+  loadChip();
+}
+document.addEventListener('DOMContentLoaded', loadChip);
+</script>
+{% endblock %}

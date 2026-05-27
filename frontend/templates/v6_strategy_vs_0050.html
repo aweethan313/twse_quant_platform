@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}V6 策略 vs 0050 | TWSE QUANT{% endblock %}
+{% block head %}
+<style>.v6-card{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:16px;margin-bottom:12px}</style>
+{% endblock %}
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 py-5">
+  <h1 class="text-xl font-bold mb-4">📊 策略 vs 0050 詳細比較</h1>
+  <div class="v6-card mb-3">
+    <div class="text-xs text-gray-500 mb-2">選擇時間範圍：
+      <select id="period" onchange="loadAll()" class="bg-surface-2 border border-border rounded px-2 py-1 text-xs ml-2">
+        <option value="30">近30天</option><option value="90">近90天</option><option value="180">近180天</option><option value="365">近365天</option>
+      </select>
+    </div>
+    <div id="comparison_table">載入中...</div>
+  </div>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div class="v6-card"><div class="text-xs text-gray-500 mb-2">淨值曲線</div>
+      <canvas id="equity_chart" style="max-height:300px"></canvas></div>
+    <div class="v6-card"><div class="text-xs text-gray-500 mb-2">Alpha 曲線（超額報酬）</div>
+      <canvas id="alpha_chart" style="max-height:300px"></canvas></div>
+  </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script>
+const COLORS=['#63b3ed','#48bb78','#f6ad55','#fc8181','#b794f4','#4fd1c7'];
+let _ec=null, _ac=null;
+
+async function loadAll() {
+  const days = parseInt(document.getElementById('period').value);
+  const today = new Date();
+  const start = new Date(today - days*86400000).toISOString().slice(0,10);
+
+  const [curves, bench] = await Promise.all([
+    fetch(`/api/monthly/equity-curves?start_date=${start}`).then(r=>r.json()),
+    fetch(`/api/benchmark/0050?start_date=${start}`).then(r=>r.json()),
+  ]);
+
+  // 比較表格
+  const benchMap = {};
+  bench.forEach(b => benchMap[b.date] = b.cumulative_return);
+  const accts = curves.filter(c=>!c.is_benchmark);
+  const benchFinal = bench.length ? bench[bench.length-1].cumulative_return : 0;
+
+  document.getElementById('comparison_table').innerHTML = accts.length ?
+    `<div class="text-xs text-gray-500 mb-2">0050 同期：<span class="text-yellow-400 font-bold">${benchFinal>=0?'+':''}${parseFloat(benchFinal).toFixed(2)}%</span></div>
+    <table class="w-full text-xs"><thead><tr class="text-gray-500 border-b border-gray-700">
+      <th class="text-left py-2">策略</th><th class="text-right">累積報酬</th><th class="text-right">Alpha</th><th class="text-right">vs 0050</th>
+    </tr></thead><tbody>
+    ${accts.map(a=>{
+      const last = a.curve?.slice(-1)[0];
+      const ret = last?.return_pct||0;
+      const alpha = (ret - parseFloat(benchFinal)).toFixed(2);
+      return `<tr class="border-t border-gray-800">
+        <td class="py-1">${alpha>0?'✅':'❌'} ${a.name}</td>
+        <td class="text-right font-mono ${ret>=0?'text-up':'text-dn'}">${ret>=0?'+':''}${parseFloat(ret).toFixed(2)}%</td>
+        <td class="text-right font-mono font-bold ${alpha>=0?'text-green-400':'text-red-400'}">${alpha>=0?'+':''}${alpha}%</td>
+        <td class="text-right text-xs">${alpha>0?'跑贏':'跑輸'}</td>
+      </tr>`;
+    }).join('')}</tbody></table>` : '<div class="text-gray-600 text-xs">尚無資料</div>';
+
+  // 淨值曲線
+  if(_ec){_ec.destroy();_ec=null;}
+  if(_ac){_ac.destroy();_ac=null;}
+  const allDates = new Set();
+  curves.forEach(a=>(a.curve||[]).forEach(p=>allDates.add(p.date)));
+  const labels = [...allDates].sort();
+  const eqDatasets = curves.map((a,i)=>({
+    label:a.name, data:labels.map(d=>{ const p=(a.curve||[]).find(c=>c.date===d); return p?p.return_pct:null; }),
+    borderColor:a.is_benchmark?'#ffd700':COLORS[i%COLORS.length],
+    borderWidth:a.is_benchmark?2:1.5, borderDash:a.is_benchmark?[5,3]:[],
+    backgroundColor:'transparent', tension:0.3, pointRadius:1, spanGaps:true,
+  }));
+  _ec=new Chart(document.getElementById('equity_chart'),{
+    type:'line',data:{labels,datasets:eqDatasets},
+    options:{responsive:true,plugins:{legend:{labels:{color:'#bbb',font:{size:10}}}},
+      scales:{x:{ticks:{color:'#555',maxTicksLimit:8}},y:{ticks:{color:'#bbb',callback:v=>(v>=0?'+':'')+v.toFixed(1)+'%'},grid:{color:'#21262d'}}}}
+  });
+  // Alpha 曲線
+  const benchLine = curves.find(c=>c.is_benchmark);
+  const bMap = {};
+  if(benchLine)(benchLine.curve||[]).forEach(p=>bMap[p.date]=p.return_pct);
+  const alphaDatasets = curves.filter(c=>!c.is_benchmark).map((a,i)=>({
+    label:a.name+' Alpha', fill:true,
+    data:labels.map(d=>{ const sr=(a.curve||[]).find(c=>c.date===d)?.return_pct; const br=bMap[d]; return sr!=null&&br!=null?+(sr-br).toFixed(3):null; }),
+    borderColor:COLORS[i%COLORS.length], backgroundColor:COLORS[i%COLORS.length]+'20',
+    tension:0.3, pointRadius:1, spanGaps:true,
+  }));
+  alphaDatasets.push({label:'基準線',data:labels.map(()=>0),borderColor:'#ffd700',borderWidth:1,borderDash:[4,3],backgroundColor:'transparent',pointRadius:0});
+  _ac=new Chart(document.getElementById('alpha_chart'),{
+    type:'line',data:{labels,datasets:alphaDatasets},
+    options:{responsive:true,plugins:{legend:{labels:{color:'#bbb',font:{size:10}}}},
+      scales:{x:{ticks:{color:'#555',maxTicksLimit:8}},y:{ticks:{color:'#bbb',callback:v=>(v>=0?'+':'')+v.toFixed(1)+'%'},grid:{color:'#21262d'}}}}
+  });
+}
+document.addEventListener('DOMContentLoaded', loadAll);
+</script>
+{% endblock %}
