@@ -703,7 +703,7 @@ function showStockDetailLink(){
       if (!d.bias || d.error) return;
       const bias = d.bias;
       const syms = d.symbols || {};
-      function biasColor(l) { return l.includes('多')?'#ff4444':l.includes('空')?'#22cc66':'#aaa'; }
+      function biasColor(l) { if(!l && l!==0) return '#aaa'; const s=String(l); return s.includes('多')?'#ff4444':s.includes('空')?'#22cc66':'#aaa'; }
       function retColor(v) { return v>0?'#ff4444':v<0?'#22cc66':'#aaa'; }
       const symRows = Object.entries(syms).map(([s,d])=>{
         const isMU = s==='MU';
@@ -726,7 +726,7 @@ function showStockDetailLink(){
           <span style="font-size:0.72rem;color:#555">${bias.updated_at||''}</span>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
-          ${[['大盤',bias.overall],['科技',bias.tech],['半導體',bias.semi],['AI',bias.ai],['綜合分',bias.score+'']]
+          ${[['大盤',bias.overall],['半導體',bias.semi_score||bias.semi],['AI',bias.ai_score||bias.ai],['MU',bias.mu_ret?bias.mu_ret.toFixed(1)+'%':'—'],['綜合分',bias.score+'']]
             .map(([l,v])=>`<div style="background:rgba(255,255,255,0.05);border-radius:4px;padding:4px 10px;text-align:center">
               <div style="font-size:0.68rem;color:#666">${l}</div>
               <div style="font-size:0.85rem;font-weight:700;color:${biasColor(v)}">${v}</div></div>`).join('')}
