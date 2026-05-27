@@ -97,7 +97,7 @@ def simulate_paper_fills(execution_date: date = None) -> dict:
                     total_cost = gross + fee
 
                 if shares_int <= 0 or total_cost > cash:
-                    errors.append(f"A{aid} {code} 現金不足")
+                    logger.debug(f"[PAPER] A{aid} {code} SKIP 現金不足（已滿倉）")
                     continue
 
                 # 更新現金
