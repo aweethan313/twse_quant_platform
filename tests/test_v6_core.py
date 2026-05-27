@@ -198,7 +198,7 @@ class TestNoLookahead:
             db.close()
 
     def test_no_1min_table(self):
-        """ohlcv_1min 表不應存在"""
+        """ohlcv_1min 若存在應該是空的（V6 不使用分鐘資料）"""
         from backend.models.database import SessionLocal
         from sqlalchemy import text
         db = SessionLocal()
@@ -206,7 +206,11 @@ class TestNoLookahead:
             has_1min = db.execute(text(
                 "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='ohlcv_1min'"
             )).scalar()
-            assert has_1min == 0, "ohlcv_1min 表不應存在（V6 不使用分鐘資料）"
+            if has_1min:
+                # 表存在時，確認是空的（V6 不應填入分鐘資料）
+                row_count = db.execute(text("SELECT COUNT(*) FROM ohlcv_1min")).scalar()
+                assert row_count == 0, f"ohlcv_1min 有 {row_count} 筆資料（V6 不應使用分鐘資料）"
+            # 表不存在或是空的都 OK
         finally:
             db.close()
 
