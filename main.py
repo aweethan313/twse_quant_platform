@@ -3007,3 +3007,11 @@ def api_v6_data_quality():
         return {"pass": pass_n, "total": len(checks), "checks": checks}
     finally:
         db.close()
+
+@app.get("/v6/chip-alerts", response_class=HTMLResponse)
+def page_v6_chip_alerts(request: Request):
+    return templates.TemplateResponse("v6_chip_alerts.html", {"request": request})
+
+@app.get("/v6/strategy-vs-0050", response_class=HTMLResponse)
+def page_v6_strategy_vs_0050(request: Request):
+    return templates.TemplateResponse("v6_strategy_vs_0050.html", {"request": request})
