@@ -100,8 +100,7 @@ async function loadMarket() {
     // 大盤廣度
     var breadth = enh.breadth || {};
 
-    document.getElementById('dc_market').innerHTML =
-      // 今日可否買進
+    // 今日可否買進
       var canBuy = ctx.risk_level !== 'high' && (ctx.position_multiplier||0) > 0;
       var buyColor = canBuy ? '#ff3333' : '#33cc66';
       var buyText  = canBuy ? '✅ 可以買進' : '🚫 暫停買進';
