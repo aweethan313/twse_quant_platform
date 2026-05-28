@@ -147,9 +147,17 @@ async function loadSignals() {
     var el = document.getElementById('dc_signals_summary');
     if (!el) return;
     var buys = _allSignals.filter(s=>!s.invalid_buy_condition);
-    el.innerHTML = buys.slice(0,3).map(s=>
-      `<span class="inline-block mr-3">✅ <b class="text-white">${s.name}</b> ${s.entry_price_low??'—'}~${s.entry_price_high??'—'}</span>`
-    ).join('') + (buys.length > 3 ? `<span class="text-blue-400">...共${buys.length}檔</span>` : '');
+    el.innerHTML = buys.slice(0,5).map(s=>
+      `<div style="display:inline-block;background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:8px 12px;margin:3px;min-width:140px;vertical-align:top">
+        <div><a href="/stock/${s.code}" style="color:#63b3ed;font-family:monospace;font-weight:700">${s.code}</a> <span style="font-size:12px">${s.name||''}</span></div>
+        <div style="font-size:11px;color:#8b949e;margin-top:3px">進場 <b style="color:#f0b429">${s.entry_price_low??'—'}~${s.entry_price_high??'—'}</b></div>
+        <div style="font-size:11px;margin-top:2px">
+          <span style="color:#ff3333">目標 ${s.target_price_1??'—'}</span>
+          <span style="color:#33cc66;margin-left:8px">停損 ${s.stop_loss_price??'—'}</span>
+        </div>
+        <div style="font-size:10px;color:#8b949e;margin-top:2px">風報 ${s.risk_reward_ratio??'—'}</div>
+      </div>`
+    ).join('') + (buys.length > 5 ? `<div style="font-size:11px;color:#63b3ed;margin-top:6px">+ 還有 ${buys.length-5} 檔，<a href="/candidates" style="color:#63b3ed">查看今日選股 →</a></div>` : '');
   } catch(e) {
     var el = document.getElementById('dc_signals_summary');
     if (el) el.textContent='尚無建議';
