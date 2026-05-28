@@ -16,23 +16,9 @@
 {% endblock %}
 
 {% block content %}
-<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:16px 16px 0">
-  <div style="background:#161b22;border:1px solid #30363d;border-radius:10px;padding:14px;text-align:center">
-    <div style="font-size:11px;color:#8b949e;margin-bottom:4px">💵 剩餘現金</div>
-    <div style="font-size:20px;font-weight:700;font-family:monospace;color:#f0b429" id="sum_cash">—</div>
-  </div>
-  <div style="background:#161b22;border:1px solid #30363d;border-radius:10px;padding:14px;text-align:center">
-    <div style="font-size:11px;color:#8b949e;margin-bottom:4px">📊 持股市值</div>
-    <div style="font-size:20px;font-weight:700;font-family:monospace" id="sum_mkt">—</div>
-  </div>
-  <div style="background:#161b22;border:1px solid #30363d;border-radius:10px;padding:14px;text-align:center">
-    <div style="font-size:11px;color:#8b949e;margin-bottom:4px">💰 總資產</div>
-    <div style="font-size:20px;font-weight:700;font-family:monospace" id="sum_total">—</div>
-  </div>
-  <div style="background:#161b22;border:1px solid #30363d;border-radius:10px;padding:14px;text-align:center">
-    <div style="font-size:11px;color:#8b949e;margin-bottom:4px">📈 未實現損益</div>
-    <div style="font-size:20px;font-weight:700;font-family:monospace" id="sum_unrealized">—</div>
-  </div>
+<div style="padding:16px 16px 0">
+  <div style="font-size:11px;color:#8b949e;font-weight:600;text-transform:uppercase;margin-bottom:8px">各帳戶資產狀況</div>
+  <div id="acct_summary_grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px"></div>
 </div>
 <div class="max-w-6xl mx-auto px-4 py-5">
   <div class="flex items-center justify-between mb-4">
@@ -301,23 +287,29 @@ async function loadFillsSourceSummary() {
 async function loadAssetSummary() {
   try {
     const accts = await fetch('/api/strategy-accounts').then(r=>r.json()).catch(()=>[]);
-    let totalCash=0, totalMkt=0, totalUnrealized=0;
+    const grid = document.getElementById('acct_summary_grid');
+    if (!grid) return;
+    grid.innerHTML = '';
     for (const a of accts) {
-      totalCash += parseFloat(a.cash||0);
       const m = await fetch(`/api/strategy-accounts/${a.account_id}/metrics`).then(r=>r.ok?r.json():null).catch(()=>null);
-      if (m) {
-        totalMkt += parseFloat(m.market_value||0);
-        totalUnrealized += parseFloat(m.unrealized_pnl||0);
-      }
+      const cash = parseFloat(a.cash||0);
+      const mkt  = parseFloat(a.market_value||m?.market_value||0);
+      const total= parseFloat(a.total_equity||m?.total_equity||cash+mkt);
+      const unrel= parseFloat(m?.unrealized_pnl||0);
+      const ret  = parseFloat(a.total_return||m?.total_return||0);
+      const fmt  = n => Math.round(n).toLocaleString('zh-TW');
+      const updn = v => v>=0?'color:#ff3333':'color:#33cc66';
+      grid.innerHTML += `<div style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:12px">
+        <div style="font-size:12px;font-weight:600;margin-bottom:8px;color:#e6edf3">${a.name}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:11px">
+          <div><span style="color:#8b949e">現金</span><br><b style="font-family:monospace">$${fmt(cash)}</b></div>
+          <div><span style="color:#8b949e">持股市值</span><br><b style="font-family:monospace">$${fmt(mkt)}</b></div>
+          <div><span style="color:#8b949e">總資產</span><br><b style="font-family:monospace;color:#f0b429">$${fmt(total)}</b></div>
+          <div><span style="color:#8b949e">未實現</span><br><b style="font-family:monospace;${updn(unrel)}">${unrel>=0?'+':''}${fmt(unrel)}</b></div>
+        </div>
+        <div style="margin-top:6px;font-size:10px;color:#8b949e">總報酬 <b style="${updn(ret)}">${ret>=0?'+':''}${ret.toFixed(2)}%</b></div>
+      </div>`;
     }
-    const totalEq = totalCash + totalMkt;
-    const fmt = n => Math.round(n).toLocaleString('zh-TW');
-    const el = (id,v,cls) => { const e=document.getElementById(id); if(e){e.textContent=v; if(cls)e.className=e.className.replace(/text-\S+/g,'')+' '+cls; }};
-    el('sum_cash', '$'+fmt(totalCash));
-    el('sum_mkt',  '$'+fmt(totalMkt));
-    el('sum_total','$'+fmt(totalEq));
-    el('sum_unrealized', (totalUnrealized>=0?'+':'')+fmt(totalUnrealized),
-       totalUnrealized>=0?'text-xl font-bold font-mono text-up':'text-xl font-bold font-mono text-dn');
   } catch(e) { console.warn('asset summary:', e); }
 }
 
