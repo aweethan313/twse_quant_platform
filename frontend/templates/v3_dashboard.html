@@ -127,15 +127,6 @@ async function loadMarket() {
   } catch(e) { document.getElementById('dc_market').textContent='載入失敗'; }
 }
 
-// Kill Switch
-async function loadKill() {
-  try {
-    var data = await fetch('/api/v4/strategies/kill-switch').then(r=>r.json());
-    document.getElementById('dc_kill').innerHTML = data.map(k=>
-      row(`S${k.strategy_id} ${k.strategy_name||''}`,
-          badge(k.status) + (k.action_required?` <span class="text-xs text-gray-500">${k.action_required.slice(0,25)}</span>`:''))
-    ).join('');
-  } catch(e) { document.getElementById('dc_kill').textContent='載入失敗'; }
 }
 
 // C. T+1 交易建議
@@ -530,7 +521,6 @@ document.addEventListener('DOMContentLoaded', () => {
   initWarRoom();
   loadFreshness();
   loadMarket();
-  loadKill();
   loadReview();
   loadSignals();
   loadAccounts();
