@@ -16,6 +16,24 @@
 {% endblock %}
 
 {% block content %}
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:16px 16px 0">
+  <div style="background:#161b22;border:1px solid #30363d;border-radius:10px;padding:14px;text-align:center">
+    <div style="font-size:11px;color:#8b949e;margin-bottom:4px">💵 剩餘現金</div>
+    <div style="font-size:20px;font-weight:700;font-family:monospace;color:#f0b429" id="sum_cash">—</div>
+  </div>
+  <div style="background:#161b22;border:1px solid #30363d;border-radius:10px;padding:14px;text-align:center">
+    <div style="font-size:11px;color:#8b949e;margin-bottom:4px">📊 持股市值</div>
+    <div style="font-size:20px;font-weight:700;font-family:monospace" id="sum_mkt">—</div>
+  </div>
+  <div style="background:#161b22;border:1px solid #30363d;border-radius:10px;padding:14px;text-align:center">
+    <div style="font-size:11px;color:#8b949e;margin-bottom:4px">💰 總資產</div>
+    <div style="font-size:20px;font-weight:700;font-family:monospace" id="sum_total">—</div>
+  </div>
+  <div style="background:#161b22;border:1px solid #30363d;border-radius:10px;padding:14px;text-align:center">
+    <div style="font-size:11px;color:#8b949e;margin-bottom:4px">📈 未實現損益</div>
+    <div style="font-size:20px;font-weight:700;font-family:monospace" id="sum_unrealized">—</div>
+  </div>
+</div>
 <div class="max-w-6xl mx-auto px-4 py-5">
   <div class="flex items-center justify-between mb-4">
     <h1 class="text-xl font-bold">💹 模擬交易</h1>
