@@ -1,6 +1,5 @@
 {% extends "base.html" %}
 {% block title %}策略排行榜 | TWSE Alpha Lab
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script>
 const COLORS = ['#ff3333','#63b3ed','#f6ad55','#b794f4','#4fd1c7','#fc8181'];
 
@@ -111,6 +110,7 @@ async function loadCharts() {
 {% block nav_competition %}bg-surface-3 text-white font-medium{% endblock %}
 
 {% block head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <style>
 .s-card{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:16px;margin-bottom:12px}
 .rec-badge{padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700}
