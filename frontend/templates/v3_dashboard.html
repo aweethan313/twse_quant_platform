@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block nav_warroom %}bg-surface-3 text-white font-medium{% endblock %}
-{% block title %}每日決策總覽 | TWSE QUANT{% endblock %}
-{% block nav_v3 %}bg-surface-3 text-white font-medium{% endblock %}
+{% block title %}每日作戰室 | TWSE Alpha Lab{% endblock %}
+{% block nav_warroom %}bg-surface-3 text-white font-medium{% endblock %}
 
 {% block head %}
 <style>
@@ -28,121 +28,7 @@
 
 {% block content %}
 
-  <!-- 每日作戰室 Header -->
-  <div class="flex items-center justify-between mb-4">
-    <div>
-      <h1 class="text-xl font-bold">⚔️ 每日作戰室</h1>
-      <div class="text-xs text-gray-500" id="dc_warroom_date">載入中...</div>
-    </div>
-    <div class="flex gap-2 items-center">
-      <div id="dc_trading_allowed" class="text-xs px-3 py-1 rounded-full border">—</div>
-      <div id="dc_benchmark_warning" class="text-xs text-orange-400 hidden">⚠️ benchmark 有異常</div>
-    </div>
-  </div>
-
-  <!-- 交易限制卡片 -->
-  <div class="bg-surface-2 border border-border rounded-lg p-3 mb-4" id="dc_trade_restrictions">
-    <div class="text-xs text-gray-500 font-semibold mb-2">📋 今日交易限制</div>
-    <div id="dc_restrictions_content" class="text-xs text-gray-400">載入中...</div>
-  </div>
-
-<div class="max-w-7xl mx-auto px-4 py-5">
-
-  <!-- T+1 模式橫幅 -->
-  <div class="t1-mode-banner flex items-center justify-between flex-wrap gap-2">
-    <span>📋 <b>T+1 Forward Paper Trading</b>｜使用資料：<span id="banner_data_date">—</span>｜決策產生：<span id="banner_decision_time">—</span>｜預計交易日：<span id="banner_exec_date">—</span></span>
-    <span>預設成交：T+1 09:10 零股 / open + slippage｜<span id="banner_lookahead" class="badge-ok">no-lookahead ✓</span></span>
-  </div>
-
-  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
-
-    <!-- A. 資料狀態 -->
-    <div class="dc-card">
-      <div class="text-xs text-gray-500 mb-3 font-semibold uppercase tracking-wide">📡 資料狀態</div>
-      <div id="dc_freshness">載入中...</div>
-    </div>
-
-    <!-- B. 大盤環境 -->
-    <div class="dc-card">
-      <div class="text-xs text-gray-500 mb-3 font-semibold uppercase tracking-wide">📈 大盤環境</div>
-      <div id="dc_market">載入中...</div>
-    </div>
-
-    <!-- Kill Switch 摘要 -->
-    <div class="dc-card">
-      <div class="text-xs text-gray-500 mb-3 font-semibold uppercase tracking-wide">🚨 策略狀態</div>
-      <div id="dc_kill">載入中...</div>
-    </div>
-  </div>
-
-  <!-- 昨日檢討摘要 -->
-  <div class="dc-card mb-4" id="review_card">
-    <div class="flex items-center justify-between mb-2">
-      <div class="text-xs text-gray-500 font-semibold uppercase tracking-wide">📋 昨日選股檢討</div>
-      <div class="flex items-center gap-2">
-        <span class="text-xs text-gray-600" id="review_date"></span>
-        <button onclick="showReviewHistory()" class="text-xs px-2 py-0.5 rounded bg-surface-3 text-blue-400 hover:text-white">📚 歷史記錄</button>
-      </div>
-    </div>
-    <div id="review_summary">載入中...</div>
-  </div>
-
-  <!-- 歷史檢討記錄（預設隱藏）-->
-  <div class="dc-card mb-4 hidden" id="review_history_card">
-    <div class="flex items-center justify-between mb-3">
-      <div class="text-xs text-gray-500 font-semibold uppercase tracking-wide">📚 歷史選股檢討</div>
-      <button onclick="hideReviewHistory()" class="text-xs text-gray-500 hover:text-white">✕ 關閉</button>
-    </div>
-    <div id="review_history_list">載入中...</div>
-    <!-- 詳細檢討書 -->
-    <div id="review_detail" class="hidden mt-4 pt-4 border-t border-gray-700">
-      <div class="flex items-center justify-between mb-2">
-        <div class="text-xs font-semibold" id="review_detail_title"></div>
-        <button onclick="closeReviewDetail()" class="text-xs text-gray-500">✕</button>
-      </div>
-      <div id="review_detail_content" class="text-xs text-gray-300 overflow-y-auto" style="max-height:400px; white-space:pre-wrap"></div>
-    </div>
-  </div>
-
-  <!-- C. T+1 交易建議 → 導向今日候選頁 -->
-  <div class="dc-card mb-4">
-    <div class="flex items-center justify-between">
-      <div class="text-xs text-gray-500 font-semibold uppercase tracking-wide">📋 T+1 交易建議</div>
-      <a href="/candidates" class="text-xs px-3 py-1 rounded bg-blue-900/40 text-blue-400 hover:text-white border border-blue-800">
-        查看今日候選 →
-      </a>
-    </div>
-    <div id="dc_signals_summary" class="mt-2 text-xs text-gray-400">載入中...</div>
-  </div>
-
-  <!-- D. 策略帳戶今日狀況 -->
-  <div class="dc-card mb-4">
-    <div class="text-xs text-gray-500 mb-3 font-semibold uppercase tracking-wide">💼 策略帳戶今日狀況</div>
-    <div id="dc_accounts">載入中...</div>
-  </div>
-
-
-
-  <!-- V3 作戰室：Paper 狀態 -->
-  <div class="dc-card mb-3" id="dc_paper_status_card">
-    <div class="flex justify-between mb-2">
-      <div class="text-xs text-gray-500 font-semibold uppercase">💼 Paper Trading 狀態</div>
-      <a href="/paper" class="text-xs text-blue-400 hover:underline">手動成交 →</a>
-    </div>
-    <div id="dc_paper_status">載入中...</div>
-  </div>
-  <!-- V5 帳戶狀況 -->
-  <div class="dc-card mb-4">
-    <div class="flex items-center justify-between mb-2">
-      <div class="text-xs text-gray-500 font-semibold uppercase tracking-wide">🆕 V5 Forward Paper 狀況</div>
-      <a href="/competition" class="text-xs text-blue-400 hover:underline">月度競賽 →</a>
-    </div>
-    <div id="dc_v5_accounts">載入中...</div>
-  </div>
-  <!-- E. 今天不能做什麼 -->
-  <div class="dc-card">
-    <div class="text-xs text-gray-500 mb-3 font-semibold uppercase tracking-wide">🚫 今天不能做的事</div>
-    <div id="dc_restrictions">載入中...</div>
+  <div id="dc_restrictions">載入中...</div>
   </div>
 
 </div>
@@ -216,16 +102,29 @@ async function loadMarket() {
     var breadth = enh.breadth || {};
 
     document.getElementById('dc_market').innerHTML =
-      row('市場趨勢', trendMap[ctx.market_trend]||ctx.market_trend||'—') +
-      row('風險等級', `<span style="color:${rlColor}">${rl}</span>`) +
-      row('部位倍率', `<span class="text-accent">${((ctx.position_multiplier||0.65)*100).toFixed(0)}%</span>`) +
-      row('0050', `<span class="font-mono font-bold">${twse.close||'—'}</span> <span style="color:${twseColor}">${(twse.change_pct||0)>=0?'+':''}${(twse.change_pct||0).toFixed(2)}%</span>`) +
-      (enh.taiex_close ? row('加權指數', `<span class="font-mono font-bold text-accent">${Math.round(enh.taiex_close).toLocaleString()}</span> <span style="color:${(enh.taiex_change||0)>=0?'#ff6b6b':'#51cf66'}">${(enh.taiex_change||0)>=0?'+':''}${Math.round(enh.taiex_change||0)}</span>`) : '') +
-      (enh.tw_futures_close ? row('台指期', `<span class="font-mono font-bold">${Math.round(enh.tw_futures_close).toLocaleString()}</span> <span style="color:${(enh.tw_futures_change||0)>=0?'#ff6b6b':'#51cf66'}">${(enh.tw_futures_change||0)>=0?'+':''}${Math.round(enh.tw_futures_change||0)}</span>`) : '') +
-      row('台股廣度', `<span class="text-up">↑${breadth.up||0}</span> <span class="text-dn">↓${breadth.down||0}</span> 均${(breadth.avg_change||0)>=0?'+':''}${(breadth.avg_change||0).toFixed(2)}%`) +
-      row('夜盤情緒', `<span>${ovIcon}</span> <span style="color:${ovColor}" class="text-xs">${enh.summary||ov.summary||'—'}</span>`) +
-      (enh.mu_ret ? row('美光 MU', `<span class="font-mono" style="color:${(enh.mu_ret||0)>=0?'#ff6b6b':'#51cf66'}">${(enh.mu_ret||0)>=0?'+':''}${(enh.mu_ret||0).toFixed(2)}%</span> <span class="text-xs text-gray-500">→ 影響記憶體/DRAM 族群</span>`) : '') +
-      row('成交金額', `<span class="text-gray-400">${breadth.total_value_b||0} 億</span>`);
+      // 今日可否買進
+      var canBuy = ctx.risk_level !== 'high' && (ctx.position_multiplier||0) > 0;
+      var buyColor = canBuy ? '#ff3333' : '#33cc66';
+      var buyText  = canBuy ? '✅ 可以買進' : '🚫 暫停買進';
+      document.getElementById('dc_market').innerHTML =
+        `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
+          <div style="background:#0d1117;border-radius:8px;padding:10px;text-align:center">
+            <div style="font-size:11px;color:#8b949e">今日操作</div>
+            <div style="font-size:15px;font-weight:700;margin-top:4px;color:${buyColor}">${buyText}</div>
+          </div>
+          <div style="background:#0d1117;border-radius:8px;padding:10px;text-align:center">
+            <div style="font-size:11px;color:#8b949e">部位倍率</div>
+            <div style="font-size:18px;font-weight:700;font-family:monospace;margin-top:4px;color:#f0b429">${((ctx.position_multiplier||0.65)*100).toFixed(0)}%</div>
+          </div>
+          <div style="background:#0d1117;border-radius:8px;padding:10px;text-align:center">
+            <div style="font-size:11px;color:#8b949e">市場趨勢</div>
+            <div style="font-size:14px;font-weight:700;margin-top:4px">${trendMap[ctx.market_trend]||ctx.market_trend||'—'}</div>
+          </div>
+        </div>` +
+        row('0050', `<span class="font-mono font-bold">${twse.close||'—'}</span> <span style="color:${twseColor}">${(twse.change_pct||0)>=0?'+':''}${(twse.change_pct||0).toFixed(2)}%</span>`) +
+        (enh.taiex_close ? row('加權指數', `<span class="font-mono font-bold text-accent">${Math.round(enh.taiex_close).toLocaleString()}</span> <span style="color:${(enh.taiex_change||0)>=0?'#ff3333':'#33cc66'}">${(enh.taiex_change||0)>=0?'+':''}${Math.round(enh.taiex_change||0)}</span>`) : '') +
+        row('台股廣度', `<span class="text-up">↑${breadth.up||0}</span> <span class="text-dn">↓${breadth.down||0}</span> 均${(breadth.avg_change||0)>=0?'+':''}${(breadth.avg_change||0).toFixed(2)}%`) +
+        row('夜盤情緒', `<span>${ovIcon}</span> <span style="color:${ovColor}" class="text-xs">${enh.summary||ov.summary||'—'}</span>`);
   } catch(e) { document.getElementById('dc_market').textContent='載入失敗'; }
 }
 
