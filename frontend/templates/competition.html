@@ -105,7 +105,6 @@ async function loadCharts() {
     }
   } catch(e) { console.warn('charts:', e); }
 }
-document.addEventListener('DOMContentLoaded', loadCharts);
 </script>
 
 {% endblock %}
@@ -310,6 +309,6 @@ async function loadMonthly(startOverride) {
   }
 }
 
-document.addEventListener('DOMContentLoaded', ()=>{ loadLeaderboard(); loadMonthly(); });
+document.addEventListener('DOMContentLoaded', ()=>{ loadLeaderboard(); loadMonthly(); loadCharts(); });
 </script>
 {% endblock %}
