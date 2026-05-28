@@ -26,9 +26,95 @@
 {% endblock %}
 
 {% block content %}
+<div class="max-w-7xl mx-auto px-4 py-4">
 
-  <div id="dc_restrictions">載入中...</div>
+  <!-- Banner -->
+  <div class="dc-card mb-3 flex flex-wrap gap-4 items-center justify-between">
+    <div>
+      <div class="text-xl font-bold">⚔️ 每日作戰室</div>
+      <div class="text-xs text-gray-500 mt-1">
+        資料日：<span id="banner_data_date" class="text-accent">—</span>　
+        執行日：<span id="banner_exec_date" class="text-accent">—</span>　
+        <span id="banner_decision_time" class="text-gray-600"></span>
+      </div>
+    </div>
+    <div id="dc_trading_allowed" class="text-sm font-bold"></div>
   </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+
+    <!-- 大盤環境 -->
+    <div class="dc-card">
+      <div class="text-xs text-gray-500 mb-3 font-semibold uppercase">📈 大盤環境</div>
+      <div id="dc_market">載入中...</div>
+    </div>
+
+    <!-- 今日限制 -->
+    <div class="dc-card">
+      <div class="text-xs text-gray-500 mb-2 font-semibold uppercase">🚫 今日交易限制</div>
+      <div id="dc_restrictions_content"></div>
+      <div id="dc_restrictions" class="text-xs"></div>
+    </div>
+
+  </div>
+
+  <!-- 今日候選股 -->
+  <div class="dc-card mt-3">
+    <div class="flex justify-between items-center mb-2">
+      <div class="text-xs text-gray-500 font-semibold uppercase">🎯 今日買入候選</div>
+      <a href="/candidates" class="text-xs text-blue-400 hover:underline">查看全部 →</a>
+    </div>
+    <div id="dc_signals_summary" class="mb-2"></div>
+    <div class="flex gap-1 mb-2">
+      <button onclick="renderSignals('BUY')" class="text-xs px-2 py-1 rounded bg-surface-2 border border-border hover:border-accent">BUY</button>
+      <button onclick="renderSignals('WATCH')" class="text-xs px-2 py-1 rounded bg-surface-2 border border-border hover:border-accent">WATCH</button>
+      <button onclick="renderSignals('BLOCKED')" class="text-xs px-2 py-1 rounded bg-surface-2 border border-border hover:border-accent">⚠️ 受限</button>
+      <button onclick="renderSignals('all')" class="text-xs px-2 py-1 rounded bg-surface-2 border border-border hover:border-accent">全部</button>
+    </div>
+    <div id="dc_signals"></div>
+  </div>
+
+  <!-- 策略帳戶 -->
+  <div class="dc-card mt-3">
+    <div class="text-xs text-gray-500 mb-3 font-semibold uppercase">💼 策略帳戶今日狀況</div>
+    <div id="dc_accounts">載入中...</div>
+    <div id="dc_v5_accounts"></div>
+  </div>
+
+  <!-- 模擬成交狀態 -->
+  <div class="dc-card mt-3" id="dc_paper_status_card">
+    <div class="text-xs text-gray-500 mb-2 font-semibold uppercase">📋 最近成交</div>
+    <div id="dc_paper_status">載入中...</div>
+  </div>
+
+  <!-- 每日檢討 -->
+  <div class="dc-card mt-3" id="review_card">
+    <div class="text-xs text-gray-500 mb-2 font-semibold uppercase">📝 昨日檢討</div>
+    <div class="text-xs text-gray-500" id="review_date"></div>
+    <div id="review_summary" class="mt-1"></div>
+  </div>
+
+  <!-- 檢討詳情（隱藏） -->
+  <div class="dc-card mt-3 hidden" id="review_history_card">
+    <div class="flex justify-between items-center mb-2">
+      <div class="text-xs text-gray-500 font-semibold uppercase">📖 檢討詳情</div>
+      <button onclick="closeReviewDetail()" class="text-xs text-gray-500 hover:text-white">✕ 關閉</button>
+    </div>
+    <div id="review_history_list"></div>
+    <div id="review_detail">
+      <div class="text-xs font-semibold mt-3" id="review_detail_title"></div>
+      <div class="text-xs mt-1" id="review_detail_content"></div>
+    </div>
+  </div>
+
+  <!-- 資料新鮮度 -->
+  <div class="dc-card mt-3">
+    <div class="text-xs text-gray-500 mb-2 font-semibold uppercase">🕐 資料新鮮度</div>
+    <div id="dc_freshness">載入中...</div>
+  </div>
+
+  <div id="dc_benchmark_warning"></div>
+  <div id="dc_warroom_date" class="text-xs text-gray-700 text-right mt-2"></div>
 
 </div>
 
