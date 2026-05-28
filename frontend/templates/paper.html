@@ -286,7 +286,7 @@ async function loadAssetSummary() {
     let totalCash=0, totalMkt=0, totalUnrealized=0;
     for (const a of accts) {
       totalCash += parseFloat(a.cash||0);
-      const m = await fetch(`/api/strategy-accounts/${a.id}/metrics`).then(r=>r.ok?r.json():null).catch(()=>null);
+      const m = await fetch(`/api/strategy-accounts/${a.account_id}/metrics`).then(r=>r.ok?r.json():null).catch(()=>null);
       if (m) {
         totalMkt += parseFloat(m.market_value||0);
         totalUnrealized += parseFloat(m.unrealized_pnl||0);

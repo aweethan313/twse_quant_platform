@@ -47,7 +47,7 @@ async function loadCharts() {
     // Alpha / 回撤 / 勝率 — 從 metrics 取
     const accts = await fetch('/api/strategy-accounts').then(r=>r.json()).catch(()=>[]);
     const metrics = await Promise.all(accts.map(a=>
-      fetch(`/api/strategy-accounts/${a.id}/metrics`).then(r=>r.ok?r.json():null).catch(()=>null)
+      fetch(`/api/strategy-accounts/${a.account_id}/metrics`).then(r=>r.ok?r.json():null).catch(()=>null)
     ));
     const data = accts.map((a,i)=>({name:a.name.replace(/^A\d+\s/,'').slice(0,10),...(metrics[i]||{})})).filter(m=>m.trade_count>0||m.total_return);
 
@@ -220,7 +220,7 @@ async function loadLeaderboard() {
 
     // 取各帳戶 metrics
     const metrics = await Promise.all(accts.map(a =>
-      fetch(`/api/strategy-accounts/${a.id}/metrics`)
+      fetch(`/api/strategy-accounts/${a.account_id}/metrics`)
         .then(r=>r.ok?r.json():null).catch(()=>null)
     ));
 
@@ -244,7 +244,7 @@ async function loadLeaderboard() {
       return `<tr class="border-t border-gray-800 hover:bg-surface-2 transition">
         <td class="py-3 px-2">
           <div class="font-semibold text-sm">${i===0?'🥇':i===1?'🥈':i===2?'🥉':'#'+(i+1)} ${a.name}</div>
-          <div class="text-xs text-gray-500">A${a.id}</div>
+          <div class="text-xs text-gray-500">A${a.account_id}</div>
         </td>
         <td class="text-right font-mono font-bold ${alpha>=0?'text-up':'text-dn'}">${alpha>=0?'+':''}${parseFloat(alpha).toFixed(2)}%</td>
         <td class="text-right font-mono ${ret>=0?'text-up':'text-dn'}">${ret>=0?'+':''}${parseFloat(ret).toFixed(2)}%</td>
