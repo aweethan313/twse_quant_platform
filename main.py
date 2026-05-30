@@ -2706,29 +2706,6 @@ def api_v6_candidate_forward_returns(signal_date: str = None, limit: int = 50):
     finally:
         db.close()
 
-
-@app.get("/api/strategy-decisions")
-def api_strategy_decisions(signal_date: str = None, account_id: int = None, limit: int = 30):
-    from backend.models.database import SessionLocal
-    from sqlalchemy import text as _t
-    db = SessionLocal()
-    try:
-        q = "SELECT * FROM strategy_decision_logs WHERE 1=1"
-        p = {}
-        if signal_date: q += " AND signal_date=:sd"; p["sd"] = signal_date
-        if account_id:  q += " AND account_id=:aid"; p["aid"] = account_id
-        q += " ORDER BY id DESC LIMIT :n"; p["n"] = limit
-        rows = db.execute(_t(q), p).fetchall()
-        cols = ["id","account_id","strategy_name","mode","signal_date",
-                "data_cutoff_time","execution_date","execution_time_model",
-                "code","action","candidate_score","final_score","risk_score",
-                "suggested_shares","reference_price","expected_fill_price",
-                "stop_loss","target_price","is_blocked","blocked_reason","reason_summary",
-                "no_lookahead_pass","created_at"]
-        return [dict(zip(cols[:len(r)], r)) for r in rows]
-    finally:
-        db.close()
-
 # ── V6 頁面 ──
 @app.get("/v6", response_class=HTMLResponse)
 def page_v6(request: Request):
