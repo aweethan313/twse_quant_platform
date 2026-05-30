@@ -159,7 +159,7 @@ def write_scores(db_path: str, scored: pd.DataFrame, names: dict,
 def main():
     ap = argparse.ArgumentParser(description="正式版 ML 選股評分")
     ap.add_argument("--db", default="../data/db/quant.db")
-    ap.add_argument("--start", default="2025-01-01")
+    ap.add_argument("--start", default="2024-01-01")
     ap.add_argument("--end", default="2026-12-31")
     ap.add_argument("--mode", choices=["full", "latest"], default="full")
     ap.add_argument("--score-days", type=int, default=1, help="latest 模式：評最新幾天")
