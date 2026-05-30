@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}ML 選股 | TWSE Alpha Lab{% endblock %}
+{% block nav_mlpicks %}bg-surface-3 text-white font-medium{% endblock %}
+{% block head %}
+<style>
+  .mp-card{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:14px;margin-bottom:12px}
+  .badge{font-size:11px;padding:1px 7px;border-radius:999px;font-weight:600}
+  .badge-agree{background:rgba(46,160,67,.15);color:#3fb950;border:1px solid rgba(46,160,67,.4)}
+  .badge-mlonly{background:rgba(88,166,255,.12);color:#58a6ff;border:1px solid rgba(88,166,255,.35)}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto px-4 py-5">
+  <div class="flex items-center justify-between mb-1">
+    <h1 class="text-xl font-bold">🤖 ML 選股</h1>
+    <span id="mp_date" class="text-xs text-gray-500"></span>
+  </div>
+  <p class="text-xs text-gray-500 mb-4">
+    依驗證過的 ML 模型（樣本外 Rank IC ≈ 0.059）對全市場排序。<b>ml_rank</b> 越小越看好；
+    綠標「規則也看好」代表規則引擎同時把它列為 BUY/WATCH——兩套訊號交集，信心更高。
+    挑股建議看排名，<b>不要</b>太相信 predicted_return_5d 的絕對值。
+  </p>
+
+  <div class="mp-card">
+    <div class="flex items-center justify-between mb-3">
+      <div class="text-xs text-gray-500 font-semibold uppercase">當日 ML Top 20</div>
+      <div id="mp_overlap" class="text-xs text-gray-400"></div>
+    </div>
+    <div id="mp_table">載入中...</div>
+  </div>
+
+  <p class="text-[11px] text-gray-600">
+    ⚠️ 訊號吃市場 regime（各折 IC 落差大），實盤請配合風控與部位管理，勿視為穩賺。
+  </p>
+</div>
+
+<script>
+async function loadMLPicks(){
+  try{
+    const d = await fetch('/api/ml-picks?limit=20').then(r=>r.json());
+    document.getElementById('mp_date').textContent = d.score_date ? ('評分日 ' + d.score_date) : '';
+    if(!d.picks || !d.picks.length){
+      document.getElementById('mp_table').textContent = d.note || '尚無資料，請先執行 ml_scorer.py';
+      return;
+    }
+    document.getElementById('mp_overlap').textContent =
+      `Top 20 中有 ${d.overlap_with_rules} 檔規則引擎也看好`;
+    document.getElementById('mp_table').innerHTML = `
+      <table class="w-full text-sm">
+        <thead><tr class="text-gray-500 text-xs border-b border-border">
+          <th class="text-left py-1.5">#</th><th class="text-left">代號</th>
+          <th class="text-left">名稱</th><th class="text-right">ML分</th>
+          <th class="text-right">預測5日</th><th class="text-right">規則分</th>
+          <th class="text-center">交集</th>
+        </tr></thead>
+        <tbody>${d.picks.map(r=>`
+          <tr class="border-b border-border/40 hover:bg-surface-3/40">
+            <td class="py-1.5 text-gray-500">${r.ml_rank}</td>
+            <td><a href="/stock/${r.code}" class="text-blue-400 font-mono hover:underline">${r.code}</a></td>
+            <td>${r.name||''}</td>
+            <td class="text-right font-bold ${r.ml_score>=90?'text-up':r.ml_score<=10?'text-dn':''}">${(r.ml_score||0).toFixed(1)}</td>
+            <td class="text-right font-mono text-gray-400">${(r.pred_5d||0)>=0?'+':''}${(r.pred_5d||0).toFixed(2)}%</td>
+            <td class="text-right font-mono text-gray-400">${r.final_score!=null?r.final_score.toFixed(1):'—'}</td>
+            <td class="text-center">${r.rule_agrees
+                ? '<span class="badge badge-agree">規則也看好</span>'
+                : '<span class="badge badge-mlonly">純 ML</span>'}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>`;
+  }catch(e){
+    document.getElementById('mp_table').textContent = '載入失敗：' + e;
+  }
+}
+loadMLPicks();
+</script>
+{% endblock %}

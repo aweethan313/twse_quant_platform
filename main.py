@@ -35,6 +35,8 @@ os.makedirs("frontend/static", exist_ok=True)
 os.makedirs("frontend/templates", exist_ok=True)
 app.mount("/static", StaticFiles(directory="frontend/static"), name="static")
 templates = Jinja2Templates(directory="frontend/templates")
+from backend.api_extensions import register_extensions
+register_extensions(app, templates)
 
 
 @app.on_event("startup")

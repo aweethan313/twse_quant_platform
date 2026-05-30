@@ -15,6 +15,32 @@
 
   <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4" id="status_cards">載入中...</div>
 
+  <div class="hc-card" id="staleness_card">
+    <div class="text-xs text-gray-500 font-semibold uppercase mb-2">🧟 僵屍列偵測（ohlcv_daily 真實 staleness）</div>
+    <div id="staleness_body" class="text-sm text-gray-400">載入中...</div>
+  </div>
+  <script>
+  (async function(){
+    try{
+      const s = await fetch('/api/data-health/staleness?days=60').then(r=>r.json());
+      const color = s.status==='healthy' ? 'text-up' : (s.status==='warning' ? 'text-yellow-400' : 'text-dn');
+      const label = s.status==='healthy' ? '健康' : (s.status==='warning' ? '注意' : '異常');
+      document.getElementById('staleness_body').innerHTML = `
+        <div class="flex items-baseline gap-3">
+          <span class="text-3xl font-bold ${color}">${s.stale_pct}%</span>
+          <span class="${color} text-sm font-medium">${label}</span>
+        </div>
+        <div class="text-xs text-gray-500 mt-1">
+          近 ${s.window_days} 天、四位數普通股中，close 與 value 都與前一交易日完全相同（=帶上來的死資料）的比例。
+          <br>${(s.stale_rows||0).toLocaleString()} / ${(s.total_rows||0).toLocaleString()} 列，資料截至 ${s.as_of||'—'}。
+          健康門檻：&lt;15% 正常（停牌等），&ge;30% 代表資料源有問題。
+        </div>`;
+    }catch(e){
+      document.getElementById('staleness_body').textContent = '載入失敗（請確認已掛上 api_extensions）：' + e;
+    }
+  })();
+  </script>
+
   <div class="hc-card">
     <div class="text-xs text-gray-500 font-semibold uppercase mb-3">📋 詳細檢查結果</div>
     <div id="check_details">載入中...</div>

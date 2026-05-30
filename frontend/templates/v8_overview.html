@@ -69,7 +69,7 @@ async function load() {
         <td class="py-1 text-yellow-400 font-bold">#${r.ml_rank}</td>
         <td><a href="/stock/${r.code}" class="text-blue-400 font-mono hover:underline">${r.code}</a></td>
         <td>${r.name||''}</td>
-        <td class="text-right font-bold ${r.ml_score>=65?'text-up':r.ml_score<=35?'text-dn':''}">${(r.ml_score||0).toFixed(1)}</td>
+        <td class="text-right font-bold ${r.ml_score>=90?'text-up':r.ml_score<=10?'text-dn':''}">${(r.ml_score||0).toFixed(1)}</td>
         <td class="text-right font-mono ${(r.pred_5d||0)>=0?'text-up':'text-dn'}">${(r.pred_5d||0)>=0?'+':''}${(r.pred_5d||0).toFixed(2)}%</td>
       </tr>`).join('')}
       </tbody></table>` :
