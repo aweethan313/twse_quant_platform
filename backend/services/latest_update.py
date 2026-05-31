@@ -76,7 +76,32 @@ def update_overnight() -> dict[str, Any]:
     }
 
 def update_daily_eod(target_date: date) -> dict[str, Any]:
-    run_eod(target_date)
+    # 歷史日期保護：如果該日期已有足夠的乾淨 ohlcv，跳過 run_eod
+    # 原因：run_eod 使用 STOCK_DAY_ALL，對歷史日期只回傳最新價格，會產生僵屍列
+    _db = SessionLocal()
+    try:
+        row = _db.execute(text("""
+            WITH base AS (
+                SELECT close, value,
+                    LAG(close) OVER (PARTITION BY code ORDER BY trade_date) AS pc,
+                    LAG(value) OVER (PARTITION BY code ORDER BY trade_date) AS pv
+                FROM ohlcv_daily
+                WHERE trade_date = :d AND code GLOB '[0-9][0-9][0-9][0-9]'
+            )
+            SELECT COUNT(*) AS total,
+                   SUM(CASE WHEN close = pc AND value = pv AND pc IS NOT NULL THEN 1 ELSE 0 END) AS stale
+            FROM base
+        """), {"d": str(target_date)}).fetchone()
+        total, stale = row if row else (0, 0)
+        stale_rate = (stale / total) if total and total > 0 else 1.0
+        skip_eod = (total > 100 and stale_rate < 0.3)
+    finally:
+        _db.close()
+
+    if skip_eod:
+        logger.info(f"[EOD] {target_date} 已有乾淨資料（{total}筆，僵屍率{stale_rate:.1%}），跳過重新抓取")
+    else:
+        run_eod(target_date)
 
     db = SessionLocal()
     try:
