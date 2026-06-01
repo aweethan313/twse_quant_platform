@@ -478,7 +478,13 @@ async function loadV5Summary() {
         </tr>`;
       }).join('')}
       <tr class="border-t border-yellow-800">
-        <td class="py-1 text-yellow-400">📊 0050 benchmark</td>
+        <td class="py-1 text-yellow-400">
+          📊 0050 benchmark
+          <button onclick="showBenchmarkPicker()"
+            style="margin-left:6px;font-size:10px;padding:1px 6px;border-radius:6px;background:#2d333b;border:1px solid #444;color:#aaa;cursor:pointer">
+            調整起始日
+          </button>
+        </td>
         <td class="text-right">—</td>
         <td class="text-right font-mono text-yellow-400">${benchRet>=0?'+':''}${benchRet.toFixed(2)}%</td>
         <td class="text-right text-gray-600">基準</td>
@@ -602,6 +608,22 @@ async function initWarRoom() {
   } catch(e) { console.warn('warroom init', e); }
 }
 
+async function showBenchmarkPicker() {
+  const d = prompt("輸入 0050 benchmark 起始日期（格式：YYYY-MM-DD）", "2025-01-01");
+  if (!d || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return;
+  const btn = event.target;
+  btn.textContent = "重建中...";
+  btn.disabled = true;
+  try {
+    const r = await fetch(`/api/benchmark/rebuild?start_date=${d}`, {method:"POST"});
+    const data = await r.json();
+    btn.textContent = "✓ 完成";
+    setTimeout(()=>{ btn.textContent="調整起始日"; btn.disabled=false; loadV5Summary(); }, 1500);
+  } catch(e) {
+    btn.textContent = "失敗";
+    setTimeout(()=>{ btn.textContent="調整起始日"; btn.disabled=false; }, 1500);
+  }
+}
 document.addEventListener('DOMContentLoaded', () => {
   initWarRoom();
   loadFreshness();
