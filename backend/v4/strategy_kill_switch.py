@@ -170,6 +170,14 @@ def get_kill_switch_status(check_date: str = None) -> list[dict]:
                 "previous_weight","new_weight","reason","recent_return",
                 "recent_win_rate","recent_max_drawdown","backtest_paper_gap",
                 "trade_count","overfit_score","action_required","created_at"]
-        return [dict(zip(cols, r)) for r in rows]
+        results = [dict(zip(cols, r)) for r in rows]
+        # 加上 strategy_name（從 strategy_accounts 取）
+        acct_rows = db.execute(text(
+            "SELECT id, name FROM strategy_accounts"
+        )).fetchall()
+        acct_map = {r[0]: r[1] for r in acct_rows}
+        for item in results:
+            item["strategy_name"] = acct_map.get(item["account_id"], f"S{item['account_id']}")
+        return results
     finally:
         db.close()
