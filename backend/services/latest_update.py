@@ -359,6 +359,49 @@ def run_latest_update(trade_date: str | None = None) -> dict[str, Any]:
         steps.append(_step("technical_features", lambda: _build_tech(target_date)))
         steps.append(_step("equity_snapshot", lambda: _snapshot_equity(target_date)))
 
+        # ML 評分刷新
+        def _ml_score():
+            import subprocess, sys
+            r = subprocess.run(
+                [sys.executable, "twse_ml_eval/ml_scorer.py",
+                 "--db", "data/db/quant.db", "--mode", "latest", "--score-days", "1"],
+                capture_output=True, text=True
+            )
+            ok = r.returncode == 0
+            return {"ok": ok, "message": "ML評分更新完成" if ok else r.stderr[-200:]}
+        steps.append(_step("ml_score", _ml_score))
+
+        # V5 決策（含 A7 ML Top5 下單）
+        def _v5_decisions():
+            from backend.v5.decision_engine import generate_strategy_decisions
+            from backend.v5.paper_engine import simulate_paper_fills, update_v5_equity
+            r = generate_strategy_decisions(target_date)
+            simulate_paper_fills(target_date)
+            update_v5_equity(target_date)
+            n = r.get("decisions", 0)
+            return {"ok": True, "message": f"V5決策{n}筆，含A7 ML策略"}
+        steps.append(_step("v5_decisions", _v5_decisions))
+
+        # 每日檢討書（昨日選股 → 今日結果）
+        def _daily_review():
+            from backend.services.daily_review import generate_daily_review
+            from datetime import timedelta
+            sig = target_date - timedelta(days=1)
+            # 往前找最近交易日
+            db2 = SessionLocal()
+            try:
+                prev = db2.execute(text("""
+                    SELECT MAX(trade_date) FROM ohlcv_daily
+                    WHERE trade_date < :d
+                """), {"d": str(target_date)}).scalar()
+            finally:
+                db2.close()
+            if prev:
+                p = generate_daily_review(date.fromisoformat(prev), target_date)
+                return {"ok": bool(p), "message": f"檢討書 {prev}→{target_date}"}
+            return {"ok": False, "message": "找不到前一交易日"}
+        steps.append(_step("daily_review", _daily_review))
+
         ok = all(s["ok"] for s in steps)
 
         return {

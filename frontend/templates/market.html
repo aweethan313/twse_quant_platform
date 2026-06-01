@@ -921,7 +921,7 @@ async function updateLatestData(){
   btn.disabled = true;
   btn.textContent = "更新中...";
   status.style.display = "block";
-  status.innerHTML = "正在更新夜盤、日 K、法人資料、分數...";
+  status.innerHTML = "正在更新夜盤、日 K、法人資料、分數、ML評分、V5決策、每日檢討書...";
 
   try{
     const res = await fetch(`/api/admin/update_latest?trade_date=${today}`, {
