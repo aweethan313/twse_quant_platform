@@ -3140,20 +3140,25 @@ def page_v7_rotation(request: Request):
 # ═══════════════════════════════════════
 
 @app.get("/api/v8/ml-scores")
-def api_v8_ml_scores(score_date: str = None, limit: int = 20):
+def api_v8_ml_scores(score_date: str = None, limit: int = 20, model_version: str = "lgbm_v9_clean"):
     from backend.models.database import SessionLocal
     from sqlalchemy import text as _t
     from datetime import date as ddate
     db = SessionLocal()
     try:
         if not score_date:
-            score_date = db.execute(_t("SELECT MAX(score_date) FROM ml_score_results")).scalar()
+            score_date = db.execute(_t("""
+                SELECT MAX(score_date)
+                FROM ml_score_results
+                WHERE model_version=:mv
+            """), {"mv": model_version}).scalar()
         rows = db.execute(_t("""
             SELECT score_date, code, stock_name, ml_score, ml_rank,
                    predicted_return_5d, model_version
-            FROM ml_score_results WHERE score_date=:d
+            FROM ml_score_results
+            WHERE score_date=:d AND model_version=:mv
             ORDER BY ml_rank LIMIT :n
-        """), {"d": score_date, "n": limit}).fetchall()
+        """), {"d": score_date, "n": limit, "mv": model_version}).fetchall()
         cols = ["date","code","name","ml_score","ml_rank","pred_5d","model"]
         return {"date": score_date, "data": [dict(zip(cols,r)) for r in rows]}
     finally:

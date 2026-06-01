@@ -52,6 +52,20 @@ class TWSEClient:
         data = self._get(url, {"response": "json", "date": date_str})
         if not data or data.get("stat") != "OK":
             return None
+
+        # V9.1-P0：防止 TWSE 在休市日回傳前一交易日快照，卻被我們寫成 request date。
+        # 不同端點/版本可能用 date 或 title 表示資料日期；有明確日期且不符合就拒寫。
+        returned_date = str(data.get("date") or "").replace("-", "").replace("/", "")
+        if returned_date and returned_date != date_str:
+            logger.warning(
+                f"[STOCK_DAY_ALL] returned_date={returned_date} != requested={date_str}; skip"
+            )
+            return None
+        title = str(data.get("title") or "")
+        if date_str not in title and trade_date.strftime("%Y/%m/%d") not in title and trade_date.strftime("%Y-%m-%d") not in title:
+            # title 沒日期不一定是錯，因此只記錄，不直接擋。
+            logger.debug(f"[STOCK_DAY_ALL] title has no explicit requested date: {title}")
+
         cols = ["code", "name", "volume", "value", "open", "high", "low",
                 "close", "change", "tx_count"]
         df = pd.DataFrame(data["data"], columns=cols)

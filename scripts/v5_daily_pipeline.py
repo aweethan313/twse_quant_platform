@@ -12,6 +12,7 @@ import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from datetime import date, timedelta
 from loguru import logger
+from backend.utils.trading_day import is_trading_day, latest_open_trade_date
 
 
 def run(target_date: date = None):

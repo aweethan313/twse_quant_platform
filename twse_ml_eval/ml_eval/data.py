@@ -101,9 +101,14 @@ def build_chip_trends(con: sqlite3.Connection, start: str, end: str) -> pd.DataF
 
 
 def load_dataset(db_path: str, start: str, end: str, horizon: int,
-                 min_close: float, min_value: float) -> pd.DataFrame:
+                 min_close: float, min_value: float,
+                 keep_unlabeled_tail: bool = False) -> pd.DataFrame:
     """
-    組出最終訓練表。
+    組出最終訓練/預測表。
+
+    keep_unlabeled_tail=True 時，保留最新幾天 fwd_ret 尚未知的列，
+    讓 latest/full mode 可以真的對「最新交易日」產生分數；訓練時仍只使用
+    fwd_ret.notna() 的歷史資料，因此不會偷看未來。
     """
     con = sqlite3.connect(db_path)
     try:
@@ -175,17 +180,24 @@ def load_dataset(db_path: str, start: str, end: str, horizon: int,
     df = df[(df["close"] >= min_close) & (df["value"].fillna(0) >= min_value)]
     quality["after_liquidity"] = len(df)
 
-    df = df[df["fwd_ret"].notna() & (df["fwd_ret"].abs() <= config.RETURN_CAP)]
-    quality["after_return_cap"] = len(df)
+    has_label = df["fwd_ret"].notna()
+    valid_label = has_label & (df["fwd_ret"].abs() <= config.RETURN_CAP)
+    if keep_unlabeled_tail:
+        df = df[valid_label | (~has_label)].copy()
+    else:
+        df = df[valid_label].copy()
+    quality["after_return_cap"] = int(valid_label.sum())
+    quality["unlabeled_kept"] = int((~has_label).sum()) if keep_unlabeled_tail else 0
 
     if df.empty:
         df.attrs["feature_cols"] = []
         df.attrs["quality"] = quality
         return df
 
-    lo = df["fwd_ret"].quantile(config.WINSORIZE_PCT / 100)
-    hi = df["fwd_ret"].quantile(1 - config.WINSORIZE_PCT / 100)
-    df["fwd_ret"] = df["fwd_ret"].clip(lo, hi)
+    labeled = df["fwd_ret"].notna()
+    lo = df.loc[labeled, "fwd_ret"].quantile(config.WINSORIZE_PCT / 100)
+    hi = df.loc[labeled, "fwd_ret"].quantile(1 - config.WINSORIZE_PCT / 100)
+    df.loc[labeled, "fwd_ret"] = df.loc[labeled, "fwd_ret"].clip(lo, hi)
 
     quality["final"] = len(df)
     quality["pct_kept_of_universe"] = round(100 * quality["after_return_cap"] / max(quality["after_universe"], 1), 1)

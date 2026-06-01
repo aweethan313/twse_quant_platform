@@ -3,8 +3,13 @@
 # 由 launchd 每天 16:30 觸發；週末自動跳過。
 # 手動測試：bash run_daily_update.sh
 
-PROJECT="/Users/yangyichen/Downloads/twse_quant_platform 第一版 3"
-PYTHON="/Users/yangyichen/Downloads/twse_quant_platform 第一版/.venv/bin/python3"
+# V9.1-P0：用 script 所在目錄當專案根目錄，避免 launchd 指到舊資料夾。
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT="$SCRIPT_DIR"
+PYTHON="$PROJECT/.venv/bin/python3"
+if [ ! -x "$PYTHON" ]; then
+    PYTHON="$(command -v python3)"
+fi
 LOG="$PROJECT/data/logs/daily_update.log"
 
 mkdir -p "$PROJECT/data/logs"

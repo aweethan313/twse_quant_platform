@@ -173,7 +173,8 @@ def main():
 
     print("讀取資料中（乾淨：剔除僵屍列 + 流動性過濾）...")
     df = data_mod.load_dataset(args.db, args.start, args.end, args.horizon,
-                               config.DEFAULT_MIN_CLOSE, config.DEFAULT_MIN_VALUE)
+                               config.DEFAULT_MIN_CLOSE, config.DEFAULT_MIN_VALUE,
+                               keep_unlabeled_tail=True)
     if df.empty:
         print("⚠️ 沒有資料，檢查 --db 路徑。")
         return

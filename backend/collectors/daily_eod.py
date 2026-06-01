@@ -17,6 +17,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from backend.models.database import SessionLocal, OHLCVDaily, ChipDaily, StockMeta
 from backend.utils.twse_client import twse_client
+from backend.utils.trading_day import is_trading_day
 
 
 def run_eod(trade_date: date = None):
@@ -33,6 +34,9 @@ def run_eod(trade_date: date = None):
     logger.info(f"[EOD] 開始收集 {trade_date} 資料")
     db = SessionLocal()
     try:
+        if not is_trading_day(trade_date, db=db):
+            logger.info(f"[EOD] {trade_date} 非交易日，略過 OHLCV / 法人寫入")
+            return {"ok": True, "skipped": True, "reason": "non_trading_day", "trade_date": str(trade_date)}
         _collect_ohlcv(db, trade_date)
         _collect_chips(db, trade_date)
         db.commit()

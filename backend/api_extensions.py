@@ -15,6 +15,8 @@ from fastapi.responses import HTMLResponse
 from backend.models.database import SessionLocal
 from sqlalchemy import text as _t
 
+MODEL_VERSION = "lgbm_v9_clean"
+
 
 def _staleness(days: int = 60) -> dict:
     """最近 days 天，四位數代號普通股裡，close 與 value 都和前一交易日完全相同的比例。"""
@@ -50,7 +52,11 @@ def _ml_picks(limit: int = 20) -> dict:
     """當日 ML 選股 Top N，左 join 規則分數，標出規則是否也看好（overlap）。"""
     db = SessionLocal()
     try:
-        sd = db.execute(_t("SELECT MAX(score_date) FROM ml_score_results")).scalar()
+        sd = db.execute(_t("""
+            SELECT MAX(score_date)
+            FROM ml_score_results
+            WHERE model_version=:mv
+        """), {"mv": MODEL_VERSION}).scalar()
         if not sd:
             return {"score_date": None, "picks": [],
                     "note": "ml_score_results 是空的，請先跑 ml_scorer.py"}
@@ -61,10 +67,11 @@ def _ml_picks(limit: int = 20) -> dict:
             LEFT JOIN daily_scores d
                    ON d.code = m.code AND d.score_date = m.score_date
             WHERE m.score_date = :sd
+              AND m.model_version = :mv
             ORDER BY m.ml_rank
             LIMIT :n
         """)
-        rows = db.execute(sql, {"sd": sd, "n": limit}).fetchall()
+        rows = db.execute(sql, {"sd": sd, "n": limit, "mv": MODEL_VERSION}).fetchall()
         picks = []
         for r in rows:
             action = r[6]
@@ -75,7 +82,7 @@ def _ml_picks(limit: int = 20) -> dict:
                 "rule_agrees": action in ("BUY", "WATCH") if action else False,
             })
         n_overlap = sum(1 for p in picks if p["rule_agrees"])
-        return {"score_date": sd, "count": len(picks),
+        return {"score_date": sd, "model_version": MODEL_VERSION, "count": len(picks),
                 "overlap_with_rules": n_overlap, "picks": picks}
     finally:
         db.close()
