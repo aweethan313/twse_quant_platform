@@ -24,7 +24,16 @@
 
   <!-- 0050 基準 -->
   <div class="s-card mb-4">
-    <div class="text-xs text-gray-500 font-semibold uppercase mb-2">📊 0050 Benchmark</div>
+    <div class="flex items-center justify-between mb-2">
+      <div class="text-xs text-gray-500 font-semibold uppercase">📊 0050 Benchmark</div>
+      <div class="flex items-center gap-2">
+        <input type="month" id="bench_start_input"
+          value="2025-01"
+          style="background:#161b22;border:1px solid #30363d;color:#c9d1d9;border-radius:6px;padding:2px 8px;font-size:12px;cursor:pointer"
+          onchange="rebuildBenchmark(this.value)">
+        <span class="text-xs text-gray-600">起始月份</span>
+      </div>
+    </div>
     <div id="bench_row" class="text-xs text-gray-400">載入中...</div>
   </div>
 
@@ -203,6 +212,27 @@ async function loadMonthly(startOverride) {
   }
 }
 
+async function rebuildBenchmark(yearMonth) {
+  const input = document.getElementById('bench_start_input');
+  if (input) { input.disabled = true; input.style.opacity='0.5'; }
+  const startDate = yearMonth + '-01';
+  try {
+    await fetch(`/api/benchmark/rebuild?start_date=${startDate}`, {method:'POST'});
+    // 重新載入 benchmark 數字
+    const bench = await fetch('/api/benchmark/0050').then(r=>r.json()).catch(()=>null);
+    const benchLast = Array.isArray(bench)?bench.slice(-1)[0]:bench;
+    const benchRet = parseFloat(benchLast?.cumulative_return ?? 0);
+    const [y,m] = yearMonth.split('-');
+    setHTML('bench_row',
+      `<span class="font-mono text-yellow-400 text-lg font-bold">${benchRet>=0?'+':''}${benchRet.toFixed(2)}%</span>
+       <span class="ml-2">累積報酬（${y}/${parseInt(m)}/1 起）</span>`
+    );
+    setHTML('bench_info', `0050 同期：${benchRet.toFixed(2)}%`);
+  } catch(e) { console.warn('rebuild benchmark failed', e); }
+  finally {
+    if (input) { input.disabled = false; input.style.opacity='1'; }
+  }
+}
 document.addEventListener('DOMContentLoaded', ()=>{ loadLeaderboard(); loadMonthly(); loadCharts(); });
 </script>
 
