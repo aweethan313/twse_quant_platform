@@ -55,6 +55,16 @@ def _collect_ohlcv(db: Session, trade_date: date):
         logger.warning(f"[EOD] OHLCV 無資料 {trade_date}（可能為假日）")
         return
 
+    # 假日污染防護：STOCK_DAY_ALL 在假日會回傳「最近交易日」的舊資料，
+    # 若指標股收盤與資料庫最新交易日完全相同，代表今天非交易日，跳過寫入。
+    try:
+        from backend.utils.trading_day import is_fetched_data_stale
+        if is_fetched_data_stale(df, trade_date, db):
+            logger.warning(f"[EOD] {trade_date} 判定為非交易日（假日舊資料），跳過 OHLCV 寫入")
+            return
+    except Exception as e:
+        logger.warning(f"[EOD] 假日防護檢查失敗（放行）：{e}")
+
     _upsert_stock_meta_from_daily_df(db, df)
 
     rows = []
