@@ -3266,7 +3266,7 @@ def api_v8_fetch_revenue():
 # ═══════════════════════════════════════
 
 @app.get("/api/strategy-accounts/{account_id}/metrics")
-def api_strategy_account_metrics(account_id: int):
+def api_strategy_account_metrics(account_id: int, start_date: str = None):
     """統一策略帳戶績效指標"""
     from backend.models.database import SessionLocal
     from sqlalchemy import text as _t
@@ -3287,13 +3287,36 @@ def api_strategy_account_metrics(account_id: int):
 
         total_equity = float(eq[0] if eq else acct[2] or 200000)
         initial_cash = float(acct[3] or 200000)
-        total_return = (total_equity / initial_cash - 1) * 100 if initial_cash else 0
+        # 若有 start_date，從那天的 equity 算報酬
+        if start_date:
+            base_eq = db.execute(_t("""
+                SELECT total_equity FROM equity_curve
+                WHERE account_id=:id AND snap_date<=:sd
+                ORDER BY snap_date DESC LIMIT 1
+            """), {"id": account_id, "sd": start_date}).scalar()
+            base = float(base_eq) if base_eq else initial_cash
+        else:
+            base = initial_cash
+        total_return = (total_equity / base - 1) * 100 if base else 0
 
         # 0050 benchmark
         bench = db.execute(_t("""
             SELECT cumulative_return FROM benchmark_daily_equity
             WHERE benchmark_code='0050' ORDER BY snap_date DESC LIMIT 1
         """)).scalar() or 0
+        # benchmark 從 start_date 起算
+        if start_date:
+            bench_base = db.execute(_t("""
+                SELECT equity FROM benchmark_daily_equity
+                WHERE benchmark_code='0050' AND snap_date<=:sd
+                ORDER BY snap_date DESC LIMIT 1
+            """), {"sd": start_date}).scalar()
+            bench_last_eq = db.execute(_t("""
+                SELECT equity FROM benchmark_daily_equity
+                WHERE benchmark_code='0050' ORDER BY snap_date DESC LIMIT 1
+            """)).scalar()
+            if bench_base and bench_last_eq and float(bench_base) > 0:
+                bench = (float(bench_last_eq) / float(bench_base) - 1) * 100
         alpha = total_return - float(bench)
 
         # 成交統計

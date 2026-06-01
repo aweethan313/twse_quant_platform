@@ -121,8 +121,11 @@ async function loadLeaderboard() {
     setHTML('bench_info', `0050 同期：${parseFloat(benchRet).toFixed(2)}%`);
 
     // 取各帳戶 metrics
+    const metricsUrl = (id) => globalStartDate
+      ? `/api/strategy-accounts/${id}/metrics?start_date=${globalStartDate}`
+      : `/api/strategy-accounts/${id}/metrics`;
     const metrics = await Promise.all(accts.map(a =>
-      fetch(`/api/strategy-accounts/${a.account_id}/metrics`)
+      fetch(metricsUrl(a.account_id))
         .then(r=>r.ok?r.json():null).catch(()=>null)
     ));
 
@@ -212,10 +215,13 @@ async function loadMonthly(startOverride) {
   }
 }
 
+let globalStartDate = null;
+
 async function rebuildBenchmark(yearMonth) {
   const input = document.getElementById('bench_start_input');
   if (input) { input.disabled = true; input.style.opacity='0.5'; }
   const startDate = yearMonth + '-01';
+  globalStartDate = startDate;
   try {
     await fetch(`/api/benchmark/rebuild?start_date=${startDate}`, {method:'POST'});
     // 重新載入 benchmark 數字
@@ -228,6 +234,8 @@ async function rebuildBenchmark(yearMonth) {
        <span class="ml-2">累積報酬（${y}/${parseInt(m)}/1 起）</span>`
     );
     setHTML('bench_info', `0050 同期：${benchRet.toFixed(2)}%`);
+    // 重新載入排行榜（帶入 start_date）
+    await loadLeaderboard(startDate);
   } catch(e) { console.warn('rebuild benchmark failed', e); }
   finally {
     if (input) { input.disabled = false; input.style.opacity='1'; }
