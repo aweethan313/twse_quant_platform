@@ -67,9 +67,9 @@ def generate_strategy_decisions(signal_date: date = None) -> dict:
 
             # 取現有持股數
             positions = db.execute(text("""
-                SELECT code, lots, avg_cost FROM positions WHERE account_id=:id
+                SELECT code, lots, avg_cost, opened_at FROM positions WHERE account_id=:id
             """), {"id": account_id}).fetchall()
-            pos_map = {r[0]: {"lots": r[1], "avg_cost": float(r[2] or 0)} for r in positions}
+            pos_map = {r[0]: {"lots": r[1], "avg_cost": float(r[2] or 0), "opened_at": r[3]} for r in positions}
             pos_count = len(pos_map)
 
             # 取市場狀況
@@ -113,6 +113,10 @@ def generate_strategy_decisions(signal_date: date = None) -> dict:
                     action = "SKIP"
                     blocked = True
                     blocked_reason = f"已達最大持股數 {cfg['max_positions']}"
+
+                # MLTop5 純 ML：跳過 RSI 和離均線等技術面過濾（模型已納入這些資訊）
+                elif cfg.get("strategy_name") == "MLTop5":
+                    pass  # 不套用技術面過濾，只留現金/持股數/流動性/停損停利
 
                 # RSI 過熱
                 elif rsi and float(rsi) > cfg["max_rsi14"]:
@@ -203,7 +207,19 @@ def generate_strategy_decisions(signal_date: date = None) -> dict:
                 sell_action = None
                 sell_reason = None
 
-                if pnl_pct <= -cfg["stop_loss_pct"] * 100:
+                # 設計A：持有天數判斷（用交易日計算，不含假日）
+                max_hold = cfg.get("max_hold_days")
+                opened_at = pos.get("opened_at")
+                if max_hold and opened_at:
+                    held_days = db.execute(text("""
+                        SELECT COUNT(DISTINCT trade_date) FROM ohlcv_daily
+                        WHERE code='2330' AND trade_date > :o AND trade_date <= :d
+                    """), {"o": str(opened_at)[:10], "d": str(signal_date)}).scalar() or 0
+                    if held_days >= max_hold:
+                        sell_action = "SELL"
+                        sell_reason = f"max_hold_days 到期（持有{held_days}交易日 >= {max_hold}），換股"
+
+                if sell_action is None and pnl_pct <= -cfg["stop_loss_pct"] * 100:
                     sell_action = "SELL"
                     sell_reason = f"觸發停損（-{cfg['stop_loss_pct']*100:.0f}%），目前虧損{pnl_pct:.1f}%"
                 elif pnl_pct >= cfg["take_profit_pct"] * 100:
