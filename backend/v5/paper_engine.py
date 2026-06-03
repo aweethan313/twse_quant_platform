@@ -16,6 +16,12 @@ SLIP_BUY   = 0.002               # 買進滑價
 SLIP_SELL  = 0.003               # 賣出滑價
 MIN_FEE    = 20                  # 最低手續費
 
+# ── 部位 / 流動性限制 ──
+POSITION_LIMIT_PCT      = 0.08   # 一般股：單檔最多佔總資產 8%
+CORE_POSITION_LIMIT_PCT = 0.15   # 核心股：單檔最多佔總資產 15%
+LIQUIDITY_PCT           = 0.001  # 買入金額 <= 當日成交額的 0.1%
+CORE_STOCKS = {"2330", "2454", "2317", "0050", "2308", "2382", "3711"}  # 核心大型股
+
 
 def simulate_paper_fills(execution_date: date = None) -> dict:
     """
@@ -79,11 +85,36 @@ def simulate_paper_fills(execution_date: date = None) -> dict:
 
             if action == "BUY":
                 fill_price = round(base_price * (1 + SLIP_BUY), 2)
+
+                # 取總資產當基準（cash + 持倉市值的近似：用 initial_cash 較穩健）
+                total_equity_base = float(acct[1] or 200000) if acct else 200000
+
+                # (a) 比例上限：核心股 15%、一般股 8%
+                limit_pct = CORE_POSITION_LIMIT_PCT if code in CORE_STOCKS else POSITION_LIMIT_PCT
+                cap_by_pct = total_equity_base * limit_pct
+
+                # (b) 流動性上限：當日成交額的 0.1%
+                _vrow = db.execute(text(
+                    "SELECT value FROM ohlcv_daily WHERE code=:c AND trade_date<=:d "
+                    "ORDER BY trade_date DESC LIMIT 1"
+                ), {"c": code, "d": str(exec_date)}).fetchone()
+                day_value = float(_vrow[0]) if _vrow and _vrow[0] else 0
+                cap_by_liq = day_value * LIQUIDITY_PCT if day_value > 0 else cap_by_pct
+
+                # 實際可買金額 = 兩者較小，但不超過現金
+                max_amount = min(cap_by_pct, cap_by_liq, cash)
+
                 shares_int = int(shares or 0)
                 if shares_int <= 0:
-                    # 自動計算股數
-                    max_amount = cash * 0.20
-                    shares_int = max(1, int(max_amount / fill_price))
+                    shares_int = int(max_amount / fill_price) if fill_price > 0 else 0
+                else:
+                    # 即使決策有指定股數，也不得超過上限
+                    shares_int = min(shares_int, int(max_amount / fill_price) if fill_price > 0 else 0)
+
+                # 流動性太低 → 買不到一張的額度就 SKIP
+                if shares_int <= 0:
+                    logger.debug(f"[PAPER] A{aid} {code} SKIP 流動性/部位上限不足（成交額={day_value:.0f}）")
+                    continue
 
                 gross = fill_price * shares_int
                 fee = max(MIN_FEE, round(gross * FEE_RATE, 0))

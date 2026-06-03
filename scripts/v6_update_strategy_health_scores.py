@@ -109,7 +109,8 @@ def update_health_scores(eval_days=30):
                     if pnl > 0: wins_amt.append(pnl)
                     else: loss_amt.append(abs(pnl))
                 win_rate = len(wins_amt)/trade_count*100
-                profit_factor = sum(wins_amt)/sum(loss_amt) if loss_amt else 99.0
+                _loss_sum = sum(loss_amt)
+                profit_factor = sum(wins_amt)/_loss_sum if _loss_sum > 0 else 99.0
 
             health, rec, reason = compute_health(
                 alpha, max_dd, win_rate, profit_factor, trade_count, alpha

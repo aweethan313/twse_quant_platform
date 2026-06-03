@@ -41,21 +41,14 @@
     <div id="dc_trading_allowed" class="text-sm font-bold"></div>
   </div>
 
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-
-    <!-- 大盤環境 -->
-    <div class="dc-card">
-      <div class="text-xs text-gray-500 mb-3 font-semibold uppercase">📈 大盤環境</div>
-      <div id="dc_market">載入中...</div>
+  <!-- ML 選股檢討 -->
+  <div class="dc-card">
+    <div class="flex items-center justify-between mb-2">
+      <div class="text-xs text-gray-500 font-semibold uppercase">📋 ML 選股檢討（5 日前選股 → 今日表現）</div>
+      <a href="/ml-picks" class="text-xs text-blue-400 hover:underline">完整 ML 選股 →</a>
     </div>
-
-    <!-- 今日限制 -->
-    <div class="dc-card">
-      <div class="text-xs text-gray-500 mb-2 font-semibold uppercase">🚫 今日交易限制</div>
-      <div id="dc_restrictions_content"></div>
-      <div id="dc_restrictions" class="text-xs"></div>
-    </div>
-
+    <div id="dc_ml_review_summary" class="text-sm text-gray-400 mb-2">載入中...</div>
+    <div id="dc_ml_review_table"></div>
   </div>
 
   <!-- 今日候選股 -->
@@ -79,12 +72,6 @@
     <div class="text-xs text-gray-500 mb-3 font-semibold uppercase">💼 策略帳戶今日狀況</div>
     <div id="dc_accounts">載入中...</div>
     <div id="dc_v5_accounts"></div>
-  </div>
-
-  <!-- 模擬成交狀態 -->
-  <div class="dc-card mt-3" id="dc_paper_status_card">
-    <div class="text-xs text-gray-500 mb-2 font-semibold uppercase">📋 最近成交</div>
-    <div id="dc_paper_status">載入中...</div>
   </div>
 
   <!-- 每日檢討 -->
@@ -297,16 +284,35 @@ function renderSignals(filter) {
 }
 
 // D. 策略帳戶
-async function loadAccounts() {
+async function loadAccounts() {  // mergedAccounts
   try {
-    var data = await fetch('/api/strategies').then(r=>r.json());
+    var accts = await fetch('/api/strategy-accounts').then(r=>r.json());
+    var data = await Promise.all(accts.map(a =>
+      fetch(`/api/strategy-accounts/${a.account_id||a.id}/metrics?start_date=2026-05-25`)
+        .then(r=>r.ok?r.json():null).then(m => ({
+          account_id: a.account_id||a.id, name: a.name,
+          total_equity: m?.total_equity, cash: m?.cash, market_value: m?.market_value,
+          monthly_return: m?.monthly_return, total_return: m?.total_return,
+          alpha: m?.alpha_vs_0050,
+          last_trade_date: m?.trade_count ? (m.trade_count+' 筆') : '—'
+        })).catch(()=>({account_id:a.account_id||a.id, name:a.name}))
+    ));
+    // 依 Alpha 由高到低排序
+    data.sort((x,y)=>(y.alpha??-999)-(x.alpha??-999));
+    // 取 0050 benchmark 報酬
+    let benchRet = 0;
+    try{
+      const b = await fetch('/api/benchmark/0050').then(r=>r.json());
+      const bl = Array.isArray(b)?b.slice(-1)[0]:b;
+      benchRet = parseFloat(bl?.cumulative_return ?? 0);
+    }catch(e){}
     document.getElementById('dc_accounts').innerHTML = `
       <table class="w-full text-xs">
         <thead><tr class="text-gray-500">
           <th class="text-left py-2">帳戶</th><th class="text-right">總資產</th>
           <th class="text-right">現金</th><th class="text-right">市值</th>
-          <th class="text-right">今日損益</th><th class="text-right">累積損益</th>
-          <th class="text-left">最近交易</th>
+          <th class="text-right">月報酬</th><th class="text-right">累積報酬</th>
+          <th class="text-right">Alpha</th><th class="text-left pl-3">最近交易</th>
         </tr></thead>
         <tbody>
         ${data.map(a=>`<tr class="border-t border-gray-800">
@@ -314,10 +320,18 @@ async function loadAccounts() {
           <td class="text-right font-mono">${Math.round(a.total_equity||0).toLocaleString()}</td>
           <td class="text-right font-mono">${Math.round(a.cash||0).toLocaleString()}</td>
           <td class="text-right font-mono">${Math.round(a.market_value||0).toLocaleString()}</td>
-          <td class="text-right font-mono ${(a.daily_return||0)>=0?'text-up':'text-dn'}">${(a.daily_return||0)>=0?'+':''}${(+(a.daily_return||0)).toFixed(2)}%</td>
+          <td class="text-right font-mono ${(a.monthly_return||0)>=0?'text-up':'text-dn'}">${(a.monthly_return||0)>=0?'+':''}${(+(a.monthly_return||0)).toFixed(2)}%</td>
           <td class="text-right font-mono ${(a.total_return||0)>=0?'text-up':'text-dn'}">${(a.total_return||0)>=0?'+':''}${(+(a.total_return||0)).toFixed(2)}%</td>
-          <td class="text-gray-500">${a.last_trade_date||'—'}</td>
+          <td class="text-right font-mono ${(a.alpha||0)>=0?'text-up':'text-dn'}">${(a.alpha||0)>=0?'+':''}${(+(a.alpha||0)).toFixed(2)}%</td>
+          <td class="text-gray-500 pl-3">${a.last_trade_date||'—'}</td>
         </tr>`).join('')}
+        <tr class="border-t border-yellow-800">
+          <td class="py-1 text-yellow-400">📊 0050 benchmark</td>
+          <td colspan="4"></td>
+          <td class="text-right font-mono text-yellow-400">${benchRet>=0?'+':''}${benchRet.toFixed(2)}%</td>
+          <td class="text-right text-gray-600">基準</td>
+          <td></td>
+        </tr>
         </tbody>
       </table>`;
   } catch(e) { document.getElementById('dc_accounts').textContent='載入失敗'; }
@@ -624,16 +638,39 @@ async function showBenchmarkPicker() {
     setTimeout(()=>{ btn.textContent="調整起始日"; btn.disabled=false; }, 1500);
   }
 }
+
+async function loadDashboardMLReview(){
+  const sEl = document.getElementById('dc_ml_review_summary');
+  const tEl = document.getElementById('dc_ml_review_table');
+  if(!sEl) return;
+  try{
+    const d = await fetch('/api/ml-review?top_n=5&hold_days=5').then(r=>r.json());
+    if(d.error || !d.details){ sEl.textContent = d.error || '尚無檢討資料'; return; }
+    const aCol = d.alpha>=0?'text-up':'text-dn';
+    sEl.innerHTML = `<span class="text-gray-300">${d.signal_date}→${d.exit_date}</span>　`+
+      `命中率 <b class="${d.win_rate>=50?'text-up':'text-dn'}">${d.win_rate}%</b>　`+
+      `平均 <b class="${d.avg_actual_return>=0?'text-up':'text-dn'}">${d.avg_actual_return>=0?'+':''}${d.avg_actual_return}%</b>　`+
+      `vs 0050 Alpha <b class="${aCol}">${d.alpha>=0?'+':''}${d.alpha}%</b>`;
+    tEl.innerHTML = `<table class="w-full text-xs"><thead><tr class="text-gray-500">
+      <th class="text-left py-1">#</th><th class="text-left">代號</th><th class="text-left">名稱</th>
+      <th class="text-right">預測</th><th class="text-right">實際</th></tr></thead><tbody>
+      ${d.details.sort((a,b)=>a.rank-b.rank).map(r=>`<tr class="border-t border-gray-800">
+        <td class="py-1 text-gray-500">${r.rank}</td>
+        <td><a href="/stock/${r.code}" class="text-blue-400 font-mono">${r.code}</a></td>
+        <td>${r.name||''}</td>
+        <td class="text-right font-mono text-gray-400">${r.predicted_5d>=0?'+':''}${r.predicted_5d}%</td>
+        <td class="text-right font-mono ${r.actual_ret>=0?'text-up':'text-dn'}">${r.actual_ret>=0?'+':''}${r.actual_ret}%</td>
+      </tr>`).join('')}</tbody></table>`;
+  }catch(e){ sEl.textContent = '載入失敗'; }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   initWarRoom();
   loadFreshness();
-  loadMarket();
+  loadDashboardMLReview();
   loadReview();
   loadSignals();
   loadAccounts();
-  loadRestrictions();
-  loadPaperStatus();
-  loadV5Summary();
 });
 </script>
 {% endblock %}

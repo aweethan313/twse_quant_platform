@@ -27,11 +27,11 @@
     <div class="flex items-center justify-between mb-2">
       <div class="text-xs text-gray-500 font-semibold uppercase">📊 0050 Benchmark</div>
       <div class="flex items-center gap-2">
-        <input type="month" id="bench_start_input"
-          value="2025-01"
+        <input type="date" id="bench_start_input"
+          value="2026-05-25"
           style="background:#161b22;border:1px solid #30363d;color:#c9d1d9;border-radius:6px;padding:2px 8px;font-size:12px;cursor:pointer"
           onchange="rebuildBenchmark(this.value)">
-        <span class="text-xs text-gray-600">起始月份</span>
+        <span class="text-xs text-gray-600">起始日期</span>
       </div>
     </div>
     <div id="bench_row" class="text-xs text-gray-400">載入中...</div>
@@ -111,12 +111,14 @@ async function loadLeaderboard() {
     if (!accts || !accts.length) { setEmpty('leaderboard_content','尚無策略帳戶資料'); return; }
 
     // 取 0050 benchmark
+    const initStart = document.getElementById('bench_start_input')?.value || '2026-05-25';
+    if (!globalStartDate) globalStartDate = initStart;
     const bench = await fetch('/api/benchmark/0050').then(r=>r.json()).catch(()=>null);
     const benchLast = Array.isArray(bench)?bench.slice(-1)[0]:bench;
     const benchRet = parseFloat(benchLast?.cumulative_return ?? benchLast?.data?.slice(-1)[0]?.cumulative_return ?? 0);
     setHTML('bench_row',
       `<span class="font-mono text-yellow-400 text-lg font-bold">${benchRet>=0?'+':''}${parseFloat(benchRet).toFixed(2)}%</span>
-       <span class="ml-2">累積報酬（2025/1/1 起）</span>`
+       <span class="ml-2">累積報酬（${initStart} 起）</span>`
     );
     setHTML('bench_info', `0050 同期：${parseFloat(benchRet).toFixed(2)}%`);
 
@@ -152,6 +154,7 @@ async function loadLeaderboard() {
           <div class="text-xs text-gray-500">A${a.account_id}</div>
         </td>
         <td class="text-right font-mono font-bold ${alpha>=0?'text-up':'text-dn'}">${alpha>=0?'+':''}${parseFloat(alpha).toFixed(2)}%</td>
+        <td class="text-right font-mono ${(a.monthly_return??ret)>=0?'text-up':'text-dn'}">${(a.monthly_return??ret)>=0?'+':''}${parseFloat(a.monthly_return??ret).toFixed(2)}%</td>
         <td class="text-right font-mono ${ret>=0?'text-up':'text-dn'}">${ret>=0?'+':''}${parseFloat(ret).toFixed(2)}%</td>
         <td class="text-right font-mono">${(a.total_equity||initEq).toLocaleString('zh-TW',{maximumFractionDigits:0})}</td>
         <td class="text-right ${(a.win_rate||0)>=50?'text-up':'text-dn'}">${(a.win_rate||0).toFixed(1)}%</td>
@@ -170,7 +173,7 @@ async function loadLeaderboard() {
       <table class="w-full text-xs">
         <thead><tr class="text-gray-500 border-b border-gray-700 text-right">
           <th class="text-left py-2 px-2">策略</th>
-          <th>Alpha</th><th>總報酬</th><th>總資產</th>
+          <th>Alpha</th><th>月報酬</th><th>總報酬</th><th>總資產</th>
           <th>勝率</th><th>回撤</th><th>PF</th><th>交易</th><th>建議</th>
         </tr></thead>
         <tbody>${rows}</tbody>
@@ -217,10 +220,9 @@ async function loadMonthly(startOverride) {
 
 let globalStartDate = null;
 
-async function rebuildBenchmark(yearMonth) {
+async function rebuildBenchmark(startDate) {
   const input = document.getElementById('bench_start_input');
   if (input) { input.disabled = true; input.style.opacity='0.5'; }
-  const startDate = yearMonth + '-01';
   globalStartDate = startDate;
   try {
     await fetch(`/api/benchmark/rebuild?start_date=${startDate}`, {method:'POST'});
@@ -228,10 +230,10 @@ async function rebuildBenchmark(yearMonth) {
     const bench = await fetch('/api/benchmark/0050').then(r=>r.json()).catch(()=>null);
     const benchLast = Array.isArray(bench)?bench.slice(-1)[0]:bench;
     const benchRet = parseFloat(benchLast?.cumulative_return ?? 0);
-    const [y,m] = yearMonth.split('-');
+    
     setHTML('bench_row',
       `<span class="font-mono text-yellow-400 text-lg font-bold">${benchRet>=0?'+':''}${benchRet.toFixed(2)}%</span>
-       <span class="ml-2">累積報酬（${y}/${parseInt(m)}/1 起）</span>`
+       <span class="ml-2">累積報酬（${startDate} 起）</span>`
     );
     setHTML('bench_info', `0050 同期：${benchRet.toFixed(2)}%`);
     // 重新載入排行榜（帶入 start_date）

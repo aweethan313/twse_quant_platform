@@ -7,6 +7,7 @@ from datetime import date, datetime
 from typing import Any
 
 from sqlalchemy import text
+from loguru import logger
 
 from backend.collectors.daily_eod import run_eod
 from backend.models.database import SessionLocal
@@ -42,6 +43,11 @@ def _step(name: str, fn):
 
 
 def update_overnight() -> dict[str, Any]:
+    try:
+        import yfinance  # noqa: F401
+    except ImportError:
+        logger.warning("[OVERNIGHT] yfinance 未安裝，跳過美股隔夜資料（台股策略不需要）")
+        return {"ok": True, "skipped": "yfinance 未安裝"}
     mod = importlib.import_module("backend.collectors.overnight_market")
 
     if hasattr(mod, "get_overnight_summary"):

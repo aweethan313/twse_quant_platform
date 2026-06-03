@@ -163,6 +163,28 @@ def run_pipeline(target_date: date, force: bool = False) -> dict:
         return {"ok": False, "message": "找不到前一交易日"}
     step("7_daily_review", _review)
 
+    # ── 步驟 7b：ML 選股檢討（檢討 5 交易日前的選股）──
+    def _ml_review():
+        from backend.services.ml_review import generate_ml_review
+        db = SessionLocal()
+        try:
+            past = db.execute(text("""
+                SELECT trade_date FROM (
+                    SELECT DISTINCT trade_date FROM ohlcv_daily
+                    WHERE trade_date < :d AND code GLOB '[0-9][0-9][0-9][0-9]'
+                    ORDER BY trade_date DESC LIMIT 5
+                ) ORDER BY trade_date ASC LIMIT 1
+            """), {"d": str(target_date)}).scalar()
+        finally:
+            db.close()
+        if not past:
+            return {"ok": False, "message": "無足夠歷史可檢討"}
+        r = generate_ml_review(date.fromisoformat(past), top_n=10, hold_days=5)
+        if r:
+            return {"ok": True, "message": f"ML檢討 {past}: 命中率{r['win_rate']:.0f}% 實際{r['avg_actual_return']:+.1f}%"}
+        return {"ok": False, "message": "ML檢討資料不足"}
+    step("7b_ml_review", _ml_review)
+
     # ── 步驟 8：資料品質檢查 ──
     def _quality():
         from backend.v4.data_quality import run_data_quality_checks

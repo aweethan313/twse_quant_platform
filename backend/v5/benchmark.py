@@ -73,7 +73,7 @@ def _get_price_rows(db, benchmark_code: str, start_date: str):
 
 
 def rebuild_0050_benchmark(
-    start_date: str = "2025-01-01",
+    start_date: str = "2026-05-25",
     initial_cash: float = 200000.0,
     benchmark_code: str = "0050",
 ) -> int:

@@ -1363,8 +1363,19 @@ def api_run_walk_forward(
 def api_data_quality(query_date: str = None, limit: int = 50):
     """V4-1 資料品質檢查"""
     from backend.v4.data_quality import run_data_quality_checks, get_quality_report
+    from backend.models.database import SessionLocal as _SL
+    from sqlalchemy import text as _t
     from datetime import date as ddate
-    td = ddate.fromisoformat(query_date) if query_date else ddate.today()
+    if query_date:
+        td = ddate.fromisoformat(query_date)
+    else:
+        # 預設查「最新有資料的交易日」（避免收盤前查今天沒資料而報錯）
+        _db = _SL()
+        try:
+            _latest = _db.execute(_t("SELECT MAX(trade_date) FROM ohlcv_daily")).scalar()
+        finally:
+            _db.close()
+        td = ddate.fromisoformat(str(_latest)) if _latest else ddate.today()
     existing = get_quality_report(str(td), limit)
     if not existing:
         run_data_quality_checks(td)
@@ -1740,6 +1751,26 @@ def api_daily_review_latest():
         return {"signal_date": None, "content": "尚無可供檢討的資料"}
     finally:
         db.close()
+
+@app.get("/api/ml-review")
+def api_ml_review(signal_date: str = None, top_n: int = 10, hold_days: int = 5):
+    """ML 選股檢討報告：某 signal 日的 Top N 選股 → 之後 hold_days 實際表現"""
+    from backend.services.ml_review import generate_ml_review
+    from datetime import date as ddate, timedelta
+    from pathlib import Path
+    sig = ddate.fromisoformat(signal_date) if signal_date else ddate.today() - timedelta(days=7)
+    # 先看檔案是否已存在
+    path = Path(f"data/reports/ml_review_{sig}.md")
+    r = generate_ml_review(sig, top_n=top_n, hold_days=hold_days)
+    if not r:
+        # 退而求其次：回傳已存在的報告檔
+        if path.exists():
+            return {"signal_date": str(sig), "report_path": str(path),
+                    "content": path.read_text(encoding="utf-8")}
+        return {"error": "無資料或評估期間不足", "signal_date": str(sig)}
+    r["content"] = Path(r["report_path"]).read_text(encoding="utf-8") if Path(r["report_path"]).exists() else ""
+    return r
+
 
 @app.get("/api/daily-review-history")
 def api_daily_review_history(limit: int = 30):
@@ -3324,6 +3355,20 @@ def api_strategy_account_metrics(account_id: int, start_date: str = None):
                 bench = (float(bench_last_eq) / float(bench_base) - 1) * 100
         alpha = total_return - float(bench)
 
+        # 月報酬：最近 30 天報酬（用 equity_curve）
+        try:
+            latest_sd = db.execute(_t(
+                "SELECT MAX(snap_date) FROM equity_curve WHERE account_id=:id"
+            ), {"id": account_id}).scalar()
+            eq_30d = db.execute(_t("""
+                SELECT total_equity FROM equity_curve
+                WHERE account_id=:id AND snap_date <= date(:ls, '-30 days')
+                ORDER BY snap_date DESC LIMIT 1
+            """), {"id": account_id, "ls": latest_sd}).scalar() if latest_sd else None
+            monthly_return = ((total_equity / float(eq_30d) - 1) * 100) if eq_30d and float(eq_30d) > 0 else total_return
+        except Exception:
+            monthly_return = total_return
+
         # 成交統計
         fills = db.execute(_t("""
             SELECT action, fill_price, shares,
@@ -3373,6 +3418,7 @@ def api_strategy_account_metrics(account_id: int, start_date: str = None):
             "cash": round(float(acct[2] or 0), 2),
             "market_value": round(market_value, 2),
             "total_return": round(total_return, 3),
+            "monthly_return": round(monthly_return, 3),
             "alpha_vs_0050": round(alpha, 3),
             "max_drawdown": round(max_dd, 3),
             "win_rate": round(win_rate, 1),
