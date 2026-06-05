@@ -135,7 +135,14 @@ def run_pipeline(target_date: date, force: bool = False) -> dict:
     def _bench():
         from backend.v5.benchmark import rebuild_0050_benchmark
         # 從各帳戶起始日（forward test 從 2026-06-01）重建
-        n = rebuild_0050_benchmark(start_date="2026-06-01")
+        # FORWARD_START：讀實測起始日（與排行榜一致），不可寫死
+        _db2 = SessionLocal()
+        try:
+            _fs = _db2.execute(text("SELECT MIN(start_date) FROM strategy_accounts WHERE id BETWEEN 11 AND 17")).scalar()
+        finally:
+            _db2.close()
+        forward_start = str(_fs)[:10] if _fs else "2026-05-25"
+        n = rebuild_0050_benchmark(start_date=forward_start)  # FORWARD_START
         return {"ok": True, "message": f"benchmark {n} 筆"}
     step("5_benchmark", _bench)
 
