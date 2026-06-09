@@ -127,6 +127,8 @@ def main():
     try:
         from backend.v5.benchmark import rebuild_0050_benchmark
         n = rebuild_0050_benchmark(start_date=START_DATE)
+        # 00981A benchmark（all in 買進持有對照）
+        rebuild_0050_benchmark(start_date=START_DATE, benchmark_code="00981A")
         print(f"      ✅ benchmark {n} 筆")
     except Exception as e:
         print(f"      ⚠ benchmark 失敗：{e}")

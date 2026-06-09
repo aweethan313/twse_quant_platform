@@ -143,6 +143,8 @@ def run_pipeline(target_date: date, force: bool = False) -> dict:
             _db2.close()
         forward_start = str(_fs)[:10] if _fs else "2026-05-25"
         n = rebuild_0050_benchmark(start_date=forward_start)  # FORWARD_START
+        # 00981A benchmark（all in 買進持有對照）
+        rebuild_0050_benchmark(start_date=forward_start, benchmark_code="00981A")
         return {"ok": True, "message": f"benchmark {n} 筆"}
     step("5_benchmark", _bench)
 

@@ -1934,6 +1934,13 @@ def api_benchmark_0050(start_date: str = None, end_date: str = None):
     return get_benchmark_equity(start_date=start_date, end_date=end_date)
 
 
+@app.get("/api/benchmark/00981A")
+def api_benchmark_00981a(start_date: str = None, end_date: str = None):
+    """00981A Buy and Hold Benchmark"""
+    from backend.v5.benchmark import get_benchmark_equity
+    return get_benchmark_equity(start_date=start_date, end_date=end_date, benchmark_code="00981A")
+
+
 @app.post("/api/benchmark/rebuild")
 def api_rebuild_benchmark(start_date: str = "2025-01-01"):
     """重建 0050 Benchmark"""

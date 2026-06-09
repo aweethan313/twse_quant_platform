@@ -37,6 +37,12 @@
     <div id="bench_row" class="text-xs text-gray-400">載入中...</div>
   </div>
 
+  <!-- 00981A 買進持有基準 -->
+  <div class="s-card mb-4">
+    <div class="text-xs text-gray-500 font-semibold uppercase mb-2">📊 00981A Benchmark（All in 買進持有）</div>
+    <div id="bench_row_981" class="text-xs text-gray-400">載入中...</div>
+  </div>
+
   <!-- V5 策略帳戶排行 -->
   <div class="s-card">
     <div class="text-xs text-gray-500 font-semibold uppercase mb-3">🚀 Forward Paper Strategy Accounts（每日自動交易 vs 0050）</div>
@@ -121,6 +127,16 @@ async function loadLeaderboard() {
        <span class="ml-2">累積報酬（${initStart} 起）</span>`
     );
     setHTML('bench_info', `0050 同期：${parseFloat(benchRet).toFixed(2)}%`);
+
+    // 取 00981A benchmark（all in 買進持有對照）
+    try {
+      const b981 = await fetch('/api/benchmark/00981A').then(r=>r.json()).catch(()=>null);
+      const b981Last = Array.isArray(b981)?b981.slice(-1)[0]:b981;
+      const b981Ret = parseFloat(b981Last?.cumulative_return ?? 0);
+      setHTML('bench_row_981',
+        `<span class="font-mono text-blue-400 text-lg font-bold">${b981Ret>=0?'+':''}${b981Ret.toFixed(2)}%</span>
+         <span class="ml-2">累積報酬（全壓 00981A）</span>`);
+    } catch(e) { setHTML('bench_row_981', '無資料'); }
 
     // 取各帳戶 metrics
     const metricsUrl = (id) => globalStartDate
