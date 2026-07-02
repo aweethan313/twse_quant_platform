@@ -194,6 +194,13 @@ def run_pipeline(target_date: date, force: bool = False) -> dict:
         return {"ok": False, "message": "ML檢討資料不足"}
     step("7b_ml_review", _ml_review)
 
+    # ── 步驟 7c：主題熱度 ──
+    def _themes():
+        from backend.services.latest_update import update_theme_trends
+        r = update_theme_trends(target_date)
+        return {"ok": True, "message": f"主題 {r.get('themes_updated','?')} 個"}
+    step("7c_theme_trends", _themes)
+
     # ── 步驟 8：資料品質檢查 ──
     def _quality():
         from backend.v4.data_quality import run_data_quality_checks
