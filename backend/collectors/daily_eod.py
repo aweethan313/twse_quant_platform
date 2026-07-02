@@ -53,6 +53,7 @@ def _collect_ohlcv(db: Session, trade_date: date):
     df = twse_client.fetch_daily_all(trade_date)
     if df is None or df.empty:
         logger.warning(f"[EOD] OHLCV 無資料 {trade_date}（可能為假日）")
+        _register_pending_backfill(db, trade_date, "fetch_empty")
         return
 
     # 假日污染防護：STOCK_DAY_ALL 在假日會回傳「最近交易日」的舊資料，
@@ -188,3 +189,18 @@ def backfill(start_date: date, end_date: date = None):
         "V4.6.2 已停用 daily_eod.backfill()：不要用 STOCK_DAY_ALL 補歷史全市場日 K。"
         "請改用 scripts.repair_stale_ohlcv_from_stock_day 逐股逐月修復。"
     )
+
+
+def _register_pending_backfill(db: Session, trade_date, reason: str):
+    from sqlalchemy import text as _t
+    try:
+        db.execute(_t('''CREATE TABLE IF NOT EXISTS pending_backfill(
+          trade_date TEXT PRIMARY KEY, reason TEXT,
+          created_at TEXT DEFAULT (datetime('now','localtime')), resolved_at TEXT)'''))
+        db.execute(_t(
+            "INSERT OR IGNORE INTO pending_backfill(trade_date, reason) VALUES(:d,:r)"
+        ), {"d": str(trade_date), "r": reason})
+        db.commit()
+        logger.warning(f"[EOD] {trade_date} 已登記 pending_backfill（{reason}）")
+    except Exception as e:
+        logger.warning(f"[EOD] pending_backfill 登記失敗: {e}")

@@ -1951,7 +1951,7 @@ def api_rebuild_benchmark(start_date: str = "2025-01-01"):
 
 @app.get("/api/monthly/race")
 def api_monthly_race(start_date: str = None):
-    """月度競賽排行"""
+    """月度競賽排行 FIXED_MONTHLY_RACE：用期初/期末算真實月報酬，回撤用 peak-to-trough"""
     from backend.models.database import SessionLocal
     from sqlalchemy import text as _t
     from datetime import date as ddate
@@ -1960,60 +1960,67 @@ def api_monthly_race(start_date: str = None):
         start_date = f"{today.year}-{today.month:02d}-01"
     db = SessionLocal()
     try:
-        # 策略帳戶月報酬
-        rows = db.execute(_t("""
-            SELECT a.id, a.name, a.initial_cash,
-                   MIN(eq.total_equity) as start_eq,
-                   MAX(eq.total_equity) as end_eq,
-                   COUNT(eq.id) as days,
-                   MIN(eq.total_equity) as min_eq,
-                   MAX(eq.snap_date) as latest_date
-            FROM strategy_accounts a
-            LEFT JOIN equity_curve eq ON eq.account_id=a.id
-                AND eq.snap_date >= :sd
-            WHERE a.id >= 11
-            GROUP BY a.id, a.name, a.initial_cash
-            ORDER BY end_eq DESC
-        """), {"sd": start_date}).fetchall()
+        acct_ids = db.execute(_t("SELECT id, name, initial_cash FROM strategy_accounts WHERE id >= 11")).fetchall()
+        results = []
 
-        # 0050 benchmark 月報酬
-        bench = db.execute(_t("""
-            SELECT MIN(equity) as start_eq, MAX(equity) as end_eq
-            FROM benchmark_daily_equity
-            WHERE snap_date >= :sd AND benchmark_code='0050'
-        """), {"sd": start_date}).fetchone()
-        bench_start = float(bench[0] or 200000) if bench else 200000
-        bench_end   = float(bench[1] or 200000) if bench else 200000
+        def _first_last_equity(acct_id, sd):
+            first = db.execute(_t(
+                "SELECT total_equity FROM equity_curve WHERE account_id=:id AND snap_date>=:sd ORDER BY snap_date ASC LIMIT 1"
+            ), {"id": acct_id, "sd": sd}).scalar()
+            last_row = db.execute(_t(
+                "SELECT total_equity, snap_date FROM equity_curve WHERE account_id=:id AND snap_date>=:sd ORDER BY snap_date DESC LIMIT 1"
+            ), {"id": acct_id, "sd": sd}).fetchone()
+            days = db.execute(_t(
+                "SELECT COUNT(*) FROM equity_curve WHERE account_id=:id AND snap_date>=:sd"
+            ), {"id": acct_id, "sd": sd}).scalar() or 0
+            return first, (last_row[0] if last_row else None), (last_row[1] if last_row else None), days
+
+        def _true_max_drawdown(acct_id, sd):
+            seq = db.execute(_t(
+                "SELECT total_equity FROM equity_curve WHERE account_id=:id AND snap_date>=:sd ORDER BY snap_date ASC"
+            ), {"id": acct_id, "sd": sd}).fetchall()
+            if not seq:
+                return 0
+            peak = float(seq[0][0] or 0)
+            max_dd = 0.0
+            for (v,) in seq:
+                v = float(v or 0)
+                if v > peak:
+                    peak = v
+                if peak > 0:
+                    dd = (v / peak - 1) * 100
+                    if dd < max_dd:
+                        max_dd = dd
+            return round(max_dd, 2)
+
+        bench_first = db.execute(_t(
+            "SELECT equity FROM benchmark_daily_equity WHERE snap_date>=:sd AND benchmark_code='0050' ORDER BY snap_date ASC LIMIT 1"
+        ), {"sd": start_date}).scalar()
+        bench_last = db.execute(_t(
+            "SELECT equity FROM benchmark_daily_equity WHERE snap_date>=:sd AND benchmark_code='0050' ORDER BY snap_date DESC LIMIT 1"
+        ), {"sd": start_date}).scalar()
+        bench_start = float(bench_first or 200000)
+        bench_end   = float(bench_last or 200000)
         bench_ret   = round((bench_end/bench_start-1)*100, 2) if bench_start else 0
 
-        results = []
-        for i, r in enumerate(rows):
-            init = float(r[2] or 200000)
-            start_eq = float(r[3] or init)
-            end_eq   = float(r[4] or init)
+        for acct_id, name, initial_cash in acct_ids:
+            init = float(initial_cash or 200000)
+            first_eq, last_eq, latest_date, total_days = _first_last_equity(acct_id, start_date)
+            start_eq = float(first_eq) if first_eq else init
+            end_eq   = float(last_eq) if last_eq else init
             monthly_ret = round((end_eq/start_eq-1)*100, 2) if start_eq else 0
             alpha = round(monthly_ret - bench_ret, 2)
-
-            # 勝率
             win_days = db.execute(_t(
                 "SELECT COUNT(*) FROM equity_curve WHERE account_id=:id AND snap_date>=:sd AND daily_return>0"
-            ), {"id": r[0], "sd": start_date}).scalar() or 0
-            total_days = int(r[5] or 1)
+            ), {"id": acct_id, "sd": start_date}).scalar() or 0
             win_rate = round(win_days/total_days*100, 1) if total_days else 0
-            # 最大回撤
-            min_eq = db.execute(_t(
-                "SELECT MIN(total_equity) FROM equity_curve WHERE account_id=:id AND snap_date>=:sd"
-            ), {"id": r[0], "sd": start_date}).scalar() or end_eq
-            max_dd = round((float(min_eq)/start_eq-1)*100, 2) if start_eq else 0
-            # 交易次數
+            max_dd = _true_max_drawdown(acct_id, start_date)
             trade_cnt = db.execute(_t(
                 "SELECT COUNT(*) FROM paper_fills WHERE account_id=:id AND execution_date>=:sd"
-            ), {"id": r[0], "sd": start_date}).scalar() or 0
-
+            ), {"id": acct_id, "sd": start_date}).scalar() or 0
             results.append({
-                "rank": i+1,
-                "account_id": r[0],
-                "account_name": r[1],
+                "account_id": acct_id,
+                "account_name": name,
                 "monthly_return": monthly_ret,
                 "benchmark_0050_return": bench_ret,
                 "alpha_vs_0050": alpha,
@@ -2023,9 +2030,11 @@ def api_monthly_race(start_date: str = None):
                 "win_rate": win_rate,
                 "max_drawdown": max_dd,
                 "trade_count": trade_cnt,
-                "latest_date": r[7],
+                "latest_date": str(latest_date) if latest_date else None,
             })
-
+        results.sort(key=lambda x: x["total_equity"], reverse=True)
+        for i, r in enumerate(results):
+            r["rank"] = i + 1
         return {
             "start_date": start_date,
             "benchmark_return": bench_ret,
@@ -2472,27 +2481,37 @@ def api_overnight_enhanced():
                 mu_ret = bias.get("mu_ret", 0)
             except: pass
 
+        def sanitize_nan(v, default=None):
+            import math
+            if v is None:
+                return default
+            try:
+                f = float(v)
+                return default if (math.isnan(f) or math.isinf(f)) else f
+            except (TypeError, ValueError):
+                return v
+
         return {
             "date": str(row[0]) if row else None,
-            "overnight_score": float(row[2] or 50) if row else 50,
+            "overnight_score": sanitize_nan(row[2] if row else None, 50) or 50,
             "summary": us_summary,
             "market_regime": row[5] if row else "—",
-            "taiex_close": taiex_close,
-            "taiex_change": taiex_change,
-            "tw_futures_close": tw_fut_close,
-            "tw_futures_change": tw_fut_change,
-            "mu_ret": mu_ret,
+            "taiex_close": sanitize_nan(taiex_close),
+            "taiex_change": sanitize_nan(taiex_change),
+            "tw_futures_close": sanitize_nan(tw_fut_close),
+            "tw_futures_change": sanitize_nan(tw_fut_change),
+            "mu_ret": sanitize_nan(mu_ret, 0) or 0,
             "twse_proxy": {
                 "code": "0050",
                 "date": str(idx_row[0]) if idx_row else None,
-                "close": float(idx_row[1] or 0) if idx_row else 0,
-                "change_pct": float(idx_row[2] or 0) if idx_row else 0,
+                "close": sanitize_nan(idx_row[1] if idx_row else None, 0) or 0,
+                "change_pct": sanitize_nan(idx_row[2] if idx_row else None, 0) or 0,
             },
             "breadth": {
                 "up": int(mkt[0] or 0) if mkt else 0,
                 "down": int(mkt[1] or 0) if mkt else 0,
-                "avg_change": float(mkt[2] or 0) if mkt else 0,
-                "total_value_b": round(float(mkt[3] or 0)/1e8, 0) if mkt else 0,
+                "avg_change": sanitize_nan(mkt[2] if mkt else None, 0) or 0,
+                "total_value_b": round((sanitize_nan(mkt[3] if mkt else None, 0) or 0) / 1e8, 0),
             }
         }
     finally:
