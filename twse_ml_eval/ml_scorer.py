@@ -163,12 +163,15 @@ def main():
     ap.add_argument("--end", default="2026-12-31")
     ap.add_argument("--mode", choices=["full", "latest"], default="full")
     ap.add_argument("--score-days", type=int, default=1, help="latest 模式：評最新幾天")
+    ap.add_argument("--date", default=None, help="指定評分日 YYYY-MM-DD；資料截至該日，防回填偷看未來")
     ap.add_argument("--step", type=int, default=20, help="full 模式：每幾天重訓一次")
     ap.add_argument("--horizon", type=int, default=config.DEFAULT_HORIZON)
     ap.add_argument("--embargo", type=int, default=None)
     ap.add_argument("--min-train", type=int, default=40)
     ap.add_argument("--model", default="auto")
     args = ap.parse_args()
+    if getattr(args, "date", None):
+        args.end = args.date  # 截斷資料至指定日：評分日正確 + 訓練不含未來
     embargo = args.embargo if args.embargo is not None else args.horizon
 
     print("讀取資料中（乾淨：剔除僵屍列 + 流動性過濾）...")
@@ -190,6 +193,9 @@ def main():
             df, feature_cols, dates, args.horizon, embargo, args.step,
             args.min_train, args.model)
     else:
+        if getattr(args, "date", None) and dates and str(dates[-1])[:10] != str(args.date)[:10]:
+            print(f"  ⚠️ 指定日 {args.date} 無資料（實際最新 {dates[-1]}），中止不評分")
+            return
         print(f"  模式：latest（評最新 {args.score_days} 天）")
         scored, model, importance = latest_predict(
             df, feature_cols, dates, args.score_days, args.model)

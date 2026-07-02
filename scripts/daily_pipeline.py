@@ -124,7 +124,8 @@ def run_pipeline(target_date: date, force: bool = False) -> dict:
     def _ml():
         r = subprocess.run(
             [sys.executable, "twse_ml_eval/ml_scorer.py",
-             "--db", "data/db/quant.db", "--mode", "latest", "--score-days", "1"],
+             "--db", "data/db/quant.db", "--mode", "latest", "--score-days", "1",
+             "--date", str(target_date)],
             capture_output=True, text=True, cwd=str(PROJECT)
         )
         ok = r.returncode == 0

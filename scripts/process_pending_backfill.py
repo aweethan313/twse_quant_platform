@@ -42,7 +42,8 @@ def _rerun_steps(d: date):
     build_technical_features(d)
     recompute_scores_for_date(d)
     subprocess.run([sys.executable, "twse_ml_eval/ml_scorer.py",
-                    "--db", "data/db/quant.db", "--mode", "latest", "--score-days", "1"],
+                    "--db", "data/db/quant.db", "--mode", "latest", "--score-days", "1",
+                    "--date", str(d)],
                    capture_output=True, text=True, cwd=str(PROJECT))
     generate_strategy_decisions(d)
     simulate_paper_fills(d)
