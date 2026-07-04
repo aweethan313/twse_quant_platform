@@ -148,7 +148,14 @@ async function loadLeaderboard() {
     ));
 
     // 合併資料
-    const combined = accts.map((a,i) => ({...a, ...(metrics[i]||{})}));
+    // P16_RACE_OVERRIDE:月報酬欄改吃 /api/monthly/race 的正確本月數字
+    let raceMap = {};
+    try {
+      const race = await fetch('/api/monthly/race').then(r=>r.ok?r.json():null);
+      (race?.accounts||[]).forEach(r => { raceMap[r.account_id] = r.monthly_return; });
+    } catch(e) { console.warn('monthly race fetch failed', e); }
+    const combined = accts.map((a,i) => ({...a, ...(metrics[i]||{}),
+      monthly_return: raceMap[a.account_id] !== undefined ? raceMap[a.account_id] : (metrics[i]||{}).monthly_return}));
     combined.sort((a,b)=>(b.alpha_vs_0050||b.total_return||0)-(a.alpha_vs_0050||a.total_return||0));
 
     // 取健康分數
