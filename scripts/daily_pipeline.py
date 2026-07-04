@@ -153,8 +153,11 @@ def run_pipeline(target_date: date, force: bool = False) -> dict:
     def _v5():
         from backend.v5.decision_engine import generate_strategy_decisions
         from backend.v5.paper_engine import simulate_paper_fills, update_v5_equity
+        from backend.v5.dividends import refresh_corporate_actions, credit_dividends
+        refresh_corporate_actions(target_date)
         r = generate_strategy_decisions(target_date)
         simulate_paper_fills(target_date)
+        credit_dividends(target_date)
         update_v5_equity(target_date)
         return {"ok": True, "message": f"V5 決策 {r.get('decisions',0)} 筆"}
     step("6_v5_decisions", _v5)

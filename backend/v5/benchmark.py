@@ -101,6 +101,12 @@ def rebuild_0050_benchmark(
         db.execute(text("DELETE FROM benchmark_daily_equity WHERE benchmark_code=:c AND snap_date>=:sd"),
                    {"c": benchmark_code, "sd": start_date})
 
+        # 含息:累加除息日起的每股現金股利(金額待公告者暫為0,公布後每日重建自動補上)
+        div_rows = db.execute(text("""
+            SELECT ex_date, COALESCE(cash_dividend, 0) FROM corporate_actions
+            WHERE code=:c AND ex_date >= :sd ORDER BY ex_date
+        """), {"c": benchmark_code, "sd": start_date}).fetchall()
+
         prev_equity = initial_cash
         updated = 0
         for trade_date, open_p, close_p, volume in rows:
@@ -108,7 +114,8 @@ def rebuild_0050_benchmark(
             price = _adjusted_price(d, close_p)
             if not price:
                 continue
-            equity = shares * price
+            div_cum = sum(float(v) for ex, v in div_rows if str(ex) <= d)
+            equity = shares * (price + div_cum)
             daily_ret = (equity / prev_equity - 1) * 100 if prev_equity > 0 else 0.0
             cum_ret = (equity / initial_cash - 1) * 100
             reason = None

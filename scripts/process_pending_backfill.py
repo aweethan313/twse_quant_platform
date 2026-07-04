@@ -47,6 +47,8 @@ def _rerun_steps(d: date):
                    capture_output=True, text=True, cwd=str(PROJECT))
     generate_strategy_decisions(d)
     simulate_paper_fills(d)
+    from backend.v5.dividends import credit_dividends
+    credit_dividends(d)
     update_v5_equity(d)
 
 def _rebuild_benchmarks():
