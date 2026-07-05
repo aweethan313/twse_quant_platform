@@ -30,6 +30,16 @@ def run_simple_backtest(code: str, start: str, end: str,
     if len(rows) < 20:
         return {"error": f"{code} 在區間內資料不足(僅 {len(rows)} 天)"}
 
+    # ZOMBIE_GUARD:偵測僵屍列污染(連3日同收盤,2024~2026/5歷史段已知污染26%/22%)
+    zombie = 0
+    for i in range(2, len(rows)):
+        if float(rows[i][2]) == float(rows[i-1][2]) == float(rows[i-2][2]):
+            zombie += 1
+    zpct = zombie / len(rows) * 100
+    if zpct > 5:
+        return {"error": f"{code} 在此區間僵屍列污染 {zpct:.1f}%(連續同價複製資料),"
+                         f"回測結果不可信,拒絕執行。2024~2026/5 歷史段待 8/1 重建後全面開放。"}
+
     # SPLIT_ADJUST:偵測分割跳動,自動推算比率並還原歷史價格(分割前價格 / ratio)
     split_events = []
     prev_c = None
