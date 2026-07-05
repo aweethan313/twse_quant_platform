@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}簡易規則回測 | TWSE Alpha Lab{% endblock %}
+{% block content %}
+<div class="max-w-5xl mx-auto px-4 py-5">
+  <h1 class="text-xl font-bold mb-1">🧪 簡易規則回測</h1>
+  <div class="text-xs text-gray-500 mb-4">單一股票 × 停損/停利/到期規則 vs 買進持有 | T+1開盤成交、含手續費證交稅</div>
+
+  <div style="background:#161b22;border:1px solid #30363d;border-radius:10px;padding:16px" class="mb-4">
+    <div class="grid grid-cols-2 md:grid-cols-6 gap-3 text-sm">
+      <div><label class="text-xs text-gray-500">股票代號</label>
+        <input id="bt-code" value="2330" class="w-full bg-black border border-gray-700 rounded px-2 py-1"></div>
+      <div><label class="text-xs text-gray-500">開始</label>
+        <input id="bt-start" value="2017-01-01" class="w-full bg-black border border-gray-700 rounded px-2 py-1"></div>
+      <div><label class="text-xs text-gray-500">結束</label>
+        <input id="bt-end" value="2023-12-31" class="w-full bg-black border border-gray-700 rounded px-2 py-1"></div>
+      <div><label class="text-xs text-gray-500">停損%</label>
+        <input id="bt-stop" value="8" type="number" class="w-full bg-black border border-gray-700 rounded px-2 py-1"></div>
+      <div><label class="text-xs text-gray-500">停利%</label>
+        <input id="bt-take" value="15" type="number" class="w-full bg-black border border-gray-700 rounded px-2 py-1"></div>
+      <div><label class="text-xs text-gray-500">最大持有日(0=不限)</label>
+        <input id="bt-hold" value="0" type="number" class="w-full bg-black border border-gray-700 rounded px-2 py-1"></div>
+    </div>
+    <button onclick="runBT()" id="bt-btn"
+      class="mt-3 px-4 py-1.5 rounded bg-yellow-600 hover:bg-yellow-500 text-black text-sm font-bold">執行回測</button>
+    <span id="bt-status" class="text-xs text-gray-500 ml-3"></span>
+  </div>
+
+  <div id="bt-warning" class="text-xs mb-3" style="color:#d29922;display:none">
+    ⚠️ 未還原除權息(除息跳空可能誤觸停損)｜非嚴謹回測框架｜請勿反覆調參數挑最好看的結果(curve fitting)
+  </div>
+
+  <div id="bt-stats" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4"></div>
+  <div style="background:#161b22;border:1px solid #30363d;border-radius:10px;padding:16px" class="mb-4">
+    <canvas id="bt-chart" height="90"></canvas>
+  </div>
+  <div id="bt-trades" style="background:#161b22;border:1px solid #30363d;border-radius:10px;padding:16px;display:none">
+    <div class="text-sm font-bold mb-2">交易明細(最近100筆)</div>
+    <div style="max-height:300px;overflow-y:auto">
+      <table class="w-full text-xs"><thead><tr class="text-gray-500 text-left">
+        <th class="py-1">日期</th><th>動作</th><th class="text-right">價格</th>
+        <th class="text-right">股數</th><th class="text-right">損益</th><th>原因</th>
+      </tr></thead><tbody id="bt-trades-body"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script>
+let btChart = null;
+function card(label, val, color) {
+  return `<div style="background:#161b22;border:1px solid #30363d;border-radius:10px;padding:12px">
+    <div class="text-xs text-gray-500">${label}</div>
+    <div class="text-lg font-bold font-mono" style="color:${color||'#e6edf3'}">${val}</div></div>`;
+}
+async function runBT() {
+  const q = new URLSearchParams({
+    code: document.getElementById('bt-code').value.trim(),
+    start: document.getElementById('bt-start').value.trim(),
+    end: document.getElementById('bt-end').value.trim(),
+    stop_pct: document.getElementById('bt-stop').value,
+    take_pct: document.getElementById('bt-take').value,
+    max_hold: document.getElementById('bt-hold').value || 0
+  });
+  document.getElementById('bt-status').textContent = '計算中...';
+  document.getElementById('bt-btn').disabled = true;
+  try {
+    const d = await fetch('/api/lab/simple-backtest?' + q).then(r => r.json());
+    document.getElementById('bt-btn').disabled = false;
+    if (d.error) { document.getElementById('bt-status').textContent = '❌ ' + d.error; return; }
+    document.getElementById('bt-status').textContent = '';
+    document.getElementById('bt-warning').style.display = 'block';
+    const s = d.stats;
+    const up = '#ff4d4d', dn = '#2ea043';
+    document.getElementById('bt-stats').innerHTML =
+      card('規則報酬', (s.total_return>=0?'+':'')+s.total_return+'%', s.total_return>=0?up:dn) +
+      card('買進持有', (s.buy_hold_return>=0?'+':'')+s.buy_hold_return+'%', s.buy_hold_return>=0?up:dn) +
+      card('規則 vs 死抱', (s.excess_vs_bh>=0?'+':'')+s.excess_vs_bh+'%', s.excess_vs_bh>=0?up:dn) +
+      card('最大回撤', s.max_drawdown+'%', '#d29922') +
+      card('交易次數', s.trade_count) + card('勝率', s.win_rate+'%') +
+      card('總費用', s.total_fees.toLocaleString()+' 元', '#d29922') +
+      card('交易日數', s.days);
+    const cv = d.equity_curve, N = Math.max(1, Math.floor(cv.length/400));
+    const pts = cv.filter((_,i)=>i%N===0 || i===cv.length-1);
+    if (btChart) btChart.destroy();
+    btChart = new Chart(document.getElementById('bt-chart'), {
+      type: 'line',
+      data: { labels: pts.map(p=>p.date), datasets: [
+        { label:'規則策略', data: pts.map(p=>p.equity), borderColor:'#e3b341', borderWidth:1.5, pointRadius:0 },
+        { label:'買進持有', data: pts.map(p=>p.bh_equity), borderColor:'#8b949e', borderWidth:1.5, pointRadius:0, borderDash:[5,4] }
+      ]},
+      options: { plugins:{legend:{labels:{color:'#8b949e'}}},
+        scales:{ x:{ticks:{color:'#8b949e',maxTicksLimit:10}}, y:{ticks:{color:'#8b949e'}} } }
+    });
+    const tb = document.getElementById('bt-trades-body');
+    tb.innerHTML = (d.trades||[]).slice().reverse().map(t =>
+      `<tr class="border-t border-gray-800"><td class="py-1">${t.date}</td>
+       <td style="color:${t.action==='BUY'?up:dn}">${t.action}</td>
+       <td class="text-right font-mono">${t.price}</td>
+       <td class="text-right font-mono">${t.shares}</td>
+       <td class="text-right font-mono" style="color:${t.pnl==null?'#8b949e':(t.pnl>=0?up:dn)}">${t.pnl==null?'—':t.pnl.toLocaleString()}</td>
+       <td class="text-gray-500">${t.reason||''}</td></tr>`).join('');
+    document.getElementById('bt-trades').style.display = 'block';
+  } catch(e) {
+    document.getElementById('bt-btn').disabled = false;
+    document.getElementById('bt-status').textContent = '❌ ' + e;
+  }
+}
+</script>
+{% endblock %}

@@ -3395,3 +3395,16 @@ def page_leaderboard(request: Request):
 @app.get("/lab", response_class=HTMLResponse)
 def page_lab(request: Request):
     return templates.TemplateResponse("lab.html", {"request": request})
+
+
+@app.get("/api/lab/simple-backtest")
+def api_lab_simple_backtest(code: str, start: str = "2017-01-01", end: str = "2023-12-31",
+                            stop_pct: float = 8.0, take_pct: float = 15.0, max_hold: int = 0):
+    """研究室:簡易單股規則回測(停損/停利/到期 vs 買進持有)"""
+    from backend.research.simple_backtest import run_simple_backtest
+    return run_simple_backtest(code, start, end, stop_pct, take_pct, max_hold)
+
+
+@app.get("/lab/simple-backtest")
+async def page_lab_simple_backtest(request: Request):
+    return templates.TemplateResponse("lab_simple_backtest.html", {"request": request})
