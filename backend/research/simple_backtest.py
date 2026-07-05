@@ -30,6 +30,16 @@ def run_simple_backtest(code: str, start: str, end: str,
     if len(rows) < 20:
         return {"error": f"{code} 在區間內資料不足(僅 {len(rows)} 天)"}
 
+    # SPLIT_GUARD:單日 |漲跌| > 35% 視為疑似分割/減資,誠實拒跑而非給錯誤結果
+    prev_c = None
+    for d, o, cl in rows:
+        if prev_c and prev_c > 0:
+            chg = abs(float(cl) / prev_c - 1)
+            if chg > 0.35:
+                return {"error": f"{code} 在 {d} 出現單日 {chg*100:.0f}% 跳動,疑似分割/減資/資料異常。"
+                                 f"本工具未支援還原價,結果會嚴重失真,拒絕執行。(0050 等分割過的 ETF 均不適用)"}
+        prev_c = float(cl)
+
     cash = initial_cash
     shares = 0
     entry_price = 0.0
