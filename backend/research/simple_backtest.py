@@ -30,15 +30,31 @@ def run_simple_backtest(code: str, start: str, end: str,
     if len(rows) < 20:
         return {"error": f"{code} 在區間內資料不足(僅 {len(rows)} 天)"}
 
-    # SPLIT_GUARD:單日 |漲跌| > 35% 視為疑似分割/減資,誠實拒跑而非給錯誤結果
+    # SPLIT_ADJUST:偵測分割跳動,自動推算比率並還原歷史價格(分割前價格 / ratio)
+    split_events = []
     prev_c = None
-    for d, o, cl in rows:
+    for i, (d, o, cl) in enumerate(rows):
         if prev_c and prev_c > 0:
-            chg = abs(float(cl) / prev_c - 1)
-            if chg > 0.35:
-                return {"error": f"{code} 在 {d} 出現單日 {chg*100:.0f}% 跳動,疑似分割/減資/資料異常。"
-                                 f"本工具未支援還原價,結果會嚴重失真,拒絕執行。(0050 等分割過的 ETF 均不適用)"}
+            jump = float(o) / prev_c
+            if jump < 0.65 or jump > 1.55:   # 單日開盤跳動 >35%
+                ratio = prev_c / float(o)
+                # 常見分割比率:整數或 0.5 倍數(如 1拆4 → ratio≈4)
+                nearest = round(ratio * 2) / 2
+                if nearest >= 1.5 and abs(ratio - nearest) / nearest < 0.15:
+                    split_events.append({"date": str(d), "ratio": nearest, "index": i})
+                else:
+                    return {"error": f"{code} 在 {d} 單日跳動 {abs(jump-1)*100:.0f}%,"
+                                     f"但比率 {ratio:.2f} 不像常規分割,疑似減資/資料異常,拒絕執行"}
         prev_c = float(cl)
+
+    if split_events:
+        adj = [[str(d), float(o), float(cl)] for d, o, cl in rows]
+        for ev in split_events:
+            r = ev["ratio"]
+            for j in range(ev["index"]):   # 分割日之前的所有價格除以比率
+                adj[j][1] /= r
+                adj[j][2] /= r
+        rows = [(a[0], a[1], a[2]) for a in adj]
 
     cash = initial_cash
     shares = 0
@@ -125,7 +141,7 @@ def run_simple_backtest(code: str, start: str, end: str,
             "total_fees": round(total_fees, 0),
             "days": len(curve),
         },
-        "warning": "未還原除權息;非嚴謹框架;請勿用於調參(curve fitting)",
+        "warning": ("已自動還原分割:" + ", ".join(f"{e['date']} 1拆{e['ratio']:g}" for e in split_events) + " | " if split_events else "") + "未還原除權息;非嚴謹框架;請勿用於調參(curve fitting)",
         "equity_curve": curve,
         "trades": trades[-100:],
     }
