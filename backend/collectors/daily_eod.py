@@ -92,6 +92,10 @@ def _collect_ohlcv(db: Session, trade_date: date):
         )
         db.execute(stmt)
         logger.info(f"[EOD] OHLCV upsert {len(rows)} 筆")
+        # CAL_UPSERT:成功寫入當日資料 → 日曆同步標記為交易日
+        from sqlalchemy import text as _t
+        db.execute(_t("""INSERT INTO trading_calendar(trade_date, is_open) VALUES(:d, 1)
+            ON CONFLICT(trade_date) DO UPDATE SET is_open=1"""), {"d": str(trade_date)})
 
 
 def _upsert_stock_meta_from_daily_df(db: Session, df):
