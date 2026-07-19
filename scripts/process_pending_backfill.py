@@ -50,6 +50,27 @@ def _rerun_steps(d: date):
     from backend.v5.dividends import credit_dividends
     credit_dividends(d)
     update_v5_equity(d)
+    # FULL_RERUN:檢討書/ML檢討/主題/品質也一併補齊(7/17事件的教訓)
+    try:
+        from backend.services.daily_review import generate_daily_review
+        from backend.services.ml_review import generate_ml_review
+        from backend.services.latest_update import update_theme_trends
+        from backend.v4.data_quality import run_data_quality_checks
+        db2 = SessionLocal()
+        prev = db2.execute(text("""SELECT MAX(trade_date) FROM ohlcv_daily
+            WHERE trade_date < :d AND code GLOB '[0-9][0-9][0-9][0-9]'"""), {"d": str(d)}).scalar()
+        past = db2.execute(text("""SELECT trade_date FROM (SELECT DISTINCT trade_date FROM ohlcv_daily
+            WHERE trade_date < :d AND code GLOB '[0-9][0-9][0-9][0-9]'
+            ORDER BY trade_date DESC LIMIT 5) ORDER BY trade_date ASC LIMIT 1"""), {"d": str(d)}).scalar()
+        db2.close()
+        if prev:
+            generate_daily_review(date.fromisoformat(str(prev)), d)
+        if past:
+            generate_ml_review(date.fromisoformat(str(past)), top_n=10, hold_days=5)
+        update_theme_trends(d)
+        run_data_quality_checks(d)
+    except Exception as e:
+        print(f"[{d}] 檢討/主題/品質補齊部分失敗(不影響核心資料): {e}")
 
 def _rebuild_benchmarks():
     from backend.v5.benchmark import rebuild_0050_benchmark
