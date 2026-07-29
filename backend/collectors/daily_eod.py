@@ -141,6 +141,7 @@ def _collect_chips(db: Session, trade_date: date):
 
     if df is None or df.empty:
         logger.warning(f"[EOD] 法人資料無 {trade_date}")
+        _register_pending_chip(db, trade_date, "chip_empty")
         return
 
     rows = []
@@ -161,6 +162,7 @@ def _collect_chips(db: Session, trade_date: date):
 
     if not rows:
         logger.warning(f"[EOD] 法人資料解析後無可寫入資料 {trade_date}")
+        _register_pending_chip(db, trade_date, "chip_parse_empty")
         return
 
     stmt = sqlite_insert(ChipDaily).values(rows)
@@ -208,3 +210,18 @@ def _register_pending_backfill(db: Session, trade_date, reason: str):
         logger.warning(f"[EOD] {trade_date} 已登記 pending_backfill（{reason}）")
     except Exception as e:
         logger.warning(f"[EOD] pending_backfill 登記失敗: {e}")
+
+
+def _register_pending_chip(db: Session, trade_date, reason: str):
+    """籌碼漏抓時登記 pending_chip,供 process_pending_chip 自動補。"""
+    from sqlalchemy import text as _t
+    try:
+        db.execute(_t("""CREATE TABLE IF NOT EXISTS pending_chip(
+            trade_date TEXT PRIMARY KEY, reason TEXT,
+            created_at TEXT DEFAULT (datetime('now','localtime')), resolved_at TEXT)"""))
+        db.execute(_t("INSERT OR IGNORE INTO pending_chip(trade_date, reason) VALUES(:d,:r)"),
+                   {"d": str(trade_date), "r": reason})
+        db.commit()
+        logger.warning(f"[EOD] {trade_date} 已登記 pending_chip({reason})")
+    except Exception as e:
+        logger.warning(f"[EOD] pending_chip 登記失敗: {e}")
