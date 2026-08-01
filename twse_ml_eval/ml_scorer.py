@@ -33,7 +33,7 @@ import pandas as pd
 
 from ml_eval import config, data as data_mod, models
 
-MODEL_VERSION = "lgbm_v9_clean"
+MODEL_VERSION = "lgbm_v10_rebuilt"
 
 
 def add_scores(df: pd.DataFrame) -> pd.DataFrame:
