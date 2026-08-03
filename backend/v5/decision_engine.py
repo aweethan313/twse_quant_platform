@@ -277,9 +277,9 @@ def _get_candidates(db, cfg: dict, signal_date: date) -> list[dict]:
                    ON o.code=m.code AND o.trade_date=:sd
             WHERE m.score_date=(
                 SELECT MAX(score_date) FROM ml_score_results
-                WHERE score_date<=:sd AND model_version='lgbm_v9_clean'
+                WHERE score_date<=:sd AND model_version='lgbm_v10_rebuilt'
             )
-              AND m.model_version='lgbm_v9_clean'
+              AND m.model_version='lgbm_v10_rebuilt'
               AND m.ml_rank <= 5
               AND o.close IS NOT NULL AND o.close >= 10
             ORDER BY m.ml_rank ASC
