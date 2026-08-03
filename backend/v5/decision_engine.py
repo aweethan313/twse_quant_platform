@@ -14,7 +14,7 @@ COST_SLIPPAGE_BUY  = 0.002
 COST_SLIPPAGE_SELL = 0.003
 
 
-def generate_strategy_decisions(signal_date: date = None) -> dict:
+def generate_strategy_decisions(signal_date: date = None, account_min: int = 11, account_max: int = 99) -> dict:
     """
     為所有啟用的 V5 策略帳戶產生 T+1 決策
     signal_date = T，execution_date = T+1
@@ -33,11 +33,11 @@ def generate_strategy_decisions(signal_date: date = None) -> dict:
         execution_date = str(next_day) if next_day else str(signal_date + timedelta(days=1))
 
         # 取所有 V5 帳戶設定（account_id >= 11）
-        configs = db.execute(text("""
+        configs = db.execute(text(f"""
             SELECT c.*, a.name as account_name, a.initial_cash
             FROM strategy_account_configs c
             JOIN strategy_accounts a ON a.id=c.account_id
-            WHERE c.is_active=1 AND c.account_id >= 11
+            WHERE c.is_active=1 AND c.account_id >= {int(account_min)} AND c.account_id <= {int(account_max)}
             ORDER BY c.account_id
         """)).fetchall()
 

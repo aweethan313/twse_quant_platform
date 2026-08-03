@@ -237,7 +237,7 @@ def simulate_paper_fills(execution_date: date = None) -> dict:
         db.close()
 
 
-def update_v5_equity(snap_date: date = None) -> dict:
+def update_v5_equity(snap_date: date = None, account_min: int = 11, account_max: int = 99) -> dict:
     """更新 V5 帳戶的 equity_curve"""
     if snap_date is None:
         snap_date = date.today()
@@ -247,7 +247,7 @@ def update_v5_equity(snap_date: date = None) -> dict:
 
     try:
         accounts = db.execute(text(
-            "SELECT id, cash, initial_cash FROM strategy_accounts WHERE id >= 11"
+            f"SELECT id, cash, initial_cash FROM strategy_accounts WHERE id >= {int(account_min)} AND id <= {int(account_max)}"
         )).fetchall()
 
         for aid, cash, init_cash in accounts:
