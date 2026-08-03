@@ -18,7 +18,7 @@ sys.path.insert(0, str(PROJECT))
 from sqlalchemy import text
 from backend.models.database import SessionLocal
 
-CUTOFF = '2026-08-03 20:05'
+CUTOFF = '2026-08-03 20:32'
 ACCOUNTS = [11, 12, 13, 14, 15, 16, 17]
 
 

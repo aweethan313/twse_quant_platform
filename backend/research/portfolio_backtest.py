@@ -46,10 +46,25 @@ def run_backtest(account_id: int, start: str, end: str, verbose: bool = True):
     for i, d in enumerate(days, 1):
         dd = date.fromisoformat(d)
         generate_strategy_decisions(dd, account_min=account_id, account_max=account_id)
-        simulate_paper_fills(dd)
+        simulate_paper_fills(dd, account_min=account_id, account_max=account_id)
         update_v5_equity(dd, account_min=account_id, account_max=account_id)
         if verbose and (i % 20 == 0 or i == len(days)):
             print(f"  [{d}] {i}/{len(days)} ({time.time()-t0:.0f}s)")
+
+    # POLLUTION_GUARD:回測結束立刻檢查前向帳戶是否被觸碰
+    db = SessionLocal()
+    try:
+        import datetime as _dt
+        since = (_dt.datetime.now() - _dt.timedelta(minutes=30)).strftime('%Y-%m-%d %H:%M')
+        n = db.execute(text("""
+            SELECT COUNT(*) FROM paper_fills
+            WHERE account_id < 100 AND created_at >= :s"""), {"s": since}).scalar() or 0
+    finally:
+        db.close()
+    if n > 0:
+        print(f"\n🚨 警告:前向帳戶被寫入 {n} 筆 fills!回測污染了實測資料,必須立即回滾。")
+    else:
+        print("\n✓ 隔離檢查通過:前向帳戶未被觸碰")
 
     return summarize(account_id, start, end)
 

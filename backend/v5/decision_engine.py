@@ -26,10 +26,23 @@ def generate_strategy_decisions(signal_date: date = None, account_min: int = 11,
     decisions_written = 0
 
     try:
-        # 找下一個交易日
+        # EXEC_DATE_WEEKEND_FIX:找下一個交易日
+        # (原本查不到時 fallback 為 +1 天,週五會排到週六 → 該批決策永遠不執行)
         next_day = db.execute(text("""
             SELECT MIN(trade_date) FROM ohlcv_daily WHERE trade_date > :d
         """), {"d": str(signal_date)}).scalar()
+        if not next_day:
+            # 交易日曆可能已排到未來,優先採用
+            next_day = db.execute(text("""
+                SELECT MIN(trade_date) FROM trading_calendar
+                WHERE trade_date > :d AND is_open=1
+            """), {"d": str(signal_date)}).scalar()
+        if not next_day:
+            # 最後保險:往後找第一個非週末日(週五 → 下週一)
+            _probe = signal_date + timedelta(days=1)
+            while _probe.weekday() >= 5:
+                _probe = _probe + timedelta(days=1)
+            next_day = str(_probe)
         execution_date = str(next_day) if next_day else str(signal_date + timedelta(days=1))
 
         # 取所有 V5 帳戶設定（account_id >= 11）
