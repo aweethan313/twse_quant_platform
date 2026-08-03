@@ -255,13 +255,19 @@ def update_v5_equity(snap_date: date = None, account_min: int = 11, account_max:
             init_f = float(init_cash or 200000)
 
             # 計算持倉市值
+            # SNAPDATE_PRICE:用 snap_date 當天價格(無報價則取該股 <= snap_date 最近一日)
             mkt = db.execute(text("""
-                SELECT SUM(p.lots * o.close)
+                SELECT SUM(p.lots * COALESCE(o.close, ofb.close))
                 FROM positions p
-                LEFT JOIN ohlcv_daily o ON o.code=p.code
-                    AND o.trade_date=(SELECT MAX(trade_date) FROM ohlcv_daily)
+                LEFT JOIN ohlcv_daily o
+                       ON o.code=p.code AND o.trade_date=:d
+                LEFT JOIN ohlcv_daily ofb
+                       ON ofb.code=p.code
+                      AND ofb.trade_date=(
+                            SELECT MAX(trade_date) FROM ohlcv_daily
+                            WHERE code=p.code AND trade_date <= :d)
                 WHERE p.account_id=:id
-            """), {"id": aid}).scalar() or 0
+            """), {"id": aid, "d": str(snap_date)}).scalar() or 0
 
             total = cash_f + float(mkt)
 
