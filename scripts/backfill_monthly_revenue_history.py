@@ -197,7 +197,12 @@ def fetch_monthly_revenue_one_month(year: int, month: int, delay_sec: float = 1.
 
             html = r.content.decode("big5", errors="ignore")
 
-            if len(html.strip()) < 500 or "404" in html.lower() or "查無資料" in html:
+            # HTML404_FIX:原本用 "404" in html 判斷錯誤頁,
+            # 但正常資料的營收數字(如 8906040)也含 404 → 誤殺全部上市頁面
+            _head = html[:800].lower()
+            _is_err = ("404 not found" in _head or "not found" in _head
+                       or "<title>404" in _head or "查無資料" in html)
+            if len(html.strip()) < 500 or _is_err:
                 print(f"[SKIP] {year}-{month:02d} empty {url}")
                 continue
 
