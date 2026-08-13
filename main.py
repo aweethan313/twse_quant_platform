@@ -3258,6 +3258,17 @@ def api_strategy_account_metrics(account_id: int, start_date: str = None):
 
         total_equity = float(eq[0] if eq else acct[2] or 200000)
         initial_cash = float(acct[3] or 200000)
+        # ALIGN_BENCH_START:若帳戶開戶晚於傳入的 start_date,
+        # 兩邊(策略與 benchmark)都改用帳戶自己的起始日,否則 alpha 會拿
+        # 「帳戶尚未存在的期間」的大盤漲幅去扣,產生假的負 alpha(如新開的 A8)
+        acct_start = db.execute(_t(
+            "SELECT start_date FROM strategy_accounts WHERE id=:id"
+        ), {"id": account_id}).scalar()
+        if acct_start:
+            acct_start = str(acct_start)[:10]
+            if not start_date or acct_start > start_date:
+                start_date = acct_start
+
         # 若有 start_date，從那天的 equity 算報酬
         if start_date:
             base_eq = db.execute(_t("""
