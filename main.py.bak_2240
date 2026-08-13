@@ -467,9 +467,7 @@ class AccountCreate(BaseModel):
 
 @app.get("/api/strategies")
 def api_list_strategies(db: Session = Depends(get_db)):
-    # FORWARD_ACCOUNTS_ONLY:排除回測帳戶(id >= 100)
-    accs = db.query(StrategyAccount).filter(
-        StrategyAccount.id >= 11, StrategyAccount.id < 100).all()
+    accs = db.query(StrategyAccount).all()
     return [PaperAccount(a.id).get_summary() for a in accs]
 
 
@@ -595,7 +593,7 @@ def api_strategy_registry():
             "SELECT a.id, a.name, cfg.strategy_name, cfg.description"
             " FROM strategy_accounts a"
             " LEFT JOIN strategy_account_configs cfg ON cfg.account_id=a.id"
-            " WHERE a.id >= 11 AND a.id < 100 ORDER BY a.id"
+            " WHERE a.id >= 11 ORDER BY a.id"
         )).fetchall()
         return [{"account_id": r[0], "name": r[1],
                  "strategy_name": r[2], "description": r[3]} for r in rows]
@@ -1777,7 +1775,7 @@ def api_v5_strategy_accounts():
                 FROM equity_curve WHERE snap_date=(SELECT MAX(snap_date) FROM equity_curve)
             ) eq ON eq.account_id=a.id
             LEFT JOIN strategy_account_configs cfg ON cfg.account_id=a.id
-            WHERE a.id >= 11 AND a.id < 100
+            WHERE a.id >= 11
             ORDER BY a.id
         """)).fetchall()
         result = []
@@ -1869,7 +1867,7 @@ def api_monthly_race(start_date: str = None):
         start_date = f"{today.year}-{today.month:02d}-01"
     db = SessionLocal()
     try:
-        acct_ids = db.execute(_t("SELECT id, name, initial_cash FROM strategy_accounts WHERE id >= 11 AND id < 100")).fetchall()
+        acct_ids = db.execute(_t("SELECT id, name, initial_cash FROM strategy_accounts WHERE id >= 11")).fetchall()
         results = []
 
         def _first_last_equity(acct_id, sd):
@@ -1967,7 +1965,7 @@ def api_monthly_equity_curves(start_date: str = None):
         # 策略帳戶淨值
         accounts = db.execute(_t("""
             SELECT DISTINCT a.id, a.name FROM strategy_accounts a
-            WHERE a.id >= 11 AND a.id < 100
+            WHERE a.id >= 11
         """)).fetchall()
 
         curves = []
@@ -2217,7 +2215,7 @@ def api_v5_strategy_registry():
             " cfg.target_0050_pct, cfg.description, cfg.is_active"
             " FROM strategy_accounts a"
             " LEFT JOIN strategy_account_configs cfg ON cfg.account_id=a.id"
-            " WHERE a.id >= 11 AND a.id < 100 ORDER BY a.id"
+            " WHERE a.id >= 11 ORDER BY a.id"
         )).fetchall()
         cols = ["account_id","name","mode","initial_cash","strategy_name",
                 "min_score","max_positions","stop_loss_pct","take_profit_pct",
@@ -2238,7 +2236,7 @@ def api_monthly_drawdown(start_date: str = None):
         start_date = f"{today.year}-{today.month:02d}-01"
     db = SessionLocal()
     try:
-        accounts = db.execute(_t("SELECT id, name FROM strategy_accounts WHERE id >= 11 AND id < 100")).fetchall()
+        accounts = db.execute(_t("SELECT id, name FROM strategy_accounts WHERE id >= 11")).fetchall()
         result = []
         for aid, aname in accounts:
             rows = db.execute(_t("""
@@ -2444,7 +2442,7 @@ def api_risk_adjusted_ranking(start_date: str = None):
         """), {"sd": start_date}).scalar() or 0
 
         accounts = db.execute(_t(
-            "SELECT id, name FROM strategy_accounts WHERE id >= 11 AND id < 100"
+            "SELECT id, name FROM strategy_accounts WHERE id >= 11"
         )).fetchall()
 
         results = []

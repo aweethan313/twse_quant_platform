@@ -42,7 +42,7 @@ def generate_daily_report_v6(report_date: date = None) -> str:
             FROM strategy_accounts a
             LEFT JOIN equity_curve eq ON eq.account_id=a.id AND eq.snap_date=:d
             LEFT JOIN benchmark_daily_equity b ON b.benchmark_code='0050' AND b.snap_date=:d
-            WHERE a.id >= 11 AND a.id < 100
+            WHERE a.id >= 11
             ORDER BY eq.total_equity DESC NULLS LAST
         """), {"d": str(report_date)}).fetchall()
 

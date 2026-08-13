@@ -359,7 +359,7 @@ def check_stop_loss_take_profit(signal_date: date = None) -> dict:
             SELECT a.id, a.name, cfg.stop_loss_pct, cfg.take_profit_pct, cfg.strategy_name
             FROM strategy_accounts a
             JOIN strategy_account_configs cfg ON cfg.account_id=a.id
-            WHERE a.id >= 11 AND a.id < 100
+            WHERE a.id >= 11
         """)).fetchall()
 
         for aid, aname, sl_pct, tp_pct, sname in accounts:

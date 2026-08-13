@@ -60,7 +60,8 @@ def credit_dividends(as_of: date = None) -> dict:
     credited = []
     try:
         accounts = [r[0] for r in db.execute(text(
-            "SELECT id FROM strategy_accounts WHERE id >= 11")).fetchall()]
+            # FORWARD_ONLY:只發給前向帳戶,回測帳戶(>=100)不含息
+            "SELECT id FROM strategy_accounts WHERE id >= 11 AND id < 100")).fetchall()]
         cas = db.execute(text("""
             SELECT code, ex_date, action_type, cash_dividend, COALESCE(stock_dividend_ratio,0)
             FROM corporate_actions
