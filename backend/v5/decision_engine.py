@@ -224,9 +224,10 @@ def generate_strategy_decisions(signal_date: date = None, account_min: int = 11,
                 max_hold = cfg.get("max_hold_days")
                 opened_at = pos.get("opened_at")
                 if max_hold and opened_at:
+                    # HELD_DAYS_CALENDAR:用交易日曆計算,不可寫死單一股票
                     held_days = db.execute(text("""
-                        SELECT COUNT(DISTINCT trade_date) FROM ohlcv_daily
-                        WHERE code='2330' AND trade_date > :o AND trade_date <= :d
+                        SELECT COUNT(*) FROM trading_calendar
+                        WHERE is_open=1 AND trade_date > :o AND trade_date <= :d
                     """), {"o": str(opened_at)[:10], "d": str(signal_date)}).scalar() or 0
                     if held_days >= max_hold:
                         sell_action = "SELL"

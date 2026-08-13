@@ -155,10 +155,12 @@ def simulate_paper_fills(execution_date: date = None, account_min: int = 11, acc
                     """), {"lots": new_lots, "cost": new_cost, "pid": existing_pos[0]})
                 else:
                     db.execute(text("""
+                        -- OPENED_AT_FIX:用成交日,不可用 datetime('now')
+                        -- (原本寫執行當下時間,回測時 held_days 永遠算 0,到期換股從不觸發)
                         INSERT INTO positions (account_id, code, lots, avg_cost, opened_at)
-                        VALUES (:id, :c, :lots, :cost, datetime('now','localtime'))
+                        VALUES (:id, :c, :lots, :cost, :oa)
                     """), {"id": aid, "c": code, "lots": shares_int,
-                           "cost": fill_price})
+                           "cost": fill_price, "oa": str(execution_date)})
 
                 # 寫 paper_fills
                 db.execute(text("""
