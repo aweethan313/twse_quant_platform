@@ -100,6 +100,20 @@ def run_once(days, px, uni, all_codes, n_hold=20, hold_days=250, seed=None):
                 mv += sh * px[(c, d)][1]
         equity_curve.append(cash + mv)
 
+    # SHARPE_CALC:用日報酬序列算年化夏普(無風險利率設 0)
+    import statistics as _st
+    daily_rets = []
+    for i in range(1, len(equity_curve)):
+        prev = equity_curve[i-1]
+        if prev > 0:
+            daily_rets.append(equity_curve[i] / prev - 1)
+    if len(daily_rets) > 2:
+        mu = _st.mean(daily_rets)
+        sd = _st.pstdev(daily_rets)
+        sharpe = (mu / sd * (252 ** 0.5)) if sd > 1e-9 else 0.0
+    else:
+        sharpe = 0.0
+
     final = equity_curve[-1] if equity_curve else INITIAL
     peak, mdd = -1e18, 0.0
     for e in equity_curve:
@@ -107,8 +121,8 @@ def run_once(days, px, uni, all_codes, n_hold=20, hold_days=250, seed=None):
         if peak > 0:
             mdd = min(mdd, (e / peak - 1) * 100)
     ret_pct = (final / INITIAL - 1) * 100
-    rr = ret_pct / abs(mdd) if mdd < -0.01 else 0.0   # SHARPE_MODE: 報酬/回撤比
-    return ret_pct, mdd, rr
+    rr = ret_pct / abs(mdd) if mdd < -0.01 else 0.0
+    return ret_pct, mdd, rr, sharpe
 
 
 def main():
@@ -120,6 +134,7 @@ def main():
     ap.add_argument("--hold-days", type=int, default=250)
     ap.add_argument("--compare", type=float, default=105.59, help="要比較的策略報酬%")
     ap.add_argument("--compare-mdd", type=float, default=-24.92, help="策略的最大回撤%")
+    ap.add_argument("--compare-sharpe", type=float, default=None, help="策略的年化夏普")
     args = ap.parse_args()
 
     print(f"載入資料 {args.start} ~ {args.end} ...")
@@ -129,10 +144,10 @@ def main():
     print(f"  {len(days)} 個交易日、{len(all_codes)} 檔股票、{len(px)} 筆價格({time.time()-t0:.0f}s)")
 
     print(f"\n跑 {args.runs} 次隨機組合({args.hold} 檔、{args.hold_days} 日輪動)...")
-    results, mdds, rrs = [], [], []
+    results, mdds, rrs, sharpes = [], [], [], []
     for k in range(args.runs):
-        r, m, rr = run_once(days, px, uni, all_codes, args.hold, args.hold_days, seed=k)
-        results.append(r); mdds.append(m); rrs.append(rr)
+        r, m, rr, sp = run_once(days, px, uni, all_codes, args.hold, args.hold_days, seed=k)
+        results.append(r); mdds.append(m); rrs.append(rr); sharpes.append(sp)
         if (k + 1) % 50 == 0:
             print(f"  {k+1}/{args.runs} ({time.time()-t0:.0f}s)", flush=True)
 
@@ -185,6 +200,26 @@ def main():
     else:
         print("  → 與隨機無顯著差異")
     print("=" * 55)
+
+    if args.compare_sharpe:
+        ss = sorted(sharpes)
+        beat_s = sum(1 for x in ss if x < args.compare_sharpe)
+        pct_s = beat_s / len(ss) * 100
+        print()
+        print("=" * 55)
+        print("年化夏普比率(日報酬標準差,無風險利率=0)")
+        print("=" * 55)
+        print(f"  隨機中位數  : {ss[len(ss)//2]:8.2f}")
+        print(f"  隨機95百分位: {ss[int(len(ss)*0.95)]:8.2f}")
+        print(f"  策略        : {args.compare_sharpe:8.2f}")
+        print(f"  ★ 落在第 {pct_s:.1f} 百分位")
+        if pct_s >= 95:
+            print("  → 夏普比率贏過 95% 隨機組合,統計顯著")
+        elif pct_s >= 75:
+            print("  → 優於多數隨機組合")
+        else:
+            print("  → 與隨機無顯著差異")
+        print("=" * 55)
 
 
 if __name__ == "__main__":
