@@ -41,6 +41,8 @@ def run_backtest(account_id: int, start: str, end: str, verbose: bool = True):
         raise SystemExit(f"❌ {start}~{end} 無交易日資料")
 
     t0 = time.time()
+    import datetime as _dt0
+    _bt_started_at = _dt0.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     print(f"=== 回測帳戶 {account_id} | {start} ~ {end} | {len(days)} 個交易日 ===")
 
     for i, d in enumerate(days, 1):
@@ -55,7 +57,8 @@ def run_backtest(account_id: int, start: str, end: str, verbose: bool = True):
     db = SessionLocal()
     try:
         import datetime as _dt
-        since = (_dt.datetime.now() - _dt.timedelta(minutes=30)).strftime('%Y-%m-%d %H:%M')
+        # GUARD_V2:用「回測實際開始時間」當基準,不用固定 30 分鐘窗
+        since = _bt_started_at
         n = db.execute(text("""
             SELECT COUNT(*) FROM paper_fills
             WHERE account_id < 100 AND created_at >= :s"""), {"s": since}).scalar() or 0
