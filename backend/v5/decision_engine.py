@@ -70,6 +70,17 @@ def generate_strategy_decisions(signal_date: date = None, account_min: int = 11,
 
         for cfg_row in configs:
             cfg = dict(zip(col_names, cfg_row))
+            # DECISION_DEDUP:先刪後插,使重跑冪等
+            # (2026-08-13:手動補跑執行兩次,產生 40 筆重複決策)
+            # 只刪未成交的,已成交的保留以維持 paper_fills.plan_id 對應
+            db.execute(text("""
+                DELETE FROM strategy_decision_logs
+                WHERE account_id = :aid AND signal_date = :sd
+                  AND id NOT IN (
+                      SELECT COALESCE(plan_id, -1) FROM paper_fills
+                      WHERE account_id = :aid
+                  )
+            """), {"aid": cfg["account_id"], "sd": str(signal_date)})
             account_id = cfg["account_id"]
 
             # 取帳戶現金
