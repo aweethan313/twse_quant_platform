@@ -20,7 +20,7 @@ from loguru import logger
 from sqlalchemy import text
 from backend.models.database import SessionLocal
 
-ML_MODEL = "lgbm_v9_clean"
+ML_MODEL = None   # 由 _latest_model_version() 動態取得
 
 
 def generate_ml_review(signal_date: date = None, top_n: int = 10,
@@ -41,10 +41,10 @@ def generate_ml_review(signal_date: date = None, top_n: int = 10,
               AND m.ml_rank <= :n
               AND o.close IS NOT NULL
             ORDER BY m.ml_rank ASC
-        """), {"sd": str(signal_date), "mv": ML_MODEL, "n": top_n}).fetchall()
+        """), {"sd": str(signal_date), "mv": (ML_MODEL or _latest_model_version()), "n": top_n}).fetchall()
 
         if not picks:
-            logger.warning(f"[ML_REVIEW] {signal_date} 無 {ML_MODEL} 選股資料")
+            logger.warning(f"[ML_REVIEW] {signal_date} 無 {(ML_MODEL or _latest_model_version())} 選股資料")
             return None
 
         # 2. 找出場日（signal 之後第 hold_days 個交易日）
@@ -111,7 +111,7 @@ def generate_ml_review(signal_date: date = None, top_n: int = 10,
         bench_ret = ((float(bench[1]) / float(bench[0]) - 1) * 100) if bench and bench[0] else 0.0
 
         # 4. 寫報告
-        report = _write_report(signal_date, exit_date, actual_hold, ML_MODEL,
+        report = _write_report(signal_date, exit_date, actual_hold, (ML_MODEL or _latest_model_version()),
                                details, win_rate, dir_acc, avg_actual, avg_pred, bench_ret)
 
         logger.success(
@@ -168,3 +168,20 @@ def _write_report(signal_date, exit_date, hold_days, model, details,
     ]
     path.write_text("\n".join(lines), encoding="utf-8")
     return str(path)
+
+
+def _latest_model_version(default="lgbm_v10_rebuilt"):
+    """動態取得目前使用中的模型版本(避免硬編碼,換版時不需改程式)"""
+    try:
+        from sqlalchemy import text as _t
+        from backend.models.database import SessionLocal
+        db = SessionLocal()
+        try:
+            v = db.execute(_t(
+                "SELECT model_version FROM ml_score_results "
+                "ORDER BY score_date DESC, id DESC LIMIT 1")).scalar()
+            return v or default
+        finally:
+            db.close()
+    except Exception:
+        return default

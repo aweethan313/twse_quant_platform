@@ -15,7 +15,7 @@ from fastapi.responses import HTMLResponse
 from backend.models.database import SessionLocal
 from sqlalchemy import text as _t
 
-MODEL_VERSION = "lgbm_v9_clean"
+MODEL_VERSION = None   # 由 _latest_model_version() 動態取得
 
 
 def _staleness(days: int = 60) -> dict:
@@ -56,7 +56,7 @@ def _ml_picks(limit: int = 20) -> dict:
             SELECT MAX(score_date)
             FROM ml_score_results
             WHERE model_version=:mv
-        """), {"mv": MODEL_VERSION}).scalar()
+        """), {"mv": (MODEL_VERSION or _latest_model_version())}).scalar()
         if not sd:
             return {"score_date": None, "picks": [],
                     "note": "ml_score_results 是空的，請先跑 ml_scorer.py"}
@@ -71,7 +71,7 @@ def _ml_picks(limit: int = 20) -> dict:
             ORDER BY m.ml_rank
             LIMIT :n
         """)
-        rows = db.execute(sql, {"sd": sd, "n": limit, "mv": MODEL_VERSION}).fetchall()
+        rows = db.execute(sql, {"sd": sd, "n": limit, "mv": (MODEL_VERSION or _latest_model_version())}).fetchall()
         picks = []
         for r in rows:
             action = r[6]
@@ -82,7 +82,7 @@ def _ml_picks(limit: int = 20) -> dict:
                 "rule_agrees": action in ("BUY", "WATCH") if action else False,
             })
         n_overlap = sum(1 for p in picks if p["rule_agrees"])
-        return {"score_date": sd, "model_version": MODEL_VERSION, "count": len(picks),
+        return {"score_date": sd, "model_version": (MODEL_VERSION or _latest_model_version()), "count": len(picks),
                 "overlap_with_rules": n_overlap, "picks": picks}
     finally:
         db.close()
@@ -101,3 +101,20 @@ def register_extensions(app, templates):
     @app.get("/ml-picks", response_class=HTMLResponse)
     def page_ml_picks(request: Request):
         return templates.TemplateResponse("ml_picks.html", {"request": request})
+
+
+def _latest_model_version(default="lgbm_v10_rebuilt"):
+    """動態取得目前使用中的模型版本(避免硬編碼,換版時不需改程式)"""
+    try:
+        from sqlalchemy import text as _t
+        from backend.models.database import SessionLocal
+        db = SessionLocal()
+        try:
+            v = db.execute(_t(
+                "SELECT model_version FROM ml_score_results "
+                "ORDER BY score_date DESC, id DESC LIMIT 1")).scalar()
+            return v or default
+        finally:
+            db.close()
+    except Exception:
+        return default

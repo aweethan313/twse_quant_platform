@@ -47,8 +47,29 @@ def _last_trade_date_before(target: date, db) -> str | None:
 def run_pipeline(target_date: date, force: bool = False) -> dict:
     steps = []
 
+    # STEP_TIMEOUT:單步超時上限(秒)
+    # (2026-08-14:1_ohlcv_eod 安靜卡住 3.3 小時,無 log 可追)
+    _TIMEOUTS = {
+        "1_ohlcv_eod": 900,
+        "4_ml_score": 900,
+    }
+    _DEFAULT_TIMEOUT = 300
+
     def step(name, fn):
+        import signal as _sig
         t0 = datetime.now()
+        _limit = _TIMEOUTS.get(name, _DEFAULT_TIMEOUT)
+
+        def _on_timeout(signum, frame):
+            raise TimeoutError(f"步驟超過 {_limit} 秒上限,已中止")
+
+        _prev = None
+        try:
+            _prev = _sig.signal(_sig.SIGALRM, _on_timeout)
+            _sig.alarm(_limit)
+        except (ValueError, AttributeError):
+            _prev = None   # 非主執行緒或不支援,略過保護
+
         try:
             r = fn()
             ok = (r is None) or (isinstance(r, dict) and r.get("ok", True)) or (r is True)
@@ -63,6 +84,13 @@ def run_pipeline(target_date: date, force: bool = False) -> dict:
                           "sec": round((datetime.now() - t0).total_seconds(), 1)})
             logger.error(f"❌ {name}: {e}")
             return None
+        finally:
+            try:
+                _sig.alarm(0)
+                if _prev is not None:
+                    _sig.signal(_sig.SIGALRM, _prev)
+            except (ValueError, AttributeError):
+                pass
 
     logger.info("=" * 60)
     logger.info(f"  V9.1-P1 每日 pipeline  {target_date}")
