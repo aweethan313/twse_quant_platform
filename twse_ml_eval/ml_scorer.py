@@ -168,10 +168,20 @@ def main():
     ap.add_argument("--horizon", type=int, default=config.DEFAULT_HORIZON)
     ap.add_argument("--embargo", type=int, default=None)
     ap.add_argument("--min-train", type=int, default=40)
+    ap.add_argument("--no-write", action="store_true",
+                    help="只評估不寫入資料庫(實驗性參數測試用)")
     ap.add_argument("--model", default="auto")
     args = ap.parse_args()
     if getattr(args, "date", None):
         args.end = args.date  # 截斷資料至指定日：評分日正確 + 訓練不含未來
+    # NO_WRITE_GUARD:實驗性 horizon 不可寫入生產資料
+    # (2026-08-16 事故:--horizon 60 覆寫 29 萬筆分數,model_version 未變,無從察覺)
+    _default_h = getattr(config, "DEFAULT_HORIZON", 5)
+    if args.horizon != _default_h and not args.no_write:
+        print(f"❌ horizon={args.horizon} 非預設值({_default_h}),屬實驗性參數。")
+        print(f"   實驗結果不可寫入生產資料表。請加 --no-write 重跑。")
+        return
+
     embargo = args.embargo if args.embargo is not None else args.horizon
 
     print("讀取資料中（乾淨：剔除僵屍列 + 流動性過濾）...")
@@ -205,9 +215,14 @@ def main():
         return
 
     names = load_names(args.db)
-    n = write_scores(args.db, scored, names, importance)
     sd = sorted(scored["date"].unique())
-    print(f"\n✓ 已寫入 ml_score_results：{n:,} 筆，涵蓋 {len(sd)} 天（{sd[0]} ~ {sd[-1]}）")
+    if args.no_write:
+        print(f"\n⚠️ --no-write 模式:未寫入資料庫")
+        print(f"   評估結果:{len(scored):,} 筆,涵蓋 {len(sd)} 天（{sd[0]} ~ {sd[-1]}）")
+        print(f"   horizon={args.horizon} 日,model={args.model}")
+    else:
+        n = write_scores(args.db, scored, names, importance)
+        print(f"\n✓ 已寫入 ml_score_results：{n:,} 筆，涵蓋 {len(sd)} 天（{sd[0]} ~ {sd[-1]}）")
 
     # 印出最新一天的 Top 10 給你看
     latest = scored[scored["date"] == sd[-1]].sort_values("ml_rank").head(10)
