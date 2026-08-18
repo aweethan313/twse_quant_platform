@@ -73,8 +73,33 @@ def credit_dividends(as_of: date = None) -> dict:
                 sh = _entitled_shares(db, aid, code, ex_date)
                 if sh <= 0:
                     continue
+                # STOCK_DIVIDEND_FILL:配股寫成「零成本合成買進」,
+                # 使 paper_fills 重播能正確反映股數增加與成本攤薄
                 if stock_ratio and float(stock_ratio) > 0:
-                    logger.warning(f"[DIV] A{aid} {code} {ex_date} 含配股(率={stock_ratio}),股數調整需人工處理")
+                    _new_sh = int(sh * float(stock_ratio))
+                    if _new_sh > 0:
+                        _dup_sd = db.execute(text("""
+                            SELECT 1 FROM paper_fills
+                            WHERE account_id=:a AND code=:c
+                              AND execution_date=:d AND note='stock_dividend'
+                        """), {"a": aid, "c": code, "d": str(ex_date)}).scalar()
+                        if not _dup_sd:
+                            db.execute(text("""
+                                INSERT INTO paper_fills
+                                    (account_id, strategy_name, signal_date, execution_date,
+                                     code, action, shares, fill_price, fill_source,
+                                     fee, tax, gross_amount, net_amount, note, no_lookahead_pass)
+                                VALUES
+                                    (:a, 'stock_dividend', :d, :d,
+                                     :c, 'BUY', :sh, 0, 'stock_dividend',
+                                     0, 0, 0, 0, 'stock_dividend', 1)
+                            """), {"a": aid, "c": code, "d": str(ex_date), "sh": _new_sh})
+                            logger.success(
+                                f"[DIV] A{aid} {code} 配股{ex_date} "
+                                f"{sh:.0f}股 × {stock_ratio} = +{_new_sh}股 已入帳")
+                    else:
+                        logger.info(
+                            f"[DIV] A{aid} {code} 配股{ex_date} 不足1股({sh:.0f}×{stock_ratio}),略過")
                 if cash_div is None:
                     logger.info(f"[DIV] A{aid} {code} {ex_date} 持有{sh:.0f}股,金額待公告,暫不入帳")
                     continue
