@@ -66,7 +66,7 @@ def generate_strategy_decisions(signal_date: date = None, account_min: int = 11,
                      "max_rsi14","min_rsi14","max_distance_ma20_pct",
                      "target_0050_pct","target_satellite_pct",
                      "market_risk_position_multiplier","description","is_active",
-                     "created_at","updated_at","account_name","initial_cash"]
+                     "created_at","updated_at","ml_source","account_name","initial_cash"]
 
         for cfg_row in configs:
             cfg = dict(zip(col_names, cfg_row))
@@ -289,6 +289,40 @@ def _get_candidates(db, cfg: dict, signal_date: date) -> list[dict]:
     """根據策略設定取候選股"""
     # A7 MLTop5：從 ml_score_results 選股，不走 final_score 邏輯
     if cfg.get("strategy_name") == "MLTop5":
+        # ML_SOURCE_SWITCH:ml_source 指定時改讀實驗表(回測用),
+        # 未指定則走生產表(前向帳戶預設行為不變)
+        _src = (cfg.get("ml_source") or "").strip()
+        if _src:
+            rows = db.execute(text("""
+                SELECT m.code, sm.name, 'LIQUID_MOMENTUM',
+                       m.ml_score, 30.0, 50.0,
+                       tdf.rsi14, tdf.distance_ma20, tdf.return_5d,
+                       o.close
+                FROM ml_score_experiments m
+                LEFT JOIN stock_meta sm ON sm.code=m.code
+                LEFT JOIN technical_daily_features tdf
+                       ON tdf.code=m.code AND tdf.trade_date=:sd
+                LEFT JOIN ohlcv_daily o
+                       ON o.code=m.code AND o.trade_date=:sd
+                WHERE m.score_date=(
+                    SELECT MAX(score_date) FROM ml_score_experiments
+                    WHERE score_date<=:sd AND model_version=:mv
+                )
+                  AND m.model_version=:mv
+                  AND m.ml_rank <= :rank_limit
+                  AND o.close IS NOT NULL AND o.close >= 10
+                ORDER BY m.ml_rank ASC
+                LIMIT :rank_limit
+            """), {"sd": str(signal_date), "mv": _src,
+                   "rank_limit": int(cfg.get("candidate_rank_limit") or 5)}).fetchall()
+            return [{
+                "code": r[0], "name": r[1] or r[0], "stock_class": r[2],
+                "final_score": float(r[3] or 0), "risk_score": float(r[4] or 30),
+                "momentum_score": float(r[5] or 50),
+                "rsi14": float(r[6] or 50), "distance_ma20": float(r[7] or 0),
+                "return_5d": float(r[8] or 0), "close": float(r[9] or 0),
+            } for r in rows if r[9]]
+
         rows = db.execute(text("""
             SELECT m.code, sm.name, 'LIQUID_MOMENTUM',
                    m.ml_score, 30.0, 50.0,
