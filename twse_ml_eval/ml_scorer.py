@@ -156,6 +156,31 @@ def write_scores(db_path: str, scored: pd.DataFrame, names: dict,
         con.close()
 
 
+
+def write_experiment_scores(db_path: str, scored, names: dict,
+                            model_version: str, horizon: int):
+    """EXPERIMENT_MODE:寫入獨立實驗表,不碰生產用的 ml_score_results"""
+    con = sqlite3.connect(db_path)
+    try:
+        rows = [(r.date, r.code, names.get(r.code), model_version, horizon,
+                 r.ml_score, int(r.ml_rank), r.predicted_return_5d)
+                for r in scored.itertuples()]
+        con.executemany("""
+            INSERT INTO ml_score_experiments
+                (score_date, code, stock_name, model_version, horizon,
+                 ml_score, ml_rank, predicted_return)
+            VALUES (?,?,?,?,?,?,?,?)
+            ON CONFLICT(score_date, code, model_version) DO UPDATE SET
+                stock_name=excluded.stock_name,
+                ml_score=excluded.ml_score, ml_rank=excluded.ml_rank,
+                predicted_return=excluded.predicted_return,
+                created_at=datetime('now','localtime')
+        """, rows)
+        con.commit()
+        return len(rows)
+    finally:
+        con.close()
+
 def main():
     ap = argparse.ArgumentParser(description="正式版 ML 選股評分")
     ap.add_argument("--db", default="../data/db/quant.db")
@@ -168,6 +193,10 @@ def main():
     ap.add_argument("--horizon", type=int, default=config.DEFAULT_HORIZON)
     ap.add_argument("--embargo", type=int, default=None)
     ap.add_argument("--min-train", type=int, default=40)
+    ap.add_argument("--experiment", action="store_true",
+                    help="實驗模式:寫入 ml_score_experiments,不碰生產表")
+    ap.add_argument("--model-version", default=None,
+                    help="實驗模式下的版本標記,如 lgbm_exp_h60")
     ap.add_argument("--no-write", action="store_true",
                     help="只評估不寫入資料庫(實驗性參數測試用)")
     ap.add_argument("--model", default="auto")
@@ -177,7 +206,10 @@ def main():
     # NO_WRITE_GUARD:實驗性 horizon 不可寫入生產資料
     # (2026-08-16 事故:--horizon 60 覆寫 29 萬筆分數,model_version 未變,無從察覺)
     _default_h = getattr(config, "DEFAULT_HORIZON", 5)
-    if args.horizon != _default_h and not args.no_write:
+    if args.experiment and not args.model_version:
+        print("❌ --experiment 模式必須指定 --model-version(如 lgbm_exp_h60)")
+        return
+    if args.horizon != _default_h and not (args.no_write or args.experiment):
         print(f"❌ horizon={args.horizon} 非預設值({_default_h}),屬實驗性參數。")
         print(f"   實驗結果不可寫入生產資料表。請加 --no-write 重跑。")
         return
@@ -216,7 +248,14 @@ def main():
 
     names = load_names(args.db)
     sd = sorted(scored["date"].unique())
-    if args.no_write:
+    if args.experiment:
+        n = write_experiment_scores(args.db, scored, names,
+                                    args.model_version, args.horizon)
+        print(f"\n✓ 已寫入 ml_score_experiments：{n:,} 筆")
+        print(f"   model_version={args.model_version}, horizon={args.horizon} 日")
+        print(f"   涵蓋 {len(sd)} 天（{sd[0]} ~ {sd[-1]}）")
+        print(f"   (生產表 ml_score_results 未受影響)")
+    elif args.no_write:
         print(f"\n⚠️ --no-write 模式:未寫入資料庫")
         print(f"   評估結果:{len(scored):,} 筆,涵蓋 {len(sd)} 天（{sd[0]} ~ {sd[-1]}）")
         print(f"   horizon={args.horizon} 日,model={args.model}")
@@ -230,7 +269,11 @@ def main():
     for r in latest.itertuples():
         nm = names.get(r.code, "")
         print(f"    #{int(r.ml_rank):<3} {r.code} {nm:<10} ML分={r.ml_score:>5.1f}  預測5日={r.predicted_return_5d:+.2f}%")
-    print(f"\n  前端開 /api/v8/ml-scores 或對應頁面即可看到這份排名。")
+    # NO_WRITE_TAIL:未寫入時不該提示前端可看
+    if args.no_write:
+        print(f"\n  (--no-write 模式:以上為評估結果,未寫入資料庫)")
+    else:
+        print(f"\n  前端開 /api/v8/ml-scores 或對應頁面即可看到這份排名。")
 
 
 if __name__ == "__main__":
