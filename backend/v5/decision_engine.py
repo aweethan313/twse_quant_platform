@@ -94,7 +94,14 @@ def generate_strategy_decisions(signal_date: date = None, account_min: int = 11,
                 SELECT code, lots, avg_cost, opened_at FROM positions WHERE account_id=:id
             """), {"id": account_id}).fetchall()
             pos_map = {r[0]: {"lots": r[1], "avg_cost": float(r[2] or 0), "opened_at": r[3]} for r in positions}
-            pos_count = len(pos_map)
+            # POSITION_SLOT_FIX:扣除今日將觸發賣出的部位,
+            # 否則換股日的買單會全被「已達最大持股數」擋掉,造成資金空窗
+            _will_sell = 0
+            for _c, _p in pos_map.items():
+                _act, _ = _sell_signal_for(db, cfg, _c, _p, signal_date)
+                if _act == "SELL":
+                    _will_sell += 1
+            pos_count = max(0, len(pos_map) - _will_sell)
 
             # 取市場狀況
             mkt = db.execute(text("""
@@ -284,6 +291,41 @@ def generate_strategy_decisions(signal_date: date = None, account_min: int = 11,
     finally:
         db.close()
 
+
+
+
+def _sell_signal_for(db, cfg: dict, code: str, pos: dict, signal_date) -> tuple:
+    """
+    POSITION_SLOT_FIX:賣出條件的單一判斷來源。
+    回傳 (sell_action, sell_reason);不賣則為 (None, None)。
+    買入判斷與賣出判斷共用此函式,確保「預估將賣出的檔數」與實際一致。
+    """
+    row = db.execute(text("""
+        SELECT close FROM ohlcv_daily WHERE code=:c AND trade_date=:d
+    """), {"c": code, "d": str(signal_date)}).fetchone()
+    if not row:
+        return (None, None)
+    sell_price = float(row[0])
+    avg_cost = pos.get("avg_cost") or 0
+    if avg_cost <= 0:
+        return (None, None)
+    pnl_pct = (sell_price / avg_cost - 1) * 100
+
+    max_hold = cfg.get("max_hold_days")
+    opened_at = pos.get("opened_at")
+    if max_hold and opened_at:
+        held = db.execute(text("""
+            SELECT COUNT(*) FROM trading_calendar
+            WHERE is_open=1 AND trade_date > :o AND trade_date <= :d
+        """), {"o": str(opened_at)[:10], "d": str(signal_date)}).scalar() or 0
+        if held >= max_hold:
+            return ("SELL", f"max_hold_days 到期（持有{held}交易日 >= {max_hold}），換股")
+
+    if pnl_pct <= -cfg["stop_loss_pct"] * 100:
+        return ("SELL", f"觸發停損（-{cfg['stop_loss_pct']*100:.0f}%），目前虧損{pnl_pct:.1f}%")
+    if pnl_pct >= cfg["take_profit_pct"] * 100:
+        return ("SELL", f"達到停利（+{cfg['take_profit_pct']*100:.0f}%），目前獲利{pnl_pct:.1f}%")
+    return (None, None)
 
 def _get_candidates(db, cfg: dict, signal_date: date) -> list[dict]:
     """根據策略設定取候選股"""
